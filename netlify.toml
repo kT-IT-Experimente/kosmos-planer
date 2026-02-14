@@ -1,22 +1,7 @@
-# Diese Datei liegt im Hauptverzeichnis (Root)
-# Sie steuert Netlify, bevor das eigentliche Projekt gebaut wird.
-
 [build]
-  # WICHTIG: Ersetze "kosmos-planer" mit dem EXAKTEN Namen des Ordners in deinem Repo!
-  base = "kosmos-planer"
-  
-  # Befehle werden dann innerhalb dieses Ordners ausgeführt
-  command = "npm install && npm run build"
-  
-  # Der Output-Ordner relativ zum 'base' Ordner
+  command = "npm run build"
   publish = "dist"
 
-[dev]
-  command = "npm run dev"
-  port = 3000
-
-# Leitet alle Anfragen an die index.html weiter (für React Router / SPA)
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
+[functions]
+  directory = "functions"
+  node_bundler = "esbuild"
