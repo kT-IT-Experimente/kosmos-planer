@@ -105,6 +105,11 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
   const formatColor = FORMAT_COLORS[session.format] || 'bg-slate-100 text-slate-700';
   const [activeOverlay, setActiveOverlay] = useState(null); // 'conflict' | 'notes' | null
 
+  // Handler to clear overlay when leaving the CARD, not the ICON
+  const handleMouseLeaveCard = () => {
+    setActiveOverlay(null);
+  };
+
   return (
     <Card 
       status={session.status} 
@@ -113,6 +118,7 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
         ${isDimmed ? 'opacity-20 grayscale' : 'opacity-100'}
       `}
       onClick={(e) => onClick(session)}
+      onMouseLeave={handleMouseLeaveCard} // Stable overlay: close only when leaving the card
       {...listeners} 
       {...attributes}
     >
@@ -120,8 +126,8 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
        {activeOverlay === 'conflict' && (
          <div className="absolute inset-0 bg-red-600/95 z-50 p-3 text-white flex flex-col justify-center items-center text-center backdrop-blur-sm rounded-r animate-in fade-in duration-200">
             <AlertTriangle className="w-8 h-8 mb-2" />
-            <span className="font-bold underline mb-1 text-xs">Konflikt</span>
-            <span className="text-[10px] leading-tight">{conflictTooltip}</span>
+            <span className="font-bold underline mb-1 text-xs">Achtung</span>
+            <span className="text-[10px] leading-tight whitespace-pre-wrap">{conflictTooltip}</span>
          </div>
        )}
        
@@ -151,7 +157,7 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
               <div 
                 className="text-red-500 mr-1 cursor-help hover:scale-110 transition-transform"
                 onMouseEnter={() => setActiveOverlay('conflict')}
-                onMouseLeave={() => setActiveOverlay(null)}
+                // No onMouseLeave here to prevent flickering
               >
                 <AlertTriangle className="w-4 h-4 animate-pulse" />
               </div>
@@ -193,7 +199,7 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
               <div 
                 className="ml-1 text-blue-500 cursor-help"
                 onMouseEnter={() => setActiveOverlay('notes')}
-                onMouseLeave={() => setActiveOverlay(null)}
+                // No onMouseLeave here
               >
                 <MessageSquare className="w-2.5 h-2.5" />
               </div>
@@ -312,7 +318,6 @@ function App() {
   const [editingSession, setEditingSession] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   
-  // Search State
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -327,7 +332,7 @@ function App() {
 
   const timelineHeight = (config.endHour - config.startHour) * 60 * PIXELS_PER_MINUTE;
 
-  // --- ANALYTICS ---
+  // --- ANALYTICS & CONFLICTS ---
   const analysis = useMemo(() => {
     const genderCounts = { m: 0, w: 0, d: 0, u: 0 };
     let partnerSessions = 0;
@@ -338,30 +343,14 @@ function App() {
             totalPlacedSessions++;
             if (s.partner === 'TRUE') partnerSessions++;
             
-            // Speakers
-            const sStr = safeString(s.speakers);
-            const sList = sStr ? sStr.split(',').map(n=>n.trim()).filter(Boolean) : [];
+            const sList = s.speakers ? (Array.isArray(s.speakers) ? s.speakers : s.speakers.split(',').map(n=>n.trim()).filter(Boolean)) : [];
+            const mList = s.moderators ? (Array.isArray(s.moderators) ? s.moderators : s.moderators.split(',').map(n=>n.trim()).filter(Boolean)) : [];
             
-            // Moderators
-            const mStr = safeString(s.moderators);
-            const mList = mStr ? mStr.split(',').map(n=>n.trim()).filter(Boolean) : [];
-
-            // Combine list for analysis (unique persons)
-            const allPeople = [...new Set([...sList, ...mList])];
-
-            allPeople.forEach(name => {
-                // Check Speakers DB
+            [...sList, ...mList].forEach(name => {
                 let personObj = data.speakers.find(dbSp => dbSp.fullName.toLowerCase() === name.toLowerCase());
-                // If not found, check Mods DB
-                if (!personObj) {
-                    personObj = data.moderators.find(dbMod => dbMod.fullName.toLowerCase() === name.toLowerCase());
-                }
+                if (!personObj) personObj = data.moderators.find(dbMod => dbMod.fullName.toLowerCase() === name.toLowerCase());
 
                 if (personObj) {
-                    // Assuming moderators might have pronoun field, otherwise default to u or try to infer?
-                    // The loaded moderator data structure might need pronoun if available. 
-                    // Current mock/load logic for mods reads: id, fullName, status. No pronoun column in basic load.
-                    // If pronoun missing, it falls to 'u'.
                     const p = (personObj.pronoun || '').toLowerCase();
                     if (p.includes('männ') || p.includes('man') || p.includes('he')) genderCounts.m++;
                     else if (p.includes('weib') || p.includes('frau') || p.includes('she')) genderCounts.w++;
@@ -377,8 +366,7 @@ function App() {
     return { genderCounts, partnerPercent: totalPlacedSessions ? Math.round((partnerSessions/totalPlacedSessions)*100) : 0, totalPlaced: totalPlacedSessions };
   }, [data.program, data.speakers, data.moderators]);
 
-  // --- SEARCH LOGIC ---
-  const filteredSessionIds = useMemo(() => {
+  const searchResults = useMemo(() => {
     if (!searchQuery) return [];
     const lowerQ = searchQuery.toLowerCase();
     return data.program.filter(s => {
@@ -391,11 +379,12 @@ function App() {
     }).map(s => s.id);
   }, [searchQuery, data.program]);
 
-  // --- CONFLICTS ---
-  const speakerConflicts = useMemo(() => {
+  // NEW: Speaker Status Check & Time Conflicts
+  const sessionConflicts = useMemo(() => {
     const usage = {};
     const conflicts = {}; 
 
+    // 1. Time Overlaps
     data.program.forEach(s => {
       if (s.stage === INBOX_ID || s.start === '-') return;
       
@@ -404,8 +393,6 @@ function App() {
       
       const sStr = safeString(s.speakers);
       const mStr = safeString(s.moderators);
-      
-      // Check both speakers and moderators for conflicts
       const peopleList = [
           ...(sStr ? sStr.split(',').map(n => n.trim()).filter(Boolean) : []),
           ...(mStr ? mStr.split(',').map(n => n.trim()).filter(Boolean) : [])
@@ -419,8 +406,8 @@ function App() {
              if (!conflicts[s.id]) conflicts[s.id] = [];
              if (!conflicts[existing.id]) conflicts[existing.id] = [];
              
-             const msg = `"${sp}" ist auch in: ${existing.title} (${minutesToTime(existing.start)})`;
-             const msgRev = `"${sp}" ist auch in: ${s.title} (${minutesToTime(sStart)})`;
+             const msg = `Termin: "${sp}" ist auch in "${existing.title}"`;
+             const msgRev = `Termin: "${sp}" ist auch in "${s.title}"`;
              
              if (!conflicts[s.id].includes(msg)) conflicts[s.id].push(msg);
              if (!conflicts[existing.id].includes(msgRev)) conflicts[existing.id].push(msgRev);
@@ -429,10 +416,35 @@ function App() {
         usage[sp].push({ id: s.id, title: s.title, start: sStart, end: sEnd });
       });
     });
-    return conflicts;
-  }, [data.program]);
 
-  // --- API & DATA ---
+    // 2. Status Logic: Confirmed Session but Unconfirmed Speaker
+    const confirmedSessionStatus = ['1_Zusage', 'Akzeptiert', 'Fixiert'];
+    const confirmedSpeakerStatus = ['zusage']; // lowercase partial match
+
+    data.program.forEach(s => {
+        if (confirmedSessionStatus.includes(s.status)) {
+            const sList = safeString(s.speakers).split(',').map(n => n.trim()).filter(Boolean);
+            sList.forEach(name => {
+                const spObj = data.speakers.find(dbSp => dbSp.fullName.toLowerCase() === name.toLowerCase());
+                // If speaker exists AND status is NOT confirmed
+                if (spObj) {
+                    const statusLower = (spObj.status || '').toLowerCase();
+                    const isConfirmed = confirmedSpeakerStatus.some(k => statusLower.includes(k));
+                    
+                    if (!isConfirmed) {
+                        if (!conflicts[s.id]) conflicts[s.id] = [];
+                        const msg = `Status: Session ist bestätigt, aber Sprecher "${name}" hat Status: "${spObj.status}"`;
+                        if (!conflicts[s.id].includes(msg)) conflicts[s.id].push(msg);
+                    }
+                }
+            });
+        }
+    });
+
+    return conflicts;
+  }, [data.program, data.speakers]);
+
+  // --- API ---
   useEffect(() => {
     const initGapi = async () => {
        if(window.gapi) {
@@ -569,8 +581,7 @@ function App() {
     }
   };
 
-  // --- DRAG & DROP LOGIC ---
-
+  // --- DRAG LOGIC ---
   const handleDragStart = (event) => {
     setActiveDragItem(event.active.data.current);
   };
@@ -718,13 +729,10 @@ function App() {
     return { top: `${Math.max(0, top)}px`, height: `${Math.max(20, height)}px` };
   };
 
-  // Safe save handler to avoid duplicates in Stage Dispo
   const handleSaveSession = (session, micWarning = '') => {
-    // Overwrite stageDispo with new clean warning if present, or keep empty if resolved
     const cleanWarning = micWarning ? micWarning.replace(/,/g, ' ') : '';
     const finalSession = { 
         ...session, 
-        // We simply use the cleanWarning as the single source of auto-text
         stageDispo: cleanWarning 
     };
     
@@ -770,7 +778,6 @@ function App() {
              </div>
            </div>
            
-           {/* Global Search Bar */}
            <div className={`flex items-center transition-all duration-300 ${isSearchOpen ? 'w-64 bg-slate-100' : 'w-8 bg-transparent'} rounded-full overflow-hidden`}>
               <button onClick={() => setIsSearchOpen(!isSearchOpen)} className="p-2 text-slate-500 hover:text-blue-600">
                  <Search className="w-4 h-4" />
@@ -841,12 +848,16 @@ function App() {
 
                 <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
                    <div className="text-xs font-bold text-slate-400 px-2 py-2 uppercase">SprecherInnen ({data.speakers.length})</div>
-                   {data.speakers.map(s => (
-                     <div key={s.id} className="text-[11px] py-1.5 px-2 border-b border-slate-50 text-slate-700 truncate hover:bg-slate-50 flex justify-between items-center group">
-                       <span className="truncate w-32">{s.fullName}</span>
-                       <span className="text-[9px] text-slate-400 bg-slate-100 px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">{s.status.substring(0,3)}</span>
-                     </div>
-                   ))}
+                   {data.speakers.map(s => {
+                     // Clean status for display: remove numbers like "1_"
+                     const displayStatus = s.status.replace(/^[0-9]+[_\-]/, '');
+                     return (
+                       <div key={s.id} className="text-[11px] py-1.5 px-2 border-b border-slate-50 text-slate-700 truncate hover:bg-slate-50 flex justify-between items-center group">
+                         <span className="truncate w-32">{s.fullName}</span>
+                         <span className="text-[9px] text-slate-400 bg-slate-100 px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity capitalize">{displayStatus}</span>
+                       </div>
+                     );
+                   })}
                 </div>
             </div>
           )}
@@ -865,9 +876,9 @@ function App() {
                                key={p.id} session={p} 
                                onClick={()=> {setEditingSession(p); setIsModalOpen(true)}}
                                onToggleLock={(s)=>updateSession(s.id, {status: s.status==='Fixiert'?'2_Planung':'Fixiert'})}
-                               hasConflict={!!speakerConflicts[p.id]}
-                               conflictTooltip={speakerConflicts[p.id]?.join(' | ')}
-                               isDimmed={isSearchOpen && searchQuery && !filteredSessionIds.includes(p.id)}
+                               hasConflict={!!sessionConflicts[p.id]}
+                               conflictTooltip={sessionConflicts[p.id]?.join('\n')}
+                               isDimmed={isSearchOpen && searchQuery && !searchResults.includes(p.id)}
                             />
                          ))}
                       </DroppableStage>
@@ -877,7 +888,6 @@ function App() {
 
              {/* TIMELINE */}
              <div className="flex-1 overflow-auto relative custom-scrollbar flex bg-slate-50">
-                {/* TIME AXIS */}
                 <div className="w-12 bg-white border-r border-slate-200 shrink-0 sticky left-0 z-30 shadow-sm" style={{ minHeight: timelineHeight + HEADER_HEIGHT }}>
                    <div style={{height: HEADER_HEIGHT}} className="border-b border-slate-200 bg-white sticky top-0 z-40"></div> 
                    <div className="absolute w-full bottom-0 z-0" style={{ top: HEADER_HEIGHT }}>
@@ -890,11 +900,9 @@ function App() {
                    </div>
                 </div>
 
-                {/* STAGES */}
                 <div className="flex min-w-full">
                    {data.stages.map(stage => (
                       <StageColumn key={stage.id} stage={stage} height={timelineHeight}>
-                         {/* GHOST */}
                          {ghostPosition && ghostPosition.stageId === stage.name && (
                             <div 
                                className={`absolute left-1 right-1 border-2 border-dashed rounded z-0 pointer-events-none flex items-center justify-center transition-colors
@@ -906,7 +914,6 @@ function App() {
                                </span>
                             </div>
                          )}
-                         {/* SESSIONS */}
                          {data.program.filter(p => p.stage === stage.name).map(session => (
                             <DraggableTimelineItem 
                                key={session.id}
@@ -914,9 +921,9 @@ function App() {
                                style={getPos(session.start, session.duration)}
                                onClick={()=>{setEditingSession(session); setIsModalOpen(true)}}
                                onToggleLock={(s)=>updateSession(s.id, {status: s.status==='Fixiert'?'2_Planung':'Fixiert'})}
-                               hasConflict={!!speakerConflicts[session.id]}
-                               conflictTooltip={speakerConflicts[session.id]?.join(' | ')}
-                               isDimmed={isSearchOpen && searchQuery && !filteredSessionIds.includes(session.id)}
+                               hasConflict={!!sessionConflicts[session.id]}
+                               conflictTooltip={sessionConflicts[session.id]?.join('\n')}
+                               isDimmed={isSearchOpen && searchQuery && !searchResults.includes(session.id)}
                             />
                          ))}
                       </StageColumn>
@@ -987,8 +994,9 @@ function App() {
 
 // Session Modal
 const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) => {
+  // Initialize with INBOX as default for NEW sessions
   const [formData, setFormData] = useState({
-    id: '', title: '', start: '10:00', duration: 60, stage: 'Main Stage',
+    id: '', title: '', start: '10:00', duration: 60, stage: INBOX_ID,
     status: '5_Vorschlag', format: 'Vortrag', speakers: [], moderators: [], day: '20.09.',
     partner: 'FALSE', language: 'de', notes: '', stageDispo: ''
   });
@@ -1005,15 +1013,16 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
         moderators: Array.isArray(initialData.moderators) ? initialData.moderators : (initialData.moderators ? initialData.moderators.split(',').map(s => s.trim()).filter(Boolean) : [])
       });
     } else {
+      // DEFAULT FOR NEW: INBOX
       setFormData({
-        id: generateId(), title: '', start: '10:00', duration: 60, stage: definedStages[0]?.name || 'Main Stage',
+        id: generateId(), title: '', start: '10:00', duration: 60, stage: INBOX_ID,
         status: '5_Vorschlag', format: 'Vortrag', speakers: [], moderators: [], day: '20.09.',
         partner: 'FALSE', language: 'de', notes: '', stageDispo: ''
       });
     }
     setSearchTermSp('');
     setSearchTermMod('');
-  }, [initialData, definedStages, isOpen]);
+  }, [initialData, isOpen]);
 
   const toggleListSelection = (field, name) => {
     if (field === 'speakers') {
@@ -1023,7 +1032,6 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
         });
     } else if (field === 'moderators') {
         setFormData(prev => {
-            // Support multiple moderators if desired, or single toggle. Assuming multiple support to match UI.
             const exists = prev.moderators.includes(name);
             return { ...prev, moderators: exists ? prev.moderators.filter(s => s !== name) : [...prev.moderators, name] };
         });
@@ -1035,7 +1043,7 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
      const stage = definedStages.find(s => s.name === formData.stage);
      if (!stage || !stage.maxMics) return null;
      if (formData.speakers.length > stage.maxMics) {
-         return `⚠️ ${formData.speakers.length} Speaker vs ${stage.maxMics} Mics!`;
+         return `⚠️ Zu viele Sprecher: ${formData.speakers.length} (Max: ${stage.maxMics})`;
      }
      return null;
   }, [formData.stage, formData.speakers, definedStages]);
@@ -1096,7 +1104,10 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
           </div>
           <div className="space-y-4 bg-slate-50 p-4 rounded border">
              <div className="grid grid-cols-4 gap-4">
-               <div className="col-span-2"><label className={labelStd}>Bühne</label><select className={inputStd} value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})}>{definedStages.map(s=><option key={s.id} value={s.name}>{s.name} ({s.maxMics} Mics)</option>)}</select></div>
+               <div className="col-span-2"><label className={labelStd}>Bühne</label><select className={inputStd} value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})}>
+                  <option value={INBOX_ID}>📥 Inbox (Parkplatz)</option>
+                  {definedStages.map(s=><option key={s.id} value={s.name}>{s.name} ({s.maxMics} Mics)</option>)}
+               </select></div>
                <div><label className={labelStd}>Start</label><input type="time" className={inputStd} value={formData.start} onChange={e => setFormData({...formData, start: e.target.value})} /></div>
                <div><label className={labelStd}>Dauer (Min)</label><input type="number" className={inputStd} value={formData.duration} onChange={e => setFormData({...formData, duration: parseInt(e.target.value)})} /></div>
              </div>
@@ -1128,7 +1139,7 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
           <div className="space-y-2">
             <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Notizen & Technik</h4>
             <textarea className={`${inputStd} h-16 bg-yellow-50/50 border-yellow-200`} value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Notizen..." />
-            <input className={`${inputStd} text-xs font-mono text-slate-500`} value={formData.stageDispo} readOnly placeholder="Stage Dispo (Auto-generiert bei Fehlern)" />
+            <input className={`${inputStd} text-xs font-mono text-slate-500`} value={formData.stageDispo} readOnly placeholder="Stage Dispo (Automatisch)" />
           </div>
         </div>
         <div className="p-4 border-t flex justify-between bg-slate-50 rounded-b-xl">
