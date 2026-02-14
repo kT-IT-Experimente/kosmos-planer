@@ -19,7 +19,7 @@ import {
   Users, RefreshCw, Settings, AlertCircle, 
   Trash2, PlusCircle, UploadCloud, LogIn, X, 
   Lock, Unlock, MessageSquare, Globe, Flag, Layout, 
-  AlertTriangle, Mic2, PieChart, Search, CheckCircle2
+  AlertTriangle, Mic2, PieChart, Search, CheckCircle2, ToggleLeft, ToggleRight
 } from 'lucide-react';
 
 // --- KONSTANTEN ---
@@ -40,6 +40,7 @@ const STATUS_COLORS = {
 
 const FORMAT_COLORS = {
   'Talk': 'bg-blue-100 text-blue-900',
+  'Vortrag': 'bg-blue-100 text-blue-900',
   'Panel': 'bg-purple-100 text-purple-900',
   'Workshop': 'bg-orange-100 text-orange-900',
   'Lightning Talk': 'bg-cyan-100 text-cyan-900',
@@ -50,7 +51,6 @@ const FORMAT_COLORS = {
 // --- HELPER FUNCTIONS ---
 const generateId = () => Math.floor(10000 + Math.random() * 90000).toString();
 
-// Robust casting to string to prevent crashes on numeric values from Sheets
 const safeString = (val) => (val === null || val === undefined) ? '' : String(val);
 
 const timeToMinutes = (timeStr) => {
@@ -79,7 +79,6 @@ const checkOverlap = (startA, endA, startB, endB, buffer = 0) => {
   return (startA < endB + buffer) && (endA + buffer > startB);
 };
 
-// Helper to safely extract error message
 const getErrorMessage = (e) => {
   if (typeof e === 'string') return e;
   return e?.result?.error?.message || e?.message || "Unbekannter Fehler beim Speichern";
@@ -102,26 +101,41 @@ const Card = React.forwardRef(({ children, className = "", onClick, style, statu
   );
 });
 
-const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConflict, conflictTooltip, listeners, attributes }) => {
+const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConflict, conflictTooltip, listeners, attributes, isDimmed }) => {
   const formatColor = FORMAT_COLORS[session.format] || 'bg-slate-100 text-slate-700';
+  const [activeOverlay, setActiveOverlay] = useState(null); // 'conflict' | 'notes' | null
 
   return (
     <Card 
       status={session.status} 
-      className={`h-full flex flex-col relative group hover:shadow-md select-none ${isLocked ? 'cursor-not-allowed opacity-90' : 'cursor-grab active:cursor-grabbing'}`}
+      className={`h-full flex flex-col relative group hover:shadow-md select-none transition-opacity duration-300
+        ${isLocked ? 'cursor-not-allowed opacity-90' : 'cursor-grab active:cursor-grabbing'}
+        ${isDimmed ? 'opacity-20 grayscale' : 'opacity-100'}
+      `}
       onClick={(e) => onClick(session)}
       {...listeners} 
       {...attributes}
     >
-       {/* Conflict Overlay (Full Card) */}
-       {hasConflict && (
-         <div className="absolute inset-0 bg-red-600/95 z-50 p-3 text-white flex flex-col justify-center items-center text-center opacity-0 transition-opacity duration-200 pointer-events-none group-hover/conflict:opacity-100 backdrop-blur-sm rounded-r">
-            <AlertTriangle className="w-8 h-8 mb-2 animate-bounce" />
-            <span className="font-bold underline mb-1">Terminkollision</span>
-            <span className="text-xs leading-tight">{conflictTooltip}</span>
+       {/* Full Card Overlays */}
+       {activeOverlay === 'conflict' && (
+         <div className="absolute inset-0 bg-red-600/95 z-50 p-3 text-white flex flex-col justify-center items-center text-center backdrop-blur-sm rounded-r animate-in fade-in duration-200">
+            <AlertTriangle className="w-8 h-8 mb-2" />
+            <span className="font-bold underline mb-1 text-xs">Konflikt</span>
+            <span className="text-[10px] leading-tight">{conflictTooltip}</span>
+         </div>
+       )}
+       
+       {activeOverlay === 'notes' && session.notes && (
+         <div className="absolute inset-0 bg-slate-800/95 z-50 p-3 text-white flex flex-col justify-start items-start text-left backdrop-blur-sm rounded-r animate-in fade-in duration-200 overflow-y-auto custom-scrollbar">
+            <div className="flex items-center gap-2 border-b border-slate-600 w-full pb-1 mb-2">
+                <MessageSquare className="w-4 h-4 text-blue-400" />
+                <span className="font-bold text-xs">Notizen</span>
+            </div>
+            <span className="text-[11px] leading-snug whitespace-pre-wrap">{session.notes}</span>
          </div>
        )}
 
+       {/* Header */}
        <div className="flex justify-between items-start mb-1">
          <div className="flex flex-col overflow-hidden">
            <span className="font-mono text-[10px] font-bold text-slate-500 leading-none mb-1">
@@ -134,7 +148,11 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
          
          <div className="flex gap-1 shrink-0 z-10 items-center">
             {hasConflict && (
-              <div className="text-red-500 mr-1 group/conflict cursor-help hover:scale-110 transition-transform">
+              <div 
+                className="text-red-500 mr-1 cursor-help hover:scale-110 transition-transform"
+                onMouseEnter={() => setActiveOverlay('conflict')}
+                onMouseLeave={() => setActiveOverlay(null)}
+              >
                 <AlertTriangle className="w-4 h-4 animate-pulse" />
               </div>
             )}
@@ -149,14 +167,21 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
          </div>
        </div>
 
+       {/* Title */}
        <div className="font-bold text-xs leading-snug mb-1 text-slate-800 line-clamp-2" title={session.title}>
          {session.title || 'Unbenannt'}
        </div>
 
+       {/* People & Details */}
        <div className="mt-auto space-y-1">
          {session.speakers && (
-           <div className="text-[10px] text-slate-600 flex items-center gap-1 truncate" title={session.speakers}>
+           <div className="text-[10px] text-slate-600 flex items-center gap-1 truncate" title={`Speaker: ${session.speakers}`}>
              <Users className="w-3 h-3 shrink-0 text-indigo-500"/> {session.speakers}
+           </div>
+         )}
+         {session.moderators && (
+           <div className="text-[10px] text-slate-500 flex items-center gap-1 truncate" title={`Mod: ${session.moderators}`}>
+             <Mic2 className="w-3 h-3 shrink-0 text-pink-500"/> {session.moderators}
            </div>
          )}
          
@@ -165,11 +190,12 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
             {session.language && <span className="flex items-center gap-0.5 ml-auto">{session.language.toUpperCase()}</span>}
             {session.partner === 'TRUE' && <span className="flex items-center gap-0.5 truncate text-blue-600 font-bold bg-blue-50 px-1 rounded border border-blue-100"><Flag className="w-2.5 h-2.5" /> Partner</span>}
             {session.notes && (
-              <div className="relative group/notes ml-1">
-                <span className="flex items-center gap-0.5 text-blue-500 cursor-help"><MessageSquare className="w-2.5 h-2.5" /></span>
-                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded shadow-lg hidden group-hover/notes:block z-50 pointer-events-none text-left">
-                  {session.notes}
-                </div>
+              <div 
+                className="ml-1 text-blue-500 cursor-help"
+                onMouseEnter={() => setActiveOverlay('notes')}
+                onMouseLeave={() => setActiveOverlay(null)}
+              >
+                <MessageSquare className="w-2.5 h-2.5" />
               </div>
             )}
          </div>
@@ -187,7 +213,7 @@ const DroppableStage = ({ id, children, className }) => {
   );
 };
 
-const DraggableTimelineItem = ({ session, onClick, style, onToggleLock, hasConflict, conflictTooltip }) => {
+const DraggableTimelineItem = ({ session, onClick, style, onToggleLock, hasConflict, conflictTooltip, isDimmed }) => {
   const isLocked = session.status === 'Fixiert';
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: session.id,
@@ -208,12 +234,13 @@ const DraggableTimelineItem = ({ session, onClick, style, onToggleLock, hasConfl
           session={session} onClick={onClick} onToggleLock={onToggleLock} isLocked={isLocked}
           hasConflict={hasConflict} conflictTooltip={conflictTooltip}
           listeners={listeners} attributes={attributes}
+          isDimmed={isDimmed}
        />
     </div>
   );
 };
 
-const SortableInboxItem = ({ session, onClick, onToggleLock, hasConflict, conflictTooltip }) => {
+const SortableInboxItem = ({ session, onClick, onToggleLock, hasConflict, conflictTooltip, isDimmed }) => {
   const isLocked = session.status === 'Fixiert';
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
     id: session.id, data: session, disabled: isLocked 
@@ -227,6 +254,7 @@ const SortableInboxItem = ({ session, onClick, onToggleLock, hasConflict, confli
           session={session} onClick={onClick} onToggleLock={onToggleLock} isLocked={isLocked}
           hasConflict={hasConflict} conflictTooltip={conflictTooltip}
           listeners={listeners} attributes={attributes}
+          isDimmed={isDimmed}
        />
     </div>
   );
@@ -284,6 +312,10 @@ function App() {
   const [editingSession, setEditingSession] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
   
+  // Search State
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
   const [gapiInited, setGapiInited] = useState(false);
@@ -306,14 +338,31 @@ function App() {
             totalPlacedSessions++;
             if (s.partner === 'TRUE') partnerSessions++;
             
-            // Safe split of speakers even if not array
+            // Speakers
             const sStr = safeString(s.speakers);
             const sList = sStr ? sStr.split(',').map(n=>n.trim()).filter(Boolean) : [];
             
-            sList.forEach(name => {
-                const spObj = data.speakers.find(dbSp => dbSp.fullName.toLowerCase() === name.toLowerCase());
-                if (spObj) {
-                    const p = (spObj.pronoun || '').toLowerCase();
+            // Moderators
+            const mStr = safeString(s.moderators);
+            const mList = mStr ? mStr.split(',').map(n=>n.trim()).filter(Boolean) : [];
+
+            // Combine list for analysis (unique persons)
+            const allPeople = [...new Set([...sList, ...mList])];
+
+            allPeople.forEach(name => {
+                // Check Speakers DB
+                let personObj = data.speakers.find(dbSp => dbSp.fullName.toLowerCase() === name.toLowerCase());
+                // If not found, check Mods DB
+                if (!personObj) {
+                    personObj = data.moderators.find(dbMod => dbMod.fullName.toLowerCase() === name.toLowerCase());
+                }
+
+                if (personObj) {
+                    // Assuming moderators might have pronoun field, otherwise default to u or try to infer?
+                    // The loaded moderator data structure might need pronoun if available. 
+                    // Current mock/load logic for mods reads: id, fullName, status. No pronoun column in basic load.
+                    // If pronoun missing, it falls to 'u'.
+                    const p = (personObj.pronoun || '').toLowerCase();
                     if (p.includes('männ') || p.includes('man') || p.includes('he')) genderCounts.m++;
                     else if (p.includes('weib') || p.includes('frau') || p.includes('she')) genderCounts.w++;
                     else if (p.includes('div') || p.includes('non')) genderCounts.d++;
@@ -326,7 +375,21 @@ function App() {
     });
 
     return { genderCounts, partnerPercent: totalPlacedSessions ? Math.round((partnerSessions/totalPlacedSessions)*100) : 0, totalPlaced: totalPlacedSessions };
-  }, [data.program, data.speakers]);
+  }, [data.program, data.speakers, data.moderators]);
+
+  // --- SEARCH LOGIC ---
+  const filteredSessionIds = useMemo(() => {
+    if (!searchQuery) return [];
+    const lowerQ = searchQuery.toLowerCase();
+    return data.program.filter(s => {
+       return (
+         safeString(s.title).toLowerCase().includes(lowerQ) ||
+         safeString(s.id).toLowerCase().includes(lowerQ) ||
+         safeString(s.speakers).toLowerCase().includes(lowerQ) ||
+         safeString(s.moderators).toLowerCase().includes(lowerQ)
+       );
+    }).map(s => s.id);
+  }, [searchQuery, data.program]);
 
   // --- CONFLICTS ---
   const speakerConflicts = useMemo(() => {
@@ -340,10 +403,15 @@ function App() {
       const sEnd = sStart + s.duration;
       
       const sStr = safeString(s.speakers);
-      if (!sStr) return;
-      const speakerList = sStr.split(',').map(n => n.trim()).filter(Boolean);
+      const mStr = safeString(s.moderators);
+      
+      // Check both speakers and moderators for conflicts
+      const peopleList = [
+          ...(sStr ? sStr.split(',').map(n => n.trim()).filter(Boolean) : []),
+          ...(mStr ? mStr.split(',').map(n => n.trim()).filter(Boolean) : [])
+      ];
 
-      speakerList.forEach(sp => {
+      peopleList.forEach(sp => {
         if (!usage[sp]) usage[sp] = [];
         
         usage[sp].forEach(existing => {
@@ -650,15 +718,23 @@ function App() {
     return { top: `${Math.max(0, top)}px`, height: `${Math.max(20, height)}px` };
   };
 
-  const handleSaveSession = (session, autoNote = '') => {
-    let newProgram;
-    const finalSession = { ...session, stageDispo: autoNote ? (session.stageDispo + ' ' + autoNote).trim() : session.stageDispo };
+  // Safe save handler to avoid duplicates in Stage Dispo
+  const handleSaveSession = (session, micWarning = '') => {
+    // Overwrite stageDispo with new clean warning if present, or keep empty if resolved
+    const cleanWarning = micWarning ? micWarning.replace(/,/g, ' ') : '';
+    const finalSession = { 
+        ...session, 
+        // We simply use the cleanWarning as the single source of auto-text
+        stageDispo: cleanWarning 
+    };
     
+    let newProgram;
     if (editingSession && editingSession.id === session.id) {
       newProgram = data.program.map(p => p.id === session.id ? finalSession : p);
     } else {
       newProgram = [...data.program, { ...finalSession, id: generateId() }];
     }
+    
     newProgram = newProgram.map(p => ({ ...p, end: calculateEndTime(p.start, p.duration) }));
     setData(prev => ({ ...prev, program: newProgram }));
     setLocalChanges(true);
@@ -685,13 +761,37 @@ function App() {
 
       {/* HEADER */}
       <header className="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shrink-0 z-40 shadow-sm">
-        <div>
-           <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">KOSMOS Planer</h1>
-           <div className="flex gap-2 text-[10px] font-bold uppercase text-slate-400">
-              {status.loading && <span className="text-blue-500 animate-pulse">Laden...</span>}
-              {localChanges && <span className="text-orange-500 bg-orange-100 px-1 rounded">● Ungespeichert</span>}
+        <div className="flex items-center gap-6">
+           <div>
+             <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">KOSMOS Planer</h1>
+             <div className="flex gap-2 text-[10px] font-bold uppercase text-slate-400">
+                {status.loading && <span className="text-blue-500 animate-pulse">Laden...</span>}
+                {localChanges && <span className="text-orange-500 bg-orange-100 px-1 rounded">● Ungespeichert</span>}
+             </div>
+           </div>
+           
+           {/* Global Search Bar */}
+           <div className={`flex items-center transition-all duration-300 ${isSearchOpen ? 'w-64 bg-slate-100' : 'w-8 bg-transparent'} rounded-full overflow-hidden`}>
+              <button onClick={() => setIsSearchOpen(!isSearchOpen)} className="p-2 text-slate-500 hover:text-blue-600">
+                 <Search className="w-4 h-4" />
+              </button>
+              {isSearchOpen && (
+                 <input 
+                    autoFocus
+                    className="w-full bg-transparent border-none outline-none text-sm p-1 placeholder:text-slate-400"
+                    placeholder="Suchen..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                 />
+              )}
+              {isSearchOpen && searchQuery && (
+                 <button onClick={() => setSearchQuery('')} className="p-2 text-slate-400 hover:text-red-500">
+                    <X className="w-3 h-3" />
+                 </button>
+              )}
            </div>
         </div>
+
         <div className="flex items-center gap-2">
             {!isAuthenticated ? (
                <button onClick={()=>tokenClient?.requestAccessToken({prompt:''})} className="bg-slate-900 text-white px-3 py-1.5 rounded text-sm flex gap-2 items-center"><LogIn className="w-3 h-3"/> Login</button>
@@ -767,6 +867,7 @@ function App() {
                                onToggleLock={(s)=>updateSession(s.id, {status: s.status==='Fixiert'?'2_Planung':'Fixiert'})}
                                hasConflict={!!speakerConflicts[p.id]}
                                conflictTooltip={speakerConflicts[p.id]?.join(' | ')}
+                               isDimmed={isSearchOpen && searchQuery && !filteredSessionIds.includes(p.id)}
                             />
                          ))}
                       </DroppableStage>
@@ -815,6 +916,7 @@ function App() {
                                onToggleLock={(s)=>updateSession(s.id, {status: s.status==='Fixiert'?'2_Planung':'Fixiert'})}
                                hasConflict={!!speakerConflicts[session.id]}
                                conflictTooltip={speakerConflicts[session.id]?.join(' | ')}
+                               isDimmed={isSearchOpen && searchQuery && !filteredSessionIds.includes(session.id)}
                             />
                          ))}
                       </StageColumn>
@@ -887,7 +989,7 @@ function App() {
 const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) => {
   const [formData, setFormData] = useState({
     id: '', title: '', start: '10:00', duration: 60, stage: 'Main Stage',
-    status: '5_Vorschlag', format: 'Talk', speakers: [], moderators: '', day: '20.09.',
+    status: '5_Vorschlag', format: 'Vortrag', speakers: [], moderators: [], day: '20.09.',
     partner: 'FALSE', language: 'de', notes: '', stageDispo: ''
   });
   const [searchTermSp, setSearchTermSp] = useState('');
@@ -899,12 +1001,13 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
       setFormData({
         ...initialData,
         duration: duration > 0 ? duration : 60,
-        speakers: Array.isArray(initialData.speakers) ? initialData.speakers : (initialData.speakers ? initialData.speakers.split(',').map(s => s.trim()).filter(Boolean) : [])
+        speakers: Array.isArray(initialData.speakers) ? initialData.speakers : (initialData.speakers ? initialData.speakers.split(',').map(s => s.trim()).filter(Boolean) : []),
+        moderators: Array.isArray(initialData.moderators) ? initialData.moderators : (initialData.moderators ? initialData.moderators.split(',').map(s => s.trim()).filter(Boolean) : [])
       });
     } else {
       setFormData({
         id: generateId(), title: '', start: '10:00', duration: 60, stage: definedStages[0]?.name || 'Main Stage',
-        status: '5_Vorschlag', format: 'Talk', speakers: [], moderators: '', day: '20.09.',
+        status: '5_Vorschlag', format: 'Vortrag', speakers: [], moderators: [], day: '20.09.',
         partner: 'FALSE', language: 'de', notes: '', stageDispo: ''
       });
     }
@@ -919,7 +1022,11 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
             return { ...prev, speakers: exists ? prev.speakers.filter(s => s !== name) : [...prev.speakers, name] };
         });
     } else if (field === 'moderators') {
-        setFormData(prev => ({ ...prev, moderators: name })); 
+        setFormData(prev => {
+            // Support multiple moderators if desired, or single toggle. Assuming multiple support to match UI.
+            const exists = prev.moderators.includes(name);
+            return { ...prev, moderators: exists ? prev.moderators.filter(s => s !== name) : [...prev.moderators, name] };
+        });
     }
   };
 
@@ -928,7 +1035,7 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
      const stage = definedStages.find(s => s.name === formData.stage);
      if (!stage || !stage.maxMics) return null;
      if (formData.speakers.length > stage.maxMics) {
-         return `⚠️ Achtung: ${formData.speakers.length} Sprecher, aber nur ${stage.maxMics} Mikrofone auf dieser Bühne!`;
+         return `⚠️ ${formData.speakers.length} Speaker vs ${stage.maxMics} Mics!`;
      }
      return null;
   }, [formData.stage, formData.speakers, definedStages]);
@@ -967,7 +1074,14 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
                </div>
             </div>
             <div className="grid grid-cols-3 gap-4">
-               <div><label className={labelStd}>Format</label><input type="text" list="formats" className={inputStd} value={formData.format} onChange={e => setFormData({...formData, format: e.target.value})} /></div>
+               <div>
+                  <label className={labelStd}>Format</label>
+                  <select className={inputStd} value={formData.format} onChange={e => setFormData({...formData, format: e.target.value})}>
+                     <option value="Vortrag">Vortrag</option>
+                     <option value="Panel">Panel</option>
+                     <option value="Workshop">Workshop</option>
+                  </select>
+               </div>
                <div><label className={labelStd}>Sprache</label><select className={inputStd} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option value="de">DE</option><option value="en">EN</option></select></div>
                <div className="flex flex-col justify-end pb-2">
                   <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-50 p-2 rounded border border-slate-200 hover:border-blue-300 transition-colors">
@@ -1007,7 +1121,7 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
                    <input className="w-full pl-7 p-1.5 text-xs border rounded" placeholder="Filter..." value={searchTermMod} onChange={e=>setSearchTermMod(e.target.value)} />
                 </div>
                 <div className="h-32 border rounded overflow-auto p-1 bg-white">
-                   {filteredMods.map(m=><div key={m.id} onClick={()=>toggleListSelection('moderators',m.fullName)} className={`text-xs p-1.5 cursor-pointer rounded mb-0.5 flex items-center justify-between ${formData.moderators===m.fullName?'bg-pink-100 text-pink-700 font-bold':'hover:bg-slate-50'}`}><span>{m.fullName}</span>{formData.moderators===m.fullName && <CheckCircle2 className="w-3 h-3"/>}</div>)}
+                   {filteredMods.map(m=><div key={m.id} onClick={()=>toggleListSelection('moderators',m.fullName)} className={`text-xs p-1.5 cursor-pointer rounded mb-0.5 flex items-center justify-between ${formData.moderators.includes(m.fullName)?'bg-pink-100 text-pink-700 font-bold':'hover:bg-slate-50'}`}><span>{m.fullName}</span>{formData.moderators.includes(m.fullName) && <CheckCircle2 className="w-3 h-3"/>}</div>)}
                 </div>
              </div>
           </div>
@@ -1021,7 +1135,7 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
            {initialData && <button onClick={()=>{if(window.confirm('Wirklich löschen?')) onDelete(formData.id)}} className="text-red-500 text-sm flex items-center gap-1 hover:bg-red-50 px-3 py-1 rounded transition-colors"><Trash2 className="w-4 h-4"/> Löschen</button>}
            <div className="flex gap-2 ml-auto">
              <button onClick={onClose} className="px-4 py-2 border rounded text-sm hover:bg-slate-100 transition-colors">Abbrechen</button>
-             <button onClick={()=>onSave({ ...formData, speakers: formData.speakers.join(', ') }, micWarning)} className="px-6 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 shadow-sm font-medium transition-colors">Speichern</button>
+             <button onClick={()=>onSave({ ...formData, speakers: formData.speakers.join(', '), moderators: formData.moderators.join(', ') }, micWarning)} className="px-6 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 shadow-sm font-medium transition-colors">Speichern</button>
            </div>
         </div>
       </div>
