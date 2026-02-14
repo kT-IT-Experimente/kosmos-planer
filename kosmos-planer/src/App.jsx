@@ -50,10 +50,14 @@ const FORMAT_COLORS = {
 // --- HELPER FUNCTIONS ---
 const generateId = () => Math.floor(10000 + Math.random() * 90000).toString();
 
+// Robust casting to string to prevent crashes on numeric values from Sheets
+const safeString = (val) => (val === null || val === undefined) ? '' : String(val);
+
 const timeToMinutes = (timeStr) => {
-  if (!timeStr || !timeStr.includes(':')) return 0;
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  return hours * 60 + minutes;
+  const t = safeString(timeStr);
+  if (!t || !t.includes(':')) return 0;
+  const [hours, minutes] = t.split(':').map(Number);
+  return (hours || 0) * 60 + (minutes || 0);
 };
 
 const minutesToTime = (totalMinutes) => {
@@ -65,8 +69,9 @@ const minutesToTime = (totalMinutes) => {
 };
 
 const calculateEndTime = (startStr, durationMin) => {
-  if (!startStr || startStr === '-') return '-';
-  const startMin = timeToMinutes(startStr);
+  const s = safeString(startStr);
+  if (!s || s === '-') return '-';
+  const startMin = timeToMinutes(s);
   return minutesToTime(startMin + parseInt(durationMin || 0));
 };
 
@@ -301,7 +306,10 @@ function App() {
             totalPlacedSessions++;
             if (s.partner === 'TRUE') partnerSessions++;
             
-            const sList = s.speakers ? (Array.isArray(s.speakers) ? s.speakers : s.speakers.split(',').map(n=>n.trim()).filter(Boolean)) : [];
+            // Safe split of speakers even if not array
+            const sStr = safeString(s.speakers);
+            const sList = sStr ? sStr.split(',').map(n=>n.trim()).filter(Boolean) : [];
+            
             sList.forEach(name => {
                 const spObj = data.speakers.find(dbSp => dbSp.fullName.toLowerCase() === name.toLowerCase());
                 if (spObj) {
@@ -327,11 +335,13 @@ function App() {
 
     data.program.forEach(s => {
       if (s.stage === INBOX_ID || s.start === '-') return;
-      if (!s.speakers) return;
       
       const sStart = timeToMinutes(s.start);
       const sEnd = sStart + s.duration;
-      const speakerList = Array.isArray(s.speakers) ? s.speakers : s.speakers.split(',').map(n => n.trim()).filter(Boolean);
+      
+      const sStr = safeString(s.speakers);
+      if (!sStr) return;
+      const speakerList = sStr.split(',').map(n => n.trim()).filter(Boolean);
 
       speakerList.forEach(sp => {
         if (!usage[sp]) usage[sp] = [];
@@ -399,15 +409,18 @@ function App() {
       
       const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag'];
       const sp = (ranges[0].values || []).filter(r => {
-          const s = (r[0] || '').toLowerCase();
+          const s = safeString(r[0]).toLowerCase();
           return allowedSpeakerStatus.some(k => s.includes(k));
-      }).map((r,i) => ({id:`sp-${i}`, fullName:`${r[2]||''} ${r[3]||''}`, status:r[0], pronoun: r[4]}));
+      }).map((r,i) => ({id:`sp-${i}`, fullName:`${safeString(r[2])} ${safeString(r[3])}`.trim(), status:safeString(r[0]), pronoun: safeString(r[4])}));
 
-      const mo = (ranges[1].values || []).filter(r=>r[0]).map((r,i) => ({id:`mod-${i}`, fullName:r[1], status:r[0]}));
+      const mo = (ranges[1].values || []).filter(r=>r[0]).map((r,i) => ({id:`mod-${i}`, fullName:safeString(r[1]), status:safeString(r[0])}));
       
       const st = (ranges[3].values || [])
         .map((r,i) => ({
-            id:r[0]||`st-${i}`, name:r[1], capacity:r[2], maxMics: parseInt(r[4]) || 4
+            id: safeString(r[0]) || `st-${i}`, 
+            name: safeString(r[1]), 
+            capacity: safeString(r[2]), 
+            maxMics: parseInt(r[4]) || 4
         }))
         .filter(s => s.name && s.name.toLowerCase() !== 'inbox');
         
@@ -415,16 +428,28 @@ function App() {
 
       const pr = (ranges[2].values || []).map((r,i) => {
          const dur = parseInt(r[8]) || 60;
-         const start = r[6] || '-';
-         let stage = r[5] || INBOX_ID;
+         const start = safeString(r[6]) || '-';
+         let stage = safeString(r[5]) || INBOX_ID;
          if(!st.find(s=>s.name === stage) && stage !== INBOX_ID) stage = INBOX_ID; 
-         const id = (r[0] && r[0].length > 1) ? r[0] : generateId();
+         
+         const rawId = safeString(r[0]);
+         const id = (rawId && rawId.length > 1) ? rawId : generateId();
 
          return {
-           id: id, title: r[1], status: r[2]||'5_Vorschlag', 
-           partner: r[3] === 'TRUE' || r[3] === 'P' ? 'TRUE' : 'FALSE', 
-           format: r[4]||'Talk', stage: stage, start: start, duration: dur,
-           end: calculateEndTime(start, dur), speakers: r[9], moderators: r[10], language: r[11], notes: r[12], stageDispo: r[13]
+           id: id, 
+           title: safeString(r[1]), 
+           status: safeString(r[2]) || '5_Vorschlag', 
+           partner: (safeString(r[3]) === 'TRUE' || safeString(r[3]) === 'P') ? 'TRUE' : 'FALSE', 
+           format: safeString(r[4]) || 'Talk', 
+           stage: stage, 
+           start: start, 
+           duration: dur,
+           end: calculateEndTime(start, dur), 
+           speakers: safeString(r[9]), 
+           moderators: safeString(r[10]), 
+           language: safeString(r[11]), 
+           notes: safeString(r[12]), 
+           stageDispo: safeString(r[13])
          };
       });
       setData({ speakers: sp, moderators: mo, stages: st, program: pr });
@@ -440,25 +465,24 @@ function App() {
     setStatus({ loading: true, error: null });
     try {
         const rows = data.program.map(p => {
-            // SAFETY: Ensure all fields are strings/primitives
             const speakersStr = Array.isArray(p.speakers) ? p.speakers.join(', ') : (p.speakers || '');
             const modsStr = Array.isArray(p.moderators) ? p.moderators.join(', ') : (p.moderators || '');
             
             return [
-                p.id || generateId(), 
-                p.title || '', 
-                p.status || '5_Vorschlag', 
+                safeString(p.id), 
+                safeString(p.title), 
+                safeString(p.status), 
                 p.partner === 'TRUE' ? 'TRUE' : 'FALSE', 
-                p.format || 'Talk', 
-                p.stage === INBOX_ID ? '' : (p.stage || ''), 
+                safeString(p.format), 
+                p.stage === INBOX_ID ? '' : safeString(p.stage), 
                 p.start === '-' ? '' : p.start, 
                 p.start === '-' ? '' : calculateEndTime(p.start, p.duration), 
                 p.duration || 60, 
                 speakersStr, 
                 modsStr, 
-                p.language || 'de', 
-                p.notes || '', 
-                p.stageDispo || ''
+                safeString(p.language), 
+                safeString(p.notes), 
+                safeString(p.stageDispo)
             ];
         });
 
@@ -630,14 +654,11 @@ function App() {
     let newProgram;
     const finalSession = { ...session, stageDispo: autoNote ? (session.stageDispo + ' ' + autoNote).trim() : session.stageDispo };
     
-    // Create new session logic
     if (editingSession && editingSession.id === session.id) {
       newProgram = data.program.map(p => p.id === session.id ? finalSession : p);
     } else {
       newProgram = [...data.program, { ...finalSession, id: generateId() }];
     }
-    
-    // Ensure all fields are calculated
     newProgram = newProgram.map(p => ({ ...p, end: calculateEndTime(p.start, p.duration) }));
     setData(prev => ({ ...prev, program: newProgram }));
     setLocalChanges(true);
@@ -862,7 +883,7 @@ function App() {
   );
 }
 
-// Session Modal (Updated onSave logic)
+// Session Modal
 const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) => {
   const [formData, setFormData] = useState({
     id: '', title: '', start: '10:00', duration: 60, stage: 'Main Stage',
@@ -1000,7 +1021,6 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
            {initialData && <button onClick={()=>{if(window.confirm('Wirklich löschen?')) onDelete(formData.id)}} className="text-red-500 text-sm flex items-center gap-1 hover:bg-red-50 px-3 py-1 rounded transition-colors"><Trash2 className="w-4 h-4"/> Löschen</button>}
            <div className="flex gap-2 ml-auto">
              <button onClick={onClose} className="px-4 py-2 border rounded text-sm hover:bg-slate-100 transition-colors">Abbrechen</button>
-             {/* CRITICAL FIX: Ensure speakers are joined as string before passing to handler to avoid data type mismatch during sync */}
              <button onClick={()=>onSave({ ...formData, speakers: formData.speakers.join(', ') }, micWarning)} className="px-6 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 shadow-sm font-medium transition-colors">Speichern</button>
            </div>
         </div>
