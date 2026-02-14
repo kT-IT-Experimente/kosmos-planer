@@ -19,14 +19,14 @@ import {
   Users, RefreshCw, Settings, AlertCircle, 
   Trash2, PlusCircle, UploadCloud, LogIn, X, 
   Lock, Unlock, MessageSquare, Globe, Flag, Layout, 
-  AlertTriangle, Mic2, PieChart, Search, CheckCircle2, ToggleLeft, ToggleRight
+  AlertTriangle, Mic2, PieChart, Search, CheckCircle2, Languages
 } from 'lucide-react';
 
 // --- KONSTANTEN ---
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 const DISCOVERY_DOCS = ['https://sheets.googleapis.com/$discovery/rest?version=v4'];
 const INBOX_ID = 'Inbox';
-const HEADER_HEIGHT = 56;
+const HEADER_HEIGHT = 64; // Etwas höher für den neuen Button
 const PIXELS_PER_MINUTE = 2.5; 
 const SNAP_MINUTES = 5; 
 
@@ -51,7 +51,7 @@ const FORMAT_COLORS = {
 // --- HELPER FUNCTIONS ---
 const generateId = () => Math.floor(10000 + Math.random() * 90000).toString();
 
-const safeString = (val) => (val === null || val === undefined) ? '' : String(val);
+const safeString = (val) => (val === null || val === undefined) ? '' : String(val).trim();
 
 const timeToMinutes = (timeStr) => {
   const t = safeString(timeStr);
@@ -179,19 +179,25 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
        {/* People & Details */}
        <div className="mt-auto space-y-1">
          {session.speakers && (
-           <div className="text-[10px] text-slate-600 flex items-center gap-1 truncate" title={`Speaker: ${session.speakers}`}>
-             <Users className="w-3 h-3 shrink-0 text-indigo-500"/> {session.speakers}
+           <div className="text-[10px] text-slate-600 flex flex-wrap items-center gap-1 leading-tight mb-1" title={`Speaker: ${session.speakers}`}>
+             <Users className="w-3 h-3 shrink-0 text-indigo-500 mr-0.5"/> 
+             {session.speakers.split(',').map((sp, i) => (
+               <span key={i} className="after:content-[','] last:after:content-[''] mr-0.5">{sp.trim()}</span>
+             ))}
            </div>
          )}
          {session.moderators && (
-           <div className="text-[10px] text-slate-500 flex items-center gap-1 truncate" title={`Mod: ${session.moderators}`}>
-             <Mic2 className="w-3 h-3 shrink-0 text-pink-500"/> {session.moderators}
+           <div className="text-[10px] text-slate-500 flex flex-wrap items-center gap-1 leading-tight" title={`Mod: ${session.moderators}`}>
+             <Mic2 className="w-3 h-3 shrink-0 text-pink-500 mr-0.5"/> 
+             {session.moderators.split(',').map((mod, i) => (
+                <span key={i} className="after:content-[','] last:after:content-[''] mr-0.5">{mod.trim()}</span>
+             ))}
            </div>
          )}
          
-         <div className="flex items-center gap-2 text-[9px] text-slate-400 pt-1 border-t border-black/5">
+         <div className="flex items-center gap-2 text-[9px] text-slate-400 pt-1 border-t border-black/5 mt-1">
             <span className="font-mono text-slate-300 text-[8px]">{session.id}</span>
-            {session.language && <span className="flex items-center gap-0.5 ml-auto">{session.language.toUpperCase()}</span>}
+            {session.language && <span className="flex items-center gap-0.5 ml-auto font-bold text-slate-500">{session.language.toUpperCase()}</span>}
             {session.partner === 'TRUE' && <span className="flex items-center gap-0.5 truncate text-blue-600 font-bold bg-blue-50 px-1 rounded border border-blue-100"><Flag className="w-2.5 h-2.5" /> Partner</span>}
             {session.notes && (
               <div 
@@ -265,8 +271,8 @@ const SortableInboxItem = ({ session, onClick, onToggleLock, hasConflict, confli
 
 const StageColumn = ({ stage, children, height }) => {
   const { setNodeRef, isOver } = useDroppable({
-    id: stage.id, // CHANGED: Using Stage ID for Drop Target
-    data: { type: 'stage', name: stage.name } // Keep name for display refs if needed
+    id: stage.id, 
+    data: { type: 'stage', name: stage.name } 
   });
 
   return (
@@ -332,6 +338,7 @@ function App() {
   // --- ANALYTICS ---
   const analysis = useMemo(() => {
     const genderCounts = { m: 0, w: 0, d: 0, u: 0 };
+    const langCounts = { de: 0, en: 0, other: 0 };
     let partnerSessions = 0;
     let totalPlacedSessions = 0;
 
@@ -340,6 +347,13 @@ function App() {
             totalPlacedSessions++;
             if (s.partner === 'TRUE') partnerSessions++;
             
+            // Language
+            const lang = (s.language || '').toLowerCase();
+            if (lang === 'de') langCounts.de++;
+            else if (lang === 'en') langCounts.en++;
+            else langCounts.other++;
+
+            // Speakers & Mods Analysis
             const sList = s.speakers ? (Array.isArray(s.speakers) ? s.speakers : s.speakers.split(',').map(n=>n.trim()).filter(Boolean)) : [];
             const mList = s.moderators ? (Array.isArray(s.moderators) ? s.moderators : s.moderators.split(',').map(n=>n.trim()).filter(Boolean)) : [];
             
@@ -360,7 +374,7 @@ function App() {
         }
     });
 
-    return { genderCounts, partnerPercent: totalPlacedSessions ? Math.round((partnerSessions/totalPlacedSessions)*100) : 0, totalPlaced: totalPlacedSessions };
+    return { genderCounts, langCounts, partnerPercent: totalPlacedSessions ? Math.round((partnerSessions/totalPlacedSessions)*100) : 0, totalPlaced: totalPlacedSessions };
   }, [data.program, data.speakers, data.moderators]);
 
   const searchResults = useMemo(() => {
@@ -488,7 +502,6 @@ function App() {
 
       const mo = (ranges[1].values || []).filter(r=>r[0]).map((r,i) => ({id:`mod-${i}`, fullName:safeString(r[1]), status:safeString(r[0])}));
       
-      // Load Stages - ID is Col A (index 0)
       const st = (ranges[3].values || [])
         .map((r,i) => ({
             id: safeString(r[0]) || `st-${i}`, 
@@ -504,16 +517,15 @@ function App() {
          const dur = parseInt(r[8]) || 60;
          const start = safeString(r[6]) || '-';
          
+         // ROBUST MATCHING LOGIC
          const rawStage = safeString(r[5]);
          let stage = INBOX_ID;
 
          if (rawStage) {
-             // 1. Try match ID
              const matchById = st.find(s => s.id === rawStage);
              if (matchById) {
                  stage = matchById.id;
              } else {
-                 // 2. Try match Name (Migration)
                  const matchByName = st.find(s => s.name === rawStage);
                  if (matchByName) {
                      stage = matchByName.id;
@@ -530,7 +542,7 @@ function App() {
            status: safeString(r[2]) || '5_Vorschlag', 
            partner: (safeString(r[3]) === 'TRUE' || safeString(r[3]) === 'P') ? 'TRUE' : 'FALSE', 
            format: safeString(r[4]) || 'Talk', 
-           stage: stage, // Now consistently ID
+           stage: stage, 
            start: start, 
            duration: dur,
            end: calculateEndTime(start, dur), 
@@ -563,7 +575,7 @@ function App() {
                 safeString(p.status), 
                 p.partner === 'TRUE' ? 'TRUE' : 'FALSE', 
                 safeString(p.format), 
-                p.stage === INBOX_ID ? '' : safeString(p.stage), // WRITE ID TO SHEET
+                p.stage === INBOX_ID ? '' : safeString(p.stage), 
                 p.start === '-' ? '' : p.start, 
                 p.start === '-' ? '' : calculateEndTime(p.start, p.duration), 
                 p.duration || 60, 
@@ -602,7 +614,7 @@ function App() {
         return;
     }
 
-    const stageId = over.id; // Now ID
+    const stageId = over.id; 
     if (stageId === INBOX_ID) {
         setGhostPosition(null);
         return;
@@ -778,7 +790,7 @@ function App() {
 
       {/* HEADER */}
       <header className="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shrink-0 z-40 shadow-sm">
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-4">
            <div>
              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">KOSMOS Planer</h1>
              <div className="flex gap-2 text-[10px] font-bold uppercase text-slate-400">
@@ -787,24 +799,35 @@ function App() {
              </div>
            </div>
            
-           <div className={`flex items-center transition-all duration-300 ${isSearchOpen ? 'w-64 bg-slate-100' : 'w-8 bg-transparent'} rounded-full overflow-hidden`}>
-              <button onClick={() => setIsSearchOpen(!isSearchOpen)} className="p-2 text-slate-500 hover:text-blue-600">
-                 <Search className="w-4 h-4" />
-              </button>
-              {isSearchOpen && (
-                 <input 
-                    autoFocus
-                    className="w-full bg-transparent border-none outline-none text-sm p-1 placeholder:text-slate-400"
-                    placeholder="Suchen..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                 />
-              )}
-              {isSearchOpen && searchQuery && (
-                 <button onClick={() => setSearchQuery('')} className="p-2 text-slate-400 hover:text-red-500">
-                    <X className="w-3 h-3" />
-                 </button>
-              )}
+           {/* Primary Action Group: Search & Create */}
+           <div className="flex items-center gap-2">
+               <div className={`flex items-center transition-all duration-300 ${isSearchOpen ? 'w-64 bg-slate-100' : 'w-8 bg-transparent'} rounded-full overflow-hidden border ${isSearchOpen ? 'border-blue-200' : 'border-transparent'}`}>
+                  <button onClick={() => setIsSearchOpen(!isSearchOpen)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors">
+                     <Search className="w-5 h-5" />
+                  </button>
+                  {isSearchOpen && (
+                     <input 
+                        autoFocus
+                        className="w-full bg-transparent border-none outline-none text-sm p-1 placeholder:text-slate-400"
+                        placeholder="Suchen..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                     />
+                  )}
+                  {isSearchOpen && searchQuery && (
+                     <button onClick={() => setSearchQuery('')} className="p-2 text-slate-400 hover:text-red-500">
+                        <X className="w-3 h-3" />
+                     </button>
+                  )}
+               </div>
+               
+               <button 
+                  onClick={() => { setEditingSession(null); setIsModalOpen(true); }} 
+                  className="flex items-center justify-center w-8 h-8 bg-green-600 text-white rounded-full hover:bg-green-700 shadow-sm transition-transform hover:scale-105"
+                  title="Neue Session"
+               >
+                  <PlusCircle className="w-5 h-5" />
+               </button>
            </div>
         </div>
 
@@ -820,7 +843,6 @@ function App() {
                </>
             )}
             <div className="w-px h-6 bg-slate-200 mx-1"></div>
-            <button onClick={()=>{setEditingSession(null);setIsModalOpen(true)}} className="p-1.5 bg-indigo-50 text-indigo-600 rounded hover:bg-indigo-100"><PlusCircle className="w-5 h-5"/></button>
             <button onClick={()=>setShowSettings(true)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded"><Settings className="w-5 h-5"/></button>
         </div>
       </header>
@@ -852,13 +874,23 @@ function App() {
                          <div className="text-[9px] text-slate-400 uppercase">Partner</div>
                       </div>
                    </div>
-                   <div className="text-[10px] text-slate-400 text-center">Basis: {analysis.totalPlaced} platzierte Sessions</div>
+                   {/* Language Analysis */}
+                   <div className="flex gap-2 mt-2 pt-2 border-t border-slate-200">
+                      <div className="flex-1 bg-white p-1 rounded border border-slate-200 text-center">
+                         <div className="text-xs font-bold text-blue-600">{analysis.langCounts.de}</div>
+                         <div className="text-[8px] text-slate-400">DE</div>
+                      </div>
+                      <div className="flex-1 bg-white p-1 rounded border border-slate-200 text-center">
+                         <div className="text-xs font-bold text-indigo-600">{analysis.langCounts.en}</div>
+                         <div className="text-[8px] text-slate-400">EN</div>
+                      </div>
+                   </div>
+                   <div className="text-[10px] text-slate-400 text-center mt-2">Basis: {analysis.totalPlaced} platzierte Sessions</div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
                    <div className="text-xs font-bold text-slate-400 px-2 py-2 uppercase">SprecherInnen ({data.speakers.length})</div>
                    {data.speakers.map(s => {
-                     // Clean status for display: remove numbers like "1_"
                      const displayStatus = s.status.replace(/^[0-9]+[_\-]/, '');
                      return (
                        <div key={s.id} className="text-[11px] py-1.5 px-2 border-b border-slate-50 text-slate-700 truncate hover:bg-slate-50 flex justify-between items-center group">
