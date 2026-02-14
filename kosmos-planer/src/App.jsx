@@ -19,14 +19,15 @@ import {
   Users, RefreshCw, Settings, AlertCircle, 
   Trash2, PlusCircle, UploadCloud, LogIn, X, 
   Lock, Unlock, MessageSquare, Globe, Flag, Layout, 
-  AlertTriangle, Mic2, PieChart, Search, CheckCircle2, Languages
+  AlertTriangle, Mic2, PieChart, Search, CheckCircle2, Languages,
+  Download
 } from 'lucide-react';
 
 // --- KONSTANTEN ---
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
 const DISCOVERY_DOCS = ['https://sheets.googleapis.com/$discovery/rest?version=v4'];
 const INBOX_ID = 'Inbox';
-const HEADER_HEIGHT = 64; // Etwas höher für den neuen Button
+const HEADER_HEIGHT = 64; 
 const PIXELS_PER_MINUTE = 2.5; 
 const SNAP_MINUTES = 5; 
 
@@ -52,6 +53,12 @@ const FORMAT_COLORS = {
 const generateId = () => Math.floor(10000 + Math.random() * 90000).toString();
 
 const safeString = (val) => (val === null || val === undefined) ? '' : String(val).trim();
+
+// Remove commas for CSV safety
+const cleanForCSV = (text) => {
+  if (!text) return '';
+  return safeString(text).replace(/,/g, ' ').replace(/\n/g, ' ').replace(/"/g, '""'); 
+};
 
 const timeToMinutes = (timeStr) => {
   const t = safeString(timeStr);
@@ -486,7 +493,7 @@ function App() {
       const batch = await window.gapi.client.sheets.spreadsheets.values.batchGet({
         spreadsheetId: config.spreadsheetId,
         ranges: [
-          `'${config.sheetNameSpeakers}'!A2:E`,
+          `'${config.sheetNameSpeakers}'!A2:I`, // LOAD UP TO COL I (9th col) for MAIL
           `'${config.sheetNameMods}'!A2:C`,
           `'${config.sheetNameProgram}'!A2:N`,
           `'${config.sheetNameStages}'!A2:H`
@@ -498,7 +505,13 @@ function App() {
       const sp = (ranges[0].values || []).filter(r => {
           const s = safeString(r[0]).toLowerCase();
           return allowedSpeakerStatus.some(k => s.includes(k));
-      }).map((r,i) => ({id:`sp-${i}`, fullName:`${safeString(r[2])} ${safeString(r[3])}`.trim(), status:safeString(r[0]), pronoun: safeString(r[4])}));
+      }).map((r,i) => ({
+          id:`sp-${i}`, 
+          fullName:`${safeString(r[2])} ${safeString(r[3])}`.trim(), 
+          status:safeString(r[0]), 
+          pronoun: safeString(r[4]),
+          email: safeString(r[8]) // Col I is index 8 (0-based: A=0... I=8)
+      }));
 
       const mo = (ranges[1].values || []).filter(r=>r[0]).map((r,i) => ({id:`mod-${i}`, fullName:safeString(r[1]), status:safeString(r[0])}));
       
@@ -517,7 +530,6 @@ function App() {
          const dur = parseInt(r[8]) || 60;
          const start = safeString(r[6]) || '-';
          
-         // ROBUST MATCHING LOGIC
          const rawStage = safeString(r[5]);
          let stage = INBOX_ID;
 
@@ -560,6 +572,83 @@ function App() {
       setStatus({ loading: false, error: getErrorMessage(e) });
     }
   }, [isAuthenticated, gapiInited, config]);
+
+  // --- MAIL MERGE EXPORT ---
+  const handleExportMailMerge = () => {
+    // 1. Group sessions by Speaker/Moderator
+    // We iterate over all PLACED sessions (non-Inbox)
+    const personMap = {};
+
+    data.program.forEach(s => {
+        if (s.stage === INBOX_ID || s.start === '-') return; // Only exported placed sessions
+
+        const stageName = data.stages.find(st => st.id === s.stage)?.name || s.stage;
+        const sList = safeString(s.speakers).split(',').map(n => n.trim()).filter(Boolean);
+        const mList = safeString(s.moderators).split(',').map(n => n.trim()).filter(Boolean);
+        const allPeople = [...new Set([...sList, ...mList])];
+
+        allPeople.forEach(name => {
+            if (!personMap[name]) {
+                // Find Email
+                const spObj = data.speakers.find(dbSp => dbSp.fullName.toLowerCase() === name.toLowerCase());
+                // If not in speakers, maybe mods (no email in current mod sheet, but we try)
+                const email = spObj?.email || '';
+                
+                personMap[name] = {
+                    name: name,
+                    email: email,
+                    sessions: []
+                };
+            }
+            personMap[name].sessions.push({
+                title: cleanForCSV(s.title),
+                start: s.start,
+                end: s.end,
+                stage: cleanForCSV(stageName),
+                format: s.format,
+                role: sList.includes(name) ? 'Speaker' : 'Moderator',
+                status: s.status // Add status for mailing logic
+            });
+        });
+    });
+
+    // 2. Build CSV Rows
+    // Header: Name, Email, S1_Title, S1_Time, S1_Stage, S1_Status ... up to max 5 sessions
+    const MAX_SESSIONS = 5;
+    let csvContent = "Name,Email";
+    for(let i=1; i<=MAX_SESSIONS; i++) {
+        csvContent += `,S${i}_Titel,S${i}_Zeit,S${i}_Bühne,S${i}_Status,S${i}_Rolle`;
+    }
+    csvContent += "\n";
+
+    Object.values(personMap).forEach(p => {
+        let row = `${cleanForCSV(p.name)},${cleanForCSV(p.email)}`;
+        
+        // Sort sessions by time?
+        const sessions = p.sessions.slice(0, MAX_SESSIONS); // Cap at max
+        
+        sessions.forEach(s => {
+            row += `,${s.title},${s.start}-${s.end},${s.stage},${s.status},${s.role}`;
+        });
+
+        // Fill empty cols if less than max
+        for(let i=sessions.length; i<MAX_SESSIONS; i++) {
+            row += ",,,,,"; 
+        }
+        
+        csvContent += row + "\n";
+    });
+
+    // 3. Download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `mail_merge_export_${new Date().toISOString().slice(0,10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const handleSync = async () => {
     if (!isAuthenticated) return;
@@ -836,7 +925,13 @@ function App() {
                <button onClick={()=>tokenClient?.requestAccessToken({prompt:''})} className="bg-slate-900 text-white px-3 py-1.5 rounded text-sm flex gap-2 items-center"><LogIn className="w-3 h-3"/> Login</button>
             ) : (
                <>
-                 <button onClick={loadData} className="p-2 hover:bg-slate-100 rounded text-slate-500"><RefreshCw className="w-4 h-4"/></button>
+                 <button onClick={loadData} className="p-2 hover:bg-slate-100 rounded text-slate-500" title="Neu laden"><RefreshCw className="w-4 h-4"/></button>
+                 
+                 {/* New Export Button */}
+                 <button onClick={handleExportMailMerge} className="p-2 hover:bg-slate-100 rounded text-slate-500" title="Mail Merge Export">
+                    <Download className="w-4 h-4"/>
+                 </button>
+
                  <button onClick={handleSync} disabled={!localChanges} className={`flex items-center gap-2 px-3 py-1.5 rounded text-white text-sm font-bold shadow-sm ${localChanges ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300'}`}>
                     <UploadCloud className="w-3 h-3"/> Speichern
                  </button>
@@ -1035,7 +1130,7 @@ function App() {
   );
 }
 
-// Session Modal
+// Session Modal logic remains same
 const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) => {
   // Initialize with INBOX as default for NEW sessions
   const [formData, setFormData] = useState({
