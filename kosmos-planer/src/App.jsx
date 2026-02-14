@@ -20,7 +20,7 @@ import {
   Trash2, PlusCircle, UploadCloud, LogIn, X, 
   Lock, Unlock, MessageSquare, Globe, Flag, Layout, 
   AlertTriangle, Mic2, PieChart, Search, CheckCircle2, Languages,
-  Download
+  Download, Loader2
 } from 'lucide-react';
 
 // --- KONSTANTEN ---
@@ -334,6 +334,7 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
   const [gapiInited, setGapiInited] = useState(false);
+  const [gsiScriptLoaded, setGsiScriptLoaded] = useState(false);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -460,6 +461,7 @@ function App() {
 
   // --- API & DATA ---
   useEffect(() => {
+    // 1. GAPI (Sheets)
     const initGapi = async () => {
        if(window.gapi) {
          await window.gapi.client.init({ apiKey: config.googleApiKey, discoveryDocs: DISCOVERY_DOCS });
@@ -467,24 +469,56 @@ function App() {
        }
     };
     if (config.googleApiKey && !gapiInited) {
-        const script = document.createElement('script');
-        script.src = "https://apis.google.com/js/api.js";
-        script.onload = () => window.gapi.load('client', initGapi);
-        document.body.appendChild(script);
+        if (!window.gapi) {
+            const script = document.createElement('script');
+            script.src = "https://apis.google.com/js/api.js";
+            script.onload = () => window.gapi.load('client', initGapi);
+            document.body.appendChild(script);
+        } else {
+            window.gapi.load('client', initGapi);
+        }
     }
+
+    // 2. GSI (Identity) - Force reload if client missing
     if (config.googleClientId && !tokenClient) {
-        const script = document.createElement('script');
-        script.src = "https://accounts.google.com/gsi/client";
-        script.onload = () => {
-            const client = window.google.accounts.oauth2.initTokenClient({
-                client_id: config.googleClientId, scope: SCOPES,
-                callback: (r) => { if(r.access_token) setIsAuthenticated(true); }
-            });
-            setTokenClient(client);
-        };
-        document.body.appendChild(script);
+        if (!document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) {
+            const script = document.createElement('script');
+            script.src = "https://accounts.google.com/gsi/client";
+            script.async = true;
+            script.defer = true;
+            script.onload = () => {
+                setGsiScriptLoaded(true);
+                try {
+                    const client = window.google.accounts.oauth2.initTokenClient({
+                        client_id: config.googleClientId,
+                        scope: SCOPES,
+                        callback: (r) => { 
+                            if(r.access_token) setIsAuthenticated(true); 
+                            else console.error("GSI: No access token");
+                        },
+                        error_callback: (err) => {
+                            console.error("GSI Error", err);
+                            setToast({ msg: "Login blockiert (Pop-up/AdBlocker?)", type: "error" });
+                        }
+                    });
+                    setTokenClient(client);
+                } catch(e) {
+                    console.error("GSI Init Error", e);
+                }
+            };
+            document.body.appendChild(script);
+        }
     }
-  }, [config]);
+  }, [config.googleApiKey, config.googleClientId]);
+
+  const handleLogin = () => {
+      if (tokenClient) {
+          // Force account selection to avoid hidden cookie issues in incognito
+          tokenClient.requestAccessToken({ prompt: 'select_account' });
+      } else {
+          setToast({ msg: "Login-Dienst lädt noch... Bitte warten.", type: "error" });
+      }
+  };
 
   const loadData = useCallback(async () => {
     if (!isAuthenticated || !gapiInited || !config.spreadsheetId) return;
@@ -493,7 +527,7 @@ function App() {
       const batch = await window.gapi.client.sheets.spreadsheets.values.batchGet({
         spreadsheetId: config.spreadsheetId,
         ranges: [
-          `'${config.sheetNameSpeakers}'!A2:I`, // LOAD UP TO COL I (9th col) for MAIL
+          `'${config.sheetNameSpeakers}'!A2:I`, 
           `'${config.sheetNameMods}'!A2:C`,
           `'${config.sheetNameProgram}'!A2:N`,
           `'${config.sheetNameStages}'!A2:H`
@@ -510,7 +544,7 @@ function App() {
           fullName:`${safeString(r[2])} ${safeString(r[3])}`.trim(), 
           status:safeString(r[0]), 
           pronoun: safeString(r[4]),
-          email: safeString(r[8]) // Col I is index 8 (0-based: A=0... I=8)
+          email: safeString(r[8])
       }));
 
       const mo = (ranges[1].values || []).filter(r=>r[0]).map((r,i) => ({id:`mod-${i}`, fullName:safeString(r[1]), status:safeString(r[0])}));
@@ -575,12 +609,10 @@ function App() {
 
   // --- MAIL MERGE EXPORT ---
   const handleExportMailMerge = () => {
-    // 1. Group sessions by Speaker/Moderator
-    // We iterate over all PLACED sessions (non-Inbox)
     const personMap = {};
 
     data.program.forEach(s => {
-        if (s.stage === INBOX_ID || s.start === '-') return; // Only exported placed sessions
+        if (s.stage === INBOX_ID || s.start === '-') return;
 
         const stageName = data.stages.find(st => st.id === s.stage)?.name || s.stage;
         const sList = safeString(s.speakers).split(',').map(n => n.trim()).filter(Boolean);
@@ -589,9 +621,7 @@ function App() {
 
         allPeople.forEach(name => {
             if (!personMap[name]) {
-                // Find Email
                 const spObj = data.speakers.find(dbSp => dbSp.fullName.toLowerCase() === name.toLowerCase());
-                // If not in speakers, maybe mods (no email in current mod sheet, but we try)
                 const email = spObj?.email || '';
                 
                 personMap[name] = {
@@ -607,13 +637,11 @@ function App() {
                 stage: cleanForCSV(stageName),
                 format: s.format,
                 role: sList.includes(name) ? 'Speaker' : 'Moderator',
-                status: s.status // Add status for mailing logic
+                status: s.status
             });
         });
     });
 
-    // 2. Build CSV Rows
-    // Header: Name, Email, S1_Title, S1_Time, S1_Stage, S1_Status ... up to max 5 sessions
     const MAX_SESSIONS = 5;
     let csvContent = "Name,Email";
     for(let i=1; i<=MAX_SESSIONS; i++) {
@@ -623,23 +651,16 @@ function App() {
 
     Object.values(personMap).forEach(p => {
         let row = `${cleanForCSV(p.name)},${cleanForCSV(p.email)}`;
-        
-        // Sort sessions by time?
-        const sessions = p.sessions.slice(0, MAX_SESSIONS); // Cap at max
-        
+        const sessions = p.sessions.slice(0, MAX_SESSIONS); 
         sessions.forEach(s => {
             row += `,${s.title},${s.start}-${s.end},${s.stage},${s.status},${s.role}`;
         });
-
-        // Fill empty cols if less than max
         for(let i=sessions.length; i<MAX_SESSIONS; i++) {
             row += ",,,,,"; 
         }
-        
         csvContent += row + "\n";
     });
 
-    // 3. Download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -922,7 +943,13 @@ function App() {
 
         <div className="flex items-center gap-2">
             {!isAuthenticated ? (
-               <button onClick={()=>tokenClient?.requestAccessToken({prompt:''})} className="bg-slate-900 text-white px-3 py-1.5 rounded text-sm flex gap-2 items-center"><LogIn className="w-3 h-3"/> Login</button>
+               <button 
+                 onClick={handleLogin} 
+                 className={`bg-slate-900 text-white px-3 py-1.5 rounded text-sm flex gap-2 items-center ${!tokenClient ? 'opacity-50 cursor-not-allowed' : ''}`}
+                 disabled={!tokenClient}
+               >
+                 {tokenClient ? <><LogIn className="w-3 h-3"/> Login</> : <><Loader2 className="w-3 h-3 animate-spin"/> Lade...</>}
+               </button>
             ) : (
                <>
                  <button onClick={loadData} className="p-2 hover:bg-slate-100 rounded text-slate-500" title="Neu laden"><RefreshCw className="w-4 h-4"/></button>
