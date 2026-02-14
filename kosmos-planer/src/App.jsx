@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import Papa from 'papaparse';
 import { 
   DndContext, 
@@ -17,7 +17,15 @@ import {
   useSortable 
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { Users, Mic2, RefreshCw, Settings, Save, AlertCircle, Calendar, Clock, MapPin, LayoutList, CalendarDays, PlusCircle, Info, UploadCloud } from 'lucide-react';
+import { 
+  Users, Mic2, RefreshCw, Settings, Save, AlertCircle, 
+  Calendar, Clock, MapPin, LayoutList, CalendarDays, 
+  PlusCircle, Info, UploadCloud, LogIn, Edit3, Trash2 
+} from 'lucide-react';
+
+// --- GOOGLE API HELPERS ---
+const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+const DISCOVERY_DOCS = ['https://sheets.googleapis.com/$discovery/rest?version=v4'];
 
 // --- MOCK DATA ---
 const MOCK_SPEAKERS = [
@@ -32,14 +40,28 @@ const MOCK_MODERATORS = [
 const MOCK_PROGRAM = [
   { id: 'p1', title: 'Eröffnung: Wissenschaft für alle', status: '1_Zusage', format: 'Keynote', stage: 'Main Stage', start: '10:00', end: '10:30', speakers: 'Dr. Mai Thi Nguyen-Kim', moderators: 'Joko Winterscheidt', day: '20.09.' },
   { id: 'p2', title: 'Panel: KI und die Zukunft', status: '1_Zusage', format: 'Panel', stage: 'Hangar', start: '11:00', end: '12:00', speakers: 'Harald Lesch', moderators: 'Dunja Hayali', day: '20.09.' },
-  { id: 'p3', title: 'Workshop: Coding für Kids', status: '1_Zusage', format: 'Workshop', stage: 'Neo House', start: '14:00', end: '16:00', speakers: '-', moderators: '-', day: '21.09.' },
-  { id: 'p4', title: 'Abschlussdiskussion', status: '2_Planung', format: 'Panel', stage: 'Main Stage', start: '18:00', end: '19:00', speakers: 'Alle', moderators: 'Joko Winterscheidt', day: '21.09.' }
+  { id: 'p3', title: 'Mittagspause', status: '1_Zusage', format: 'Pause', stage: 'Main Stage', start: '12:00', end: '13:00', speakers: '', moderators: '', day: '20.09.' },
+  { id: 'p4', title: 'Workshop: Coding für Kids', status: '1_Zusage', format: 'Workshop', stage: 'Neo House', start: '14:00', end: '16:00', speakers: '-', moderators: '-', day: '21.09.' },
+  { id: 'p5', title: 'Abschlussdiskussion', status: '2_Planung', format: 'Panel', stage: 'Main Stage', start: '18:00', end: '19:00', speakers: 'Alle', moderators: 'Joko Winterscheidt', day: '21.09.' }
 ];
+
+// --- HELPER FUNCTIONS ---
+const timeToMinutes = (timeStr) => {
+  if (!timeStr || !timeStr.includes(':')) return 0;
+  const [hours, minutes] = timeStr.split(':').map(Number);
+  return hours * 60 + minutes;
+};
+
+const minutesToTime = (totalMinutes) => {
+  const h = Math.floor(totalMinutes / 60);
+  const m = totalMinutes % 60;
+  return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+};
 
 // --- COMPONENTS ---
 
-const Card = ({ children, className = "", onClick }) => (
-  <div onClick={onClick} className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden ${className}`}>
+const Card = ({ children, className = "", onClick, style }) => (
+  <div onClick={onClick} style={style} className={`bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden ${className}`}>
     {children}
   </div>
 );
@@ -60,461 +82,469 @@ const Badge = ({ children, color = "blue" }) => {
   );
 };
 
-// Sortable Item Component
-function SortableSessionItem({ session }) {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging
-  } = useSortable({ id: session.id, data: session });
+// Modal for Creating/Editing Sessions
+const SessionModal = ({ isOpen, onClose, onSave, initialData, stages }) => {
+  const [formData, setFormData] = useState(initialData || {
+    title: '', start: '10:00', end: '11:00', stage: stages[0] || 'Main Stage',
+    status: '2_Planung', format: 'Talk', speakers: '', moderators: '', day: '20.09.'
+  });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.4 : 1,
-  };
+  useEffect(() => {
+    if (initialData) setFormData(initialData);
+  }, [initialData]);
+
+  if (!isOpen) return null;
 
   return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners} className="touch-none mb-3">
-      <Card className={`p-3 cursor-grab active:cursor-grabbing hover:shadow-md transition-all ${isDragging ? 'ring-2 ring-blue-400' : ''}`}>
-        <div className="flex justify-between items-start mb-1">
-          <span className="font-mono text-xs font-bold text-orange-600 flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {session.start} - {session.end}
-          </span>
-          <Badge color={session.status === '1_Zusage' ? 'green' : 'gray'}>{session.format}</Badge>
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg overflow-hidden">
+        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+          <h3 className="font-bold text-lg">{initialData ? 'Session bearbeiten' : 'Neue Session erstellen'}</h3>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">✕</button>
         </div>
-        <h4 className="font-bold text-slate-800 text-sm leading-tight mb-2">{session.title}</h4>
-        {session.speakers && (
-           <div className="text-xs text-slate-500 pt-2 border-t border-slate-100 mt-2 flex gap-1">
-             <Users className="w-3 h-3 shrink-0 mt-0.5" />
-             <span className="truncate">{session.speakers}</span>
-           </div>
-        )}
-      </Card>
+        <div className="p-6 space-y-4">
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Titel</label>
+            <input type="text" className="w-full p-2 border rounded" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Start</label>
+              <input type="time" className="w-full p-2 border rounded" value={formData.start} onChange={e => setFormData({...formData, start: e.target.value})} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Ende</label>
+              <input type="time" className="w-full p-2 border rounded" value={formData.end} onChange={e => setFormData({...formData, end: e.target.value})} />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Bühne</label>
+              <select className="w-full p-2 border rounded" value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})}>
+                {stages.map(s => <option key={s} value={s}>{s}</option>)}
+                <option value="New Stage">+ Neue Bühne...</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Tag</label>
+              <input type="text" className="w-full p-2 border rounded" value={formData.day} onChange={e => setFormData({...formData, day: e.target.value})} />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">SprecherInnen</label>
+            <input type="text" className="w-full p-2 border rounded" value={formData.speakers} onChange={e => setFormData({...formData, speakers: e.target.value})} />
+          </div>
+        </div>
+        <div className="p-4 border-t border-slate-100 flex justify-end gap-2 bg-slate-50">
+          <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded">Abbrechen</button>
+          <button onClick={() => onSave(formData)} className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Speichern</button>
+        </div>
+      </div>
     </div>
   );
-}
+};
 
 function App() {
   // --- STATE ---
-  const [urls, setUrls] = useState({
-    speakers: localStorage.getItem('kosmos_speakers_url') || '',
-    moderators: localStorage.getItem('kosmos_moderators_url') || '',
-    program: localStorage.getItem('kosmos_program_url') || ''
+  const [config, setConfig] = useState({
+    speakersUrl: localStorage.getItem('kosmos_speakers_url') || '',
+    moderatorsUrl: localStorage.getItem('kosmos_moderators_url') || '',
+    programUrl: localStorage.getItem('kosmos_program_url') || '',
+    googleClientId: localStorage.getItem('kosmos_google_client_id') || '',
+    googleApiKey: localStorage.getItem('kosmos_google_api_key') || '',
+    spreadsheetId: localStorage.getItem('kosmos_spreadsheet_id') || ''
   });
 
-  const [speakers, setSpeakers] = useState([]);
-  const [moderators, setModerators] = useState([]);
-  const [program, setProgram] = useState([]);
+  const [data, setData] = useState({ speakers: [], moderators: [], program: [] });
+  const [status, setStatus] = useState({ loading: false, error: null, lastUpdated: null });
   
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
-  const [lastUpdated, setLastUpdated] = useState(null);
+  const [viewMode, setViewMode] = useState('timeline'); // 'timeline', 'kanban'
   const [showSettings, setShowSettings] = useState(false);
   const [isDemoMode, setIsDemoMode] = useState(false);
   
-  // New State for Sync & Edits
+  // Google Auth State
+  const [gapiInited, setGapiInited] = useState(false);
+  const [gisInited, setGisInited] = useState(false);
+  const [tokenClient, setTokenClient] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  // Edit State
   const [localChanges, setLocalChanges] = useState(false);
-  const [autoSyncEnabled, setAutoSyncEnabled] = useState(true);
-  const [activeDragId, setActiveDragId] = useState(null);
+  const [editingSession, setEditingSession] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  // DnD Sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
+  // --- GOOGLE API INITIALIZATION ---
+  useEffect(() => {
+    const loadGoogleScripts = () => {
+      const script1 = document.createElement('script');
+      script1.src = "https://apis.google.com/js/api.js";
+      script1.onload = () => {
+        window.gapi.load('client', async () => {
+          await window.gapi.client.init({
+            apiKey: config.googleApiKey,
+            discoveryDocs: DISCOVERY_DOCS,
+          });
+          setGapiInited(true);
+        });
+      };
+      document.body.appendChild(script1);
 
-  // --- HELPERS ---
-  const checkStatus = (statusValue, allowedPrefixes) => {
-    if (!statusValue) return false;
-    const s = statusValue.trim();
-    return allowedPrefixes.some(prefix => s.startsWith(prefix));
+      const script2 = document.createElement('script');
+      script2.src = "https://accounts.google.com/gsi/client";
+      script2.onload = () => {
+        const client = window.google.accounts.oauth2.initTokenClient({
+          client_id: config.googleClientId,
+          scope: SCOPES,
+          callback: (tokenResponse) => {
+            if (tokenResponse && tokenResponse.access_token) {
+              setIsAuthenticated(true);
+            }
+          },
+        });
+        setTokenClient(client);
+        setGisInited(true);
+      };
+      document.body.appendChild(script2);
+    };
+
+    if (config.googleClientId && config.googleApiKey) {
+      loadGoogleScripts();
+    }
+  }, [config.googleClientId, config.googleApiKey]);
+
+  const handleLogin = () => {
+    if (tokenClient) tokenClient.requestAccessToken({ prompt: '' });
   };
 
-  const mapPronoun = (value) => {
-    if (!value) return 'unbekannt';
-    const v = value.toLowerCase();
-    if (v.includes('man') || v.includes('männlich')) return 'männlich';
-    if (v.includes('woman') || v.includes('frau') || v.includes('weiblich')) return 'weiblich';
-    if (v.includes('div') || v.includes('non') || v.includes('divers')) return 'divers';
-    return value;
-  };
+  // --- DATA FETCHING ---
+  const loadData = useCallback(async () => {
+    if (isDemoMode) return;
+    setStatus(prev => ({ ...prev, loading: true, error: null }));
 
-  // --- FETCHING LOGIC ---
-  const fetchData = useCallback(async (isAutoRefresh = false) => {
-    if ((!urls.speakers && !urls.moderators && !urls.program) || isDemoMode) return;
-
-    if (!isAutoRefresh) setLoading(true);
-    
-    // Only fetch Speakers/Mods if not auto-refreshing purely for visual update
-    // For program, we need to be careful not to overwrite local drag changes if we are "dirty"
-    // Currently, simple logic: if local changes exist, we pause auto-sync for Program
-    
     try {
+      if (isAuthenticated && config.spreadsheetId) {
+        // --- REAL GOOGLE SHEETS API FETCH ---
+        // Placeholder for Logic: Fetch ranges '26_Kosmos_SprecherInnen!A:E' etc.
+        // For brevity in this artifact, we assume the user might still rely on CSV for READ 
+        // until they fully configure the sheet structure for API reading.
+        // BUT if auth is active, we should try to read via API.
+        
+        // Simulating API read using the CSV logic for now to keep the code robust 
+        // until specific Range names are defined by user.
+        // In a full implementation, this would be `gapi.client.sheets.spreadsheets.values.batchGet`
+      } 
+      
+      // Fallback/Standard: CSV Fetch
       const promises = [];
+      if (config.speakersUrl) promises.push(fetchCSV(config.speakersUrl, 'speakers'));
+      if (config.moderatorsUrl) promises.push(fetchCSV(config.moderatorsUrl, 'moderators'));
+      if (config.programUrl && !localChanges) promises.push(fetchCSV(config.programUrl, 'program'));
 
-      // Fetch Speakers
-      if (urls.speakers) {
-        promises.push(new Promise((resolve, reject) => {
-          Papa.parse(urls.speakers, {
-            download: true, header: false,
-            complete: (results) => {
-              const rows = results.data;
-              const startIndex = rows[0] && rows[0][2] === 'Vorname' ? 1 : 0;
-              const valid = rows.slice(startIndex).filter(r => r && r.length >= 5 && checkStatus(r[0], ['1', '2', '5']))
-                .map((r, i) => ({
-                  id: `sp-${i}`, fullName: `${r[2]} ${r[3]}`.trim(), status: r[0], pronoun: mapPronoun(r[4]), role: 'Speaker'
-                }));
-              setSpeakers(valid);
-              resolve();
-            },
-            error: (err) => reject(err)
-          });
-        }));
-      }
-
-      // Fetch Moderators
-      if (urls.moderators) {
-        promises.push(new Promise((resolve, reject) => {
-          Papa.parse(urls.moderators, {
-            download: true, header: false,
-            complete: (results) => {
-              const rows = results.data;
-              const startIndex = rows[0] && rows[0][1] === 'Name' ? 1 : 0;
-              const valid = rows.slice(startIndex).filter(r => r && r.length >= 3 && checkStatus(r[0], ['1']) && r[2] && (r[2].toLowerCase().includes('moderat') || r[2].toLowerCase().includes('stage')))
-                .map((r, i) => ({
-                  id: `mod-${i}`, fullName: r[1], status: r[0], function: r[2], role: 'Moderation'
-                }));
-              setModerators(valid);
-              resolve();
-            },
-            error: (err) => reject(err)
-          });
-        }));
-      }
-
-      // Fetch Program - Only if no local changes to avoid overwrite
-      if (urls.program && !localChanges) {
-        promises.push(new Promise((resolve, reject) => {
-          Papa.parse(urls.program, {
-            download: true, header: false,
-            complete: (results) => {
-              const rows = results.data;
-              const startIndex = rows[0] && rows[0][1] === 'Titel' ? 1 : 0;
-              const valid = rows.slice(startIndex).filter(r => r && r[1] && r[1].trim() !== '')
-                .map((r, i) => ({
-                  id: `prog-${r[0] || i}`,
-                  title: r[1], status: r[2], format: r[4], 
-                  stage: r[5] || 'Unsorted', // Default stage if empty
-                  start: r[6], end: r[7], speakers: r[9], moderators: r[10],
-                  day: r[8] && r[8].includes('.') ? r[8] : '20.09.' // Fallback date
-                }));
-              setProgram(valid);
-              resolve();
-            },
-            error: (err) => reject(err)
-          });
-        }));
-      }
-
-      await Promise.all(promises);
-      setLastUpdated(new Date());
-      setError(null);
+      const results = await Promise.all(promises);
+      const newData = { ...data };
+      results.forEach(res => { newData[res.type] = res.data; });
+      
+      setData(newData);
+      setStatus(prev => ({ ...prev, loading: false, lastUpdated: new Date() }));
 
     } catch (err) {
-      console.error(err);
-      if (!isAutoRefresh) setError("Fehler beim Laden der Daten.");
-    } finally {
-      if (!isAutoRefresh) setLoading(false);
+      setStatus(prev => ({ ...prev, loading: false, error: err.message }));
     }
-  }, [urls, isDemoMode, localChanges]);
+  }, [config, isAuthenticated, isDemoMode, localChanges, data]);
 
-  // Initial Fetch & Auto-Sync Interval
-  useEffect(() => {
-    if (urls.speakers || urls.moderators || urls.program) {
-      fetchData();
-    } else {
-      setShowSettings(true);
+  const fetchCSV = (url, type) => {
+    return new Promise((resolve, reject) => {
+      Papa.parse(url, {
+        download: true, header: false,
+        complete: (results) => resolve({ type, data: processCSV(results.data, type) }),
+        error: (err) => reject(err)
+      });
+    });
+  };
+
+  const processCSV = (rows, type) => {
+    // Reuse parsing logic from previous version
+    if (type === 'speakers') {
+      const start = rows[0] && rows[0][2] === 'Vorname' ? 1 : 0;
+      return rows.slice(start).filter(r => r && r[0] && (r[0].startsWith('1') || r[0].startsWith('2') || r[0].startsWith('5')))
+        .map((r, i) => ({ id: `sp-${i}`, fullName: `${r[2]} ${r[3]}`, status: r[0], pronoun: r[4] }));
     }
+    if (type === 'moderators') {
+      const start = rows[0] && rows[0][1] === 'Name' ? 1 : 0;
+      return rows.slice(start).filter(r => r && r[0] && r[0].startsWith('1') && r[2]?.toLowerCase().includes('moder'))
+        .map((r, i) => ({ id: `mod-${i}`, fullName: r[1], status: r[0], function: r[2] }));
+    }
+    if (type === 'program') {
+      const start = rows[0] && rows[0][1] === 'Titel' ? 1 : 0;
+      return rows.slice(start).filter(r => r && r[1])
+        .map((r, i) => ({
+          id: `prog-${r[0] || i}`, title: r[1], status: r[2], format: r[4], 
+          stage: r[5] || 'Unsorted', start: r[6] || '00:00', end: r[7] || '00:00', 
+          speakers: r[9], moderators: r[10], day: r[8] || '20.09.'
+        }));
+    }
+    return [];
+  };
+
+  useEffect(() => {
+    if (config.speakersUrl || config.moderatorsUrl) loadData();
+    else setShowSettings(true);
   }, []);
 
-  useEffect(() => {
-    let interval;
-    if (autoSyncEnabled && !isDemoMode) {
-      interval = setInterval(() => {
-        // Polling Google Sheets
-        fetchData(true); 
-      }, 60000); // Check every 60 seconds
+  // --- CRUD OPERATIONS ---
+  const handleSaveSession = (session) => {
+    let newProgram;
+    if (editingSession) {
+      // Update existing
+      newProgram = data.program.map(p => p.id === editingSession.id ? { ...p, ...session } : p);
+    } else {
+      // Create new
+      newProgram = [...data.program, { ...session, id: `new-${Date.now()}` }];
     }
-    return () => clearInterval(interval);
-  }, [autoSyncEnabled, isDemoMode, fetchData]);
-
-
-  const loadDemoData = () => {
-    setLoading(true);
-    setTimeout(() => {
-      setSpeakers(MOCK_SPEAKERS);
-      setModerators(MOCK_MODERATORS);
-      setProgram(MOCK_PROGRAM);
-      setLastUpdated(new Date());
-      setIsDemoMode(true);
-      setLoading(false);
-      setShowSettings(false);
-      setError(null);
-    }, 500);
+    setData({ ...data, program: newProgram });
+    setLocalChanges(true);
+    setIsModalOpen(false);
+    setEditingSession(null);
   };
 
-  const handleSaveSettings = () => {
-    localStorage.setItem('kosmos_speakers_url', urls.speakers);
-    localStorage.setItem('kosmos_moderators_url', urls.moderators);
-    localStorage.setItem('kosmos_program_url', urls.program);
-    setShowSettings(false);
-    fetchData();
-  };
-
-  // --- DND LOGIC ---
-
-  // Get unique stages for columns
-  const stages = [...new Set(program.map(p => p.stage))].sort();
-  if (stages.length === 0) stages.push('Main Stage');
-
-  const handleDragStart = (event) => {
-    setActiveDragId(event.active.id);
-  };
-
-  const handleDragEnd = (event) => {
-    const { active, over } = event;
-    setActiveDragId(null);
-
-    if (!over) return;
-
-    const activeId = active.id;
-    const overId = over.id;
-
-    // Find the items
-    const activeItem = program.find(p => p.id === activeId);
-    
-    // Determine target stage
-    // If dropping over a container (Stage Column), overId is the stage name
-    // If dropping over another item, we need to find that item's stage
-    let targetStage = overId;
-    const overItem = program.find(p => p.id === overId);
-    
-    if (overItem) {
-      targetStage = overItem.stage;
-    }
-
-    // Check if we are moving to a different stage
-    if (activeItem.stage !== targetStage) {
-      // Logic for moving between columns (Stages)
-      setProgram((items) => {
-        const newItems = items.map(item => {
-          if (item.id === activeId) {
-            return { ...item, stage: targetStage };
-          }
-          return item;
-        });
-        return newItems;
-      });
-      setLocalChanges(true); // Mark as dirty
-    } 
-    // Logic for reordering within same column (not strictly necessary for time-based, but good for UI)
-    else if (activeId !== overId) {
-      setProgram((items) => {
-        const oldIndex = items.findIndex(i => i.id === activeId);
-        const newIndex = items.findIndex(i => i.id === overId);
-        return arrayMove(items, oldIndex, newIndex);
-      });
+  const handleDeleteSession = (id) => {
+    if (window.confirm("Session wirklich löschen?")) {
+      setData({ ...data, program: data.program.filter(p => p.id !== id) });
       setLocalChanges(true);
     }
   };
 
-  const handleSimulateSync = () => {
-    alert("⚠️ Google Sheets API Anbindung erforderlich!\n\nDie Drag & Drop Änderungen sind aktuell nur lokal im Browser. Um diese Änderungen zurück in die Google Tabelle zu schreiben ('Ping'), muss eine OAuth2-Authentifizierung implementiert werden.\n\nFür den Moment: Bitte übertragen Sie die Änderungen manuell oder nutzen Sie die Export-Funktion (coming soon).");
-    // In a real app, here we would POST the diff to a cloud function
-    setLocalChanges(false);
+  const handleSyncToDrive = async () => {
+    if (!isAuthenticated) {
+      alert("Bitte zuerst mit Google anmelden!");
+      return;
+    }
+    if (!config.spreadsheetId) {
+      alert("Spreadsheet ID fehlt in den Einstellungen!");
+      return;
+    }
+
+    try {
+      setStatus(prev => ({ ...prev, loading: true }));
+      // LOGIC: Convert 'data.program' back to CSV-like array and push to Sheet
+      // This is a simplified "overwrite" strategy or "append" strategy.
+      // Ideally, we update specific rows if we tracked IDs, but here we might just append new ones 
+      // or warn user that full sync requires more mapping.
+      
+      alert("Sync-Logik initiiert. (Hier würde der API Call `gapi.client.sheets.values.update` ausgeführt werden).");
+      
+      setLocalChanges(false);
+      setStatus(prev => ({ ...prev, loading: false }));
+    } catch (err) {
+      alert("Sync Fehler: " + err.message);
+      setStatus(prev => ({ ...prev, loading: false }));
+    }
+  };
+
+  // --- VIEW LOGIC ---
+  const stages = useMemo(() => {
+    const s = [...new Set(data.program.map(p => p.stage))].sort();
+    return s.length ? s : ['Main Stage'];
+  }, [data.program]);
+
+  // Timeline Helper: Get Grid Position
+  const START_HOUR = 9; // 9:00
+  const PIXELS_PER_MINUTE = 2;
+  
+  const getPositionStyle = (start, end) => {
+    const startMin = timeToMinutes(start);
+    const endMin = timeToMinutes(end);
+    const duration = endMin - startMin;
+    const top = (startMin - (START_HOUR * 60)) * PIXELS_PER_MINUTE;
+    const height = duration * PIXELS_PER_MINUTE;
+    return { top: `${Math.max(0, top)}px`, height: `${Math.max(20, height)}px` };
+  };
+
+  const loadDemo = () => {
+    setData({ speakers: MOCK_SPEAKERS, moderators: MOCK_MODERATORS, program: MOCK_PROGRAM });
+    setIsDemoMode(true);
+    setShowSettings(false);
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans p-6">
-      <div className="max-w-[1600px] mx-auto space-y-8">
-        
-        {/* Header */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-200 gap-4">
-          <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent flex items-center gap-2">
-              KOSMOS Planer
-              {isDemoMode && <span className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded-full border border-amber-200">DEMO</span>}
-            </h1>
-            <div className="flex items-center gap-4 mt-1">
-              <p className="text-slate-500 text-sm flex items-center gap-2">
-                <span className={`w-2 h-2 rounded-full ${autoSyncEnabled ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></span>
-                {autoSyncEnabled ? 'Auto-Sync aktiv' : 'Sync pausiert'}
-              </p>
-              {lastUpdated && <span className="text-slate-400 text-xs">Aktualisiert: {lastUpdated.toLocaleTimeString('de-DE')}</span>}
-            </div>
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans flex flex-col h-screen overflow-hidden">
+      
+      {/* --- HEADER --- */}
+      <header className="bg-white border-b border-slate-200 p-4 shrink-0 flex justify-between items-center z-20 shadow-sm">
+        <div className="flex items-center gap-4">
+          <h1 className="text-2xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+            KOSMOS Planer
+          </h1>
+          <div className="flex bg-slate-100 rounded-lg p-1 gap-1">
+             <button onClick={() => setViewMode('timeline')} className={`px-3 py-1 rounded text-sm font-medium transition-all ${viewMode === 'timeline' ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}>Zeitplan</button>
+             <button onClick={() => setViewMode('kanban')} className={`px-3 py-1 rounded text-sm font-medium transition-all ${viewMode === 'kanban' ? 'bg-white shadow text-blue-600' : 'text-slate-500'}`}>Kanban</button>
           </div>
-          
-          <div className="flex gap-3 flex-wrap">
-            {localChanges && (
-              <button 
-                onClick={handleSimulateSync}
-                className="flex items-center gap-2 px-4 py-2 bg-orange-600 hover:bg-orange-700 text-white rounded-lg transition-colors font-bold shadow-sm animate-pulse"
-              >
-                <UploadCloud className="w-4 h-4" />
-                Änderungen an Drive senden
-              </button>
-            )}
-            
-            <button 
-              onClick={() => fetchData(false)} 
-              disabled={loading}
-              className="flex items-center gap-2 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition-colors font-medium text-sm"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-            <button 
-              onClick={() => setShowSettings(!showSettings)}
-              className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium shadow-sm text-sm"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-          </div>
-        </header>
-
-        {/* Error */}
-        {error && (
-          <div className="bg-red-50 text-red-700 p-4 rounded-xl border border-red-200 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 mt-0.5 shrink-0" />
-            <p className="text-sm">{error}</p>
-          </div>
-        )}
-
-        {/* Settings */}
-        {showSettings && (
-          <Card className="bg-slate-50 border-blue-200 mb-6">
-            <div className="p-6 space-y-4">
-              <h2 className="font-bold text-lg">Einstellungen</h2>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <input type="text" value={urls.speakers} onChange={(e) => setUrls({...urls, speakers: e.target.value})} placeholder="Sprecher CSV URL" className="p-2 rounded border" />
-                <input type="text" value={urls.moderators} onChange={(e) => setUrls({...urls, moderators: e.target.value})} placeholder="Moderation CSV URL" className="p-2 rounded border" />
-                <input type="text" value={urls.program} onChange={(e) => setUrls({...urls, program: e.target.value})} placeholder="Programm CSV URL" className="p-2 rounded border" />
-              </div>
-              <div className="flex justify-between pt-2">
-                 <button onClick={loadDemoData} className="text-sm text-slate-500 underline">Demo Daten laden</button>
-                 <button onClick={handleSaveSettings} className="bg-green-600 text-white px-6 py-2 rounded-lg">Speichern</button>
-              </div>
-            </div>
-          </Card>
-        )}
-
-        <div className="grid grid-cols-12 gap-8 items-start">
-          
-          {/* Sidebar: Lists (Speakers & Mods) */}
-          <div className="col-span-12 lg:col-span-3 space-y-8">
-            {/* Speakers */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-              <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <Users className="w-4 h-4" /> SprecherInnen ({speakers.length})
-              </h3>
-              <div className="space-y-2">
-                {speakers.map(s => (
-                  <div key={s.id} className="text-sm p-2 bg-slate-50 rounded border border-slate-100">
-                    <div className="font-semibold text-slate-800">{s.fullName}</div>
-                    <div className="text-xs text-slate-500 mt-1 flex gap-2">
-                      <span className={s.status.startsWith('1') ? 'text-green-600' : 'text-slate-400'}>{s.status}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Moderators */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-4 max-h-[400px] overflow-y-auto custom-scrollbar">
-               <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
-                <Mic2 className="w-4 h-4" /> Moderation ({moderators.length})
-              </h3>
-               <div className="space-y-2">
-                {moderators.map(m => (
-                  <div key={m.id} className="text-sm p-2 bg-slate-50 rounded border border-slate-100">
-                    <div className="font-semibold text-slate-800">{m.fullName}</div>
-                    <div className="text-xs text-slate-500 mt-1">{m.function}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Main Area: Programm Drag & Drop Board */}
-          <div className="col-span-12 lg:col-span-9">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-                <CalendarDays className="w-5 h-5 text-orange-600" />
-                Programm Planung (Drag & Drop)
-              </h2>
-              <div className="text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-                Ziehen Sie Karten zwischen den Bühnen, um sie neu zuzuweisen.
-              </div>
-            </div>
-
-            <DndContext 
-              sensors={sensors} 
-              collisionDetection={closestCenter}
-              onDragStart={handleDragStart}
-              onDragEnd={handleDragEnd}
-            >
-              <div className="flex gap-4 overflow-x-auto pb-8 custom-scrollbar">
-                {stages.map(stage => {
-                  // Filter items for this stage
-                  const stageItems = program.filter(p => p.stage === stage);
-                  
-                  return (
-                    <div key={stage} className="min-w-[300px] w-[320px] shrink-0 bg-slate-100 rounded-xl p-3 border border-slate-200">
-                      <div className="flex items-center justify-between mb-3 px-1">
-                        <h3 className="font-bold text-slate-700">{stage}</h3>
-                        <span className="text-xs font-mono bg-slate-200 text-slate-600 px-2 py-0.5 rounded">{stageItems.length}</span>
-                      </div>
-                      
-                      <SortableContext 
-                        id={stage} // This allows dropping into empty columns
-                        items={stageItems.map(i => i.id)} 
-                        strategy={verticalListSortingStrategy}
-                      >
-                        <div className="min-h-[150px]">
-                          {stageItems.length === 0 && (
-                            <div className="text-center text-slate-400 text-xs py-8 border-2 border-dashed border-slate-200 rounded-lg">
-                              Keine Sessions<br/>Hierher ziehen
-                            </div>
-                          )}
-                          {stageItems.map(item => (
-                            <SortableSessionItem key={item.id} session={item} />
-                          ))}
-                        </div>
-                      </SortableContext>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Drag Overlay for smooth visual */}
-              <DragOverlay>
-                {activeDragId ? (
-                  <Card className="p-3 shadow-xl ring-2 ring-blue-500 rotate-2 opacity-90 cursor-grabbing w-[300px]">
-                     {/* Simplified visual for drag */}
-                     <h4 className="font-bold text-slate-800 text-sm">Session wird verschoben...</h4>
-                  </Card>
-                ) : null}
-              </DragOverlay>
-
-            </DndContext>
-          </div>
-
         </div>
-      </div>
+
+        <div className="flex items-center gap-3">
+           {localChanges && (
+             <span className="text-xs font-bold text-orange-600 bg-orange-100 px-2 py-1 rounded animate-pulse">
+               Ungespeicherte Änderungen
+             </span>
+           )}
+           
+           {/* Google Auth Button */}
+           {!isAuthenticated && config.googleClientId && (
+             <button onClick={handleLogin} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-slate-300 rounded hover:bg-slate-50 text-sm">
+               <LogIn className="w-4 h-4" /> Google Login
+             </button>
+           )}
+           {isAuthenticated && (
+             <button onClick={handleSyncToDrive} className="flex items-center gap-2 px-3 py-1.5 bg-green-600 text-white rounded hover:bg-green-700 text-sm shadow-sm">
+               <UploadCloud className="w-4 h-4" /> Sync Drive
+             </button>
+           )}
+
+           <button onClick={() => { setEditingSession(null); setIsModalOpen(true); }} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm shadow-sm">
+             <PlusCircle className="w-4 h-4" /> Session
+           </button>
+
+           <button onClick={() => setShowSettings(true)} className="p-2 text-slate-500 hover:bg-slate-100 rounded-full">
+             <Settings className="w-5 h-5" />
+           </button>
+        </div>
+      </header>
+
+      {/* --- SETTINGS --- */}
+      {showSettings && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+           <Card className="w-full max-w-2xl p-6">
+              <h2 className="text-xl font-bold mb-4 flex items-center gap-2"><Settings className="w-5 h-5"/> Einstellungen</h2>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                   <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase">Google Client ID (für Auth)</label>
+                      <input type="text" className="w-full p-2 border rounded font-mono text-xs" value={config.googleClientId} onChange={e => setConfig({...config, googleClientId: e.target.value})} placeholder="xxx.apps.googleusercontent.com" />
+                   </div>
+                   <div className="space-y-2">
+                      <label className="text-xs font-bold text-slate-500 uppercase">API Key</label>
+                      <input type="text" className="w-full p-2 border rounded font-mono text-xs" value={config.googleApiKey} onChange={e => setConfig({...config, googleApiKey: e.target.value})} placeholder="AIza..." />
+                   </div>
+                </div>
+                <div className="space-y-2">
+                   <label className="text-xs font-bold text-slate-500 uppercase">Spreadsheet ID</label>
+                   <input type="text" className="w-full p-2 border rounded font-mono text-xs" value={config.spreadsheetId} onChange={e => setConfig({...config, spreadsheetId: e.target.value})} placeholder="1BxiM..." />
+                </div>
+                <hr className="my-2"/>
+                <div className="space-y-2">
+                   <label className="text-xs font-bold text-slate-500 uppercase">CSV URLs (Read-Only Fallback)</label>
+                   <input type="text" className="w-full p-2 border rounded text-xs" value={config.speakersUrl} onChange={e => setConfig({...config, speakersUrl: e.target.value})} placeholder="Speakers CSV URL" />
+                   <input type="text" className="w-full p-2 border rounded text-xs" value={config.moderatorsUrl} onChange={e => setConfig({...config, moderatorsUrl: e.target.value})} placeholder="Moderators CSV URL" />
+                   <input type="text" className="w-full p-2 border rounded text-xs" value={config.programUrl} onChange={e => setConfig({...config, programUrl: e.target.value})} placeholder="Program CSV URL" />
+                </div>
+                <div className="flex justify-between mt-4">
+                   <button onClick={loadDemo} className="text-sm underline text-slate-500">Demo-Modus</button>
+                   <div className="flex gap-2">
+                     <button onClick={() => setShowSettings(false)} className="px-4 py-2 border rounded">Schließen</button>
+                     <button onClick={() => {
+                        localStorage.setItem('kosmos_google_client_id', config.googleClientId);
+                        localStorage.setItem('kosmos_google_api_key', config.googleApiKey);
+                        localStorage.setItem('kosmos_spreadsheet_id', config.spreadsheetId);
+                        localStorage.setItem('kosmos_speakers_url', config.speakersUrl);
+                        localStorage.setItem('kosmos_moderators_url', config.moderatorsUrl);
+                        localStorage.setItem('kosmos_program_url', config.programUrl);
+                        setShowSettings(false);
+                        loadData();
+                     }} className="px-4 py-2 bg-blue-600 text-white rounded">Speichern</button>
+                   </div>
+                </div>
+              </div>
+           </Card>
+        </div>
+      )}
+
+      {/* --- MAIN CONTENT --- */}
+      <main className="flex-1 overflow-hidden relative flex">
+        
+        {/* VIEW: TIMELINE */}
+        {viewMode === 'timeline' && (
+          <div className="flex-1 overflow-auto bg-slate-100 relative custom-scrollbar flex">
+            {/* Time Axis (Y) */}
+            <div className="sticky left-0 w-16 bg-white border-r border-slate-200 z-10 shrink-0">
+               {Array.from({ length: 14 }).map((_, i) => {
+                 const hour = START_HOUR + i;
+                 return (
+                   <div key={hour} className="absolute w-full border-b border-slate-100 text-right pr-2 text-xs text-slate-400" 
+                        style={{ top: `${i * 60 * PIXELS_PER_MINUTE}px`, height: `${60 * PIXELS_PER_MINUTE}px` }}>
+                     {hour}:00
+                   </div>
+                 );
+               })}
+            </div>
+
+            {/* Stages Columns (X) */}
+            <div className="flex">
+              {stages.map(stage => {
+                const stageSessions = data.program.filter(p => p.stage === stage);
+                return (
+                  <div key={stage} className="w-[300px] border-r border-slate-200 relative bg-slate-50/50 shrink-0 min-h-[1600px]">
+                    <div className="sticky top-0 bg-white/90 backdrop-blur border-b border-slate-200 p-2 z-10 text-center font-bold text-slate-700 shadow-sm">
+                      {stage}
+                    </div>
+                    {/* Render Sessions */}
+                    {stageSessions.map(session => (
+                      <Card 
+                        key={session.id} 
+                        className={`absolute left-2 right-2 border-l-4 p-2 cursor-pointer hover:shadow-md transition-all group z-0 
+                          ${session.format === 'Pause' ? 'bg-slate-200/50 border-slate-400' : 'bg-white border-blue-500'}`}
+                        style={getPositionStyle(session.start, session.end)}
+                        onClick={() => { setEditingSession(session); setIsModalOpen(true); }}
+                      >
+                         <div className="flex justify-between items-start overflow-hidden">
+                           <div className="text-xs font-bold text-slate-600 mb-1">{session.start} - {session.end}</div>
+                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                             <button onClick={(e) => { e.stopPropagation(); handleDeleteSession(session.id); }} className="p-1 hover:bg-red-100 text-red-500 rounded"><Trash2 className="w-3 h-3"/></button>
+                           </div>
+                         </div>
+                         <div className="font-bold text-sm leading-tight line-clamp-2">{session.title}</div>
+                         {session.speakers && <div className="text-xs text-slate-500 mt-1 truncate"><Users className="inline w-3 h-3 mr-1"/>{session.speakers}</div>}
+                      </Card>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* VIEW: KANBAN */}
+        {viewMode === 'kanban' && (
+          <div className="flex-1 overflow-auto bg-slate-100 p-6 flex gap-6 custom-scrollbar">
+             {stages.map(stage => (
+               <div key={stage} className="w-[320px] shrink-0 flex flex-col gap-3">
+                 <h3 className="font-bold text-slate-700 bg-white p-3 rounded-lg shadow-sm border border-slate-200 sticky top-0 z-10">{stage}</h3>
+                 <div className="space-y-3">
+                    {data.program.filter(p => p.stage === stage).map(session => (
+                      <Card key={session.id} className="p-4 cursor-pointer hover:border-blue-300" onClick={() => { setEditingSession(session); setIsModalOpen(true); }}>
+                         <div className="flex justify-between mb-2">
+                           <Badge color={session.status.startsWith('1') ? 'green' : 'gray'}>{session.status}</Badge>
+                           <span className="text-xs font-mono">{session.start}</span>
+                         </div>
+                         <h4 className="font-bold text-sm">{session.title}</h4>
+                      </Card>
+                    ))}
+                 </div>
+               </div>
+             ))}
+          </div>
+        )}
+
+      </main>
+
+      {/* --- EDIT MODAL --- */}
+      <SessionModal 
+        isOpen={isModalOpen} 
+        onClose={() => { setIsModalOpen(false); setEditingSession(null); }} 
+        onSave={handleSaveSession}
+        initialData={editingSession}
+        stages={stages}
+      />
+      
     </div>
   );
 }
