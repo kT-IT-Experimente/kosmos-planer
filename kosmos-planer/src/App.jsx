@@ -19,7 +19,7 @@ import {
   Users, RefreshCw, Settings, AlertCircle, 
   Trash2, PlusCircle, UploadCloud, LogIn, X, 
   Lock, Unlock, MessageSquare, Globe, Flag, Layout, 
-  AlertTriangle, Mic2, PieChart, Search, CheckCircle2
+  AlertTriangle, Mic2, PieChart, Search, CheckCircle2, ToggleLeft, ToggleRight
 } from 'lucide-react';
 
 // --- KONSTANTEN ---
@@ -102,6 +102,15 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
       {...listeners} 
       {...attributes}
     >
+       {/* Conflict Overlay (Full Card) */}
+       {hasConflict && (
+         <div className="absolute inset-0 bg-red-600/95 z-50 p-3 text-white flex flex-col justify-center items-center text-center opacity-0 transition-opacity duration-200 pointer-events-none group-hover/conflict:opacity-100 backdrop-blur-sm">
+            <AlertTriangle className="w-8 h-8 mb-2 animate-bounce" />
+            <span className="font-bold underline mb-1">Terminkollision</span>
+            <span className="text-xs leading-tight">{conflictTooltip}</span>
+         </div>
+       )}
+
        <div className="flex justify-between items-start mb-1">
          <div className="flex flex-col overflow-hidden">
            <span className="font-mono text-[10px] font-bold text-slate-500 leading-none mb-1">
@@ -114,12 +123,9 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
          
          <div className="flex gap-1 shrink-0 z-10 items-center">
             {hasConflict && (
-              <div className="text-red-500 relative group mr-2 cursor-help">
+              // This div triggers the overlay defined above via group-hover/conflict
+              <div className="text-red-500 mr-1 group/conflict cursor-help hover:scale-110 transition-transform">
                 <AlertTriangle className="w-4 h-4 animate-pulse" />
-                <div className="absolute top-full right-0 mt-1 w-64 p-3 bg-red-600 text-white text-xs rounded-lg shadow-xl hidden group-hover:block z-50 pointer-events-none border border-red-400">
-                  <div className="font-bold mb-1 border-b border-red-400 pb-1">Konflikt erkannt:</div>
-                  {conflictTooltip}
-                </div>
               </div>
             )}
             <button 
@@ -145,9 +151,9 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
          )}
          
          <div className="flex items-center gap-2 text-[9px] text-slate-400 pt-1 border-t border-black/5">
-            <span className="font-mono text-slate-300">ID:{session.id}</span>
+            <span className="font-mono text-slate-300 text-[8px]">{session.id}</span>
             {session.language && <span className="flex items-center gap-0.5 ml-auto">{session.language.toUpperCase()}</span>}
-            {session.partner === 'TRUE' && <span className="flex items-center gap-0.5 truncate text-blue-600 font-bold bg-blue-50 px-1 rounded"><Flag className="w-2.5 h-2.5" /> Partner</span>}
+            {session.partner === 'TRUE' && <span className="flex items-center gap-0.5 truncate text-blue-600 font-bold bg-blue-50 px-1 rounded border border-blue-100"><Flag className="w-2.5 h-2.5" /> Partner</span>}
             {session.notes && (
               <div className="relative group/notes ml-1">
                 <span className="flex items-center gap-0.5 text-blue-500 cursor-help"><MessageSquare className="w-2.5 h-2.5" /></span>
@@ -183,7 +189,7 @@ const DraggableTimelineItem = ({ session, onClick, style, onToggleLock, hasConfl
     ...style, 
     opacity: isDragging ? 0 : 1, 
     touchAction: 'none',
-    zIndex: isDragging ? 50 : 10 // Lift dragged item visually
+    zIndex: isDragging ? 50 : 10 
   };
 
   return (
@@ -206,7 +212,7 @@ const SortableInboxItem = ({ session, onClick, onToggleLock, hasConflict, confli
   const style = { transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.3 : 1, touchAction: 'none' };
 
   return (
-    <div ref={setNodeRef} style={style} className="w-[260px] shrink-0">
+    <div ref={setNodeRef} style={style} className="w-[240px] mb-2 shrink-0">
       <SessionCardContent 
           session={session} onClick={onClick} onToggleLock={onToggleLock} isLocked={isLocked}
           hasConflict={hasConflict} conflictTooltip={conflictTooltip}
@@ -232,11 +238,6 @@ const StageColumn = ({ stage, children, height }) => {
          </div>
        </div>
        <div className="absolute w-full bottom-0 z-0" style={{ top: HEADER_HEIGHT, height: height }}>
-          {/* Grid Background */}
-          <div className="absolute inset-0 pointer-events-none z-0">
-             {/* Lines handled by parent for performance */}
-          </div>
-          {/* Content Layer */}
           <div className="absolute inset-0 z-10">
               {children}
           </div>
@@ -251,7 +252,6 @@ function App() {
   const [data, setData] = useState({ speakers: [], moderators: [], program: [], stages: [] });
   const [status, setStatus] = useState({ loading: false, error: null });
   
-  // Settings State
   const [config, setConfig] = useState({
     googleClientId: localStorage.getItem('kosmos_google_client_id') || '',
     googleApiKey: localStorage.getItem('kosmos_google_api_key') || '',
@@ -285,9 +285,8 @@ function App() {
 
   const timelineHeight = (config.endHour - config.startHour) * 60 * PIXELS_PER_MINUTE;
 
-  // --- ANALYTICS & CONFLICTS ---
+  // --- ANALYTICS ---
   const analysis = useMemo(() => {
-    const speakersOnStage = new Set();
     const genderCounts = { m: 0, w: 0, d: 0, u: 0 };
     let partnerSessions = 0;
     let totalPlacedSessions = 0;
@@ -299,19 +298,16 @@ function App() {
             
             const sList = s.speakers ? s.speakers.split(',').map(n=>n.trim()).filter(Boolean) : [];
             sList.forEach(name => {
-                if (!speakersOnStage.has(name)) {
-                    speakersOnStage.add(name);
-                    // Find gender
-                    const spObj = data.speakers.find(dbSp => dbSp.fullName === name);
-                    if (spObj) {
-                        const p = (spObj.pronoun || '').toLowerCase();
-                        if (p.includes('männ') || p.includes('man') || p.includes('he')) genderCounts.m++;
-                        else if (p.includes('weib') || p.includes('frau') || p.includes('she')) genderCounts.w++;
-                        else if (p.includes('div') || p.includes('non')) genderCounts.d++;
-                        else genderCounts.u++;
-                    } else {
-                        genderCounts.u++;
-                    }
+                // Find gender using case-insensitive match
+                const spObj = data.speakers.find(dbSp => dbSp.fullName.toLowerCase() === name.toLowerCase());
+                if (spObj) {
+                    const p = (spObj.pronoun || '').toLowerCase();
+                    if (p.includes('männ') || p.includes('man') || p.includes('he')) genderCounts.m++;
+                    else if (p.includes('weib') || p.includes('frau') || p.includes('she')) genderCounts.w++;
+                    else if (p.includes('div') || p.includes('non')) genderCounts.d++;
+                    else genderCounts.u++;
+                } else {
+                    genderCounts.u++;
                 }
             });
         }
@@ -320,6 +316,7 @@ function App() {
     return { genderCounts, partnerPercent: totalPlacedSessions ? Math.round((partnerSessions/totalPlacedSessions)*100) : 0, totalPlaced: totalPlacedSessions };
   }, [data.program, data.speakers]);
 
+  // --- CONFLICTS ---
   const speakerConflicts = useMemo(() => {
     const usage = {};
     const conflicts = {}; 
@@ -353,7 +350,7 @@ function App() {
     return conflicts;
   }, [data.program]);
 
-  // --- API & DATA LOGIC ---
+  // --- API & DATA ---
   useEffect(() => {
     const initGapi = async () => {
        if(window.gapi) {
@@ -406,10 +403,7 @@ function App() {
       
       const st = (ranges[3].values || [])
         .map((r,i) => ({
-            id:r[0]||`st-${i}`, 
-            name:r[1], 
-            capacity:r[2],
-            maxMics: parseInt(r[4]) || 4 // Col E is MaxMics
+            id:r[0]||`st-${i}`, name:r[1], capacity:r[2], maxMics: parseInt(r[4]) || 4
         }))
         .filter(s => s.name && s.name.toLowerCase() !== 'inbox');
         
@@ -424,7 +418,7 @@ function App() {
 
          return {
            id: id, title: r[1], status: r[2]||'5_Vorschlag', 
-           partner: r[3] === 'TRUE' || r[3] === 'P' ? 'TRUE' : 'FALSE', // Normalize Partner Flag
+           partner: r[3] === 'TRUE' || r[3] === 'P' ? 'TRUE' : 'FALSE', 
            format: r[4]||'Talk', stage: stage, start: start, duration: dur,
            end: calculateEndTime(start, dur), speakers: r[9], moderators: r[10], language: r[11], notes: r[12], stageDispo: r[13]
          };
@@ -460,8 +454,6 @@ function App() {
         setStatus({ loading: false, error: e.message });
     }
   };
-
-  // --- DRAG & DROP LOGIC ---
 
   const handleDragStart = (event) => {
     setActiveDragItem(event.active.data.current);
@@ -636,7 +628,6 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans overflow-hidden text-slate-900">
-      {/* Toast */}
       {toast && (
         <div className={`fixed top-16 left-1/2 -translate-x-1/2 px-4 py-2 rounded shadow-lg z-50 text-sm font-bold text-white
            ${toast.type === 'error' ? 'bg-red-600' : 'bg-blue-600'}`}>
@@ -674,7 +665,7 @@ function App() {
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
         <div className="flex flex-1 overflow-hidden">
-          {/* SIDEBAR: ANALYTICS & DB */}
+          {/* SIDEBAR */}
           {isAuthenticated && (
             <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-30 shadow-lg">
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50">
@@ -713,26 +704,24 @@ function App() {
           )}
 
           <div className="flex-1 flex flex-col overflow-hidden relative">
-             {/* INBOX */}
+             {/* INBOX (Parking Lot) */}
              <div className="bg-slate-100 border-b border-slate-300 p-2 shrink-0 h-48 flex flex-col shadow-inner z-20">
                 <div className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2 px-2">
-                   <Layout className="w-3 h-3"/> Inbox
+                   <Layout className="w-3 h-3"/> Inbox (Parkplatz)
                 </div>
-                <div className="flex-1 overflow-x-auto custom-scrollbar">
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
                    <SortableContext id={INBOX_ID} items={data.program.filter(p=>p.stage===INBOX_ID).map(p=>p.id)}>
-                      <div className="flex gap-2 h-full items-center px-2">
-                         <DroppableStage id={INBOX_ID} className="flex gap-2 h-full items-center min-w-[50px]">
-                            {data.program.filter(p=>p.stage===INBOX_ID).map(p => (
-                               <SortableInboxItem 
-                                  key={p.id} session={p} 
-                                  onClick={()=> {setEditingSession(p); setIsModalOpen(true)}}
-                                  onToggleLock={(s)=>updateSession(s.id, {status: s.status==='Fixiert'?'2_Planung':'Fixiert'})}
-                                  hasConflict={!!speakerConflicts[p.id]}
-                                  conflictTooltip={speakerConflicts[p.id]?.join(' | ')}
-                               />
-                            ))}
-                         </DroppableStage>
-                      </div>
+                      <DroppableStage id={INBOX_ID} className="flex flex-wrap gap-2 min-h-full items-start content-start">
+                         {data.program.filter(p=>p.stage===INBOX_ID).map(p => (
+                            <SortableInboxItem 
+                               key={p.id} session={p} 
+                               onClick={()=> {setEditingSession(p); setIsModalOpen(true)}}
+                               onToggleLock={(s)=>updateSession(s.id, {status: s.status==='Fixiert'?'2_Planung':'Fixiert'})}
+                               hasConflict={!!speakerConflicts[p.id]}
+                               conflictTooltip={speakerConflicts[p.id]?.join(' | ')}
+                            />
+                         ))}
+                      </DroppableStage>
                    </SortableContext>
                 </div>
              </div>
@@ -846,7 +835,7 @@ function App() {
   );
 }
 
-// Session Modal (Updated with Search & Checkbox)
+// Session Modal (Complete)
 const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) => {
   const [formData, setFormData] = useState({
     id: '', title: '', start: '10:00', duration: 60, stage: 'Main Stage',
@@ -886,7 +875,6 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
     }
   };
 
-  // Mic Check
   const micWarning = useMemo(() => {
      if (formData.stage === INBOX_ID) return null;
      const stage = definedStages.find(s => s.name === formData.stage);
@@ -900,7 +888,6 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
   const inputStd = "w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all placeholder:text-slate-300";
   const labelStd = "block text-[11px] font-bold text-slate-500 uppercase mb-1.5 tracking-wide";
 
-  // Filter Lists
   const filteredSpeakers = speakersList.filter(s => s.fullName.toLowerCase().includes(searchTermSp.toLowerCase()));
   const filteredMods = moderatorsList.filter(m => m.fullName.toLowerCase().includes(searchTermMod.toLowerCase()));
 
@@ -936,7 +923,10 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
                <div><label className={labelStd}>Sprache</label><select className={inputStd} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option value="de">DE</option><option value="en">EN</option></select></div>
                <div className="flex flex-col justify-end pb-2">
                   <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-50 p-2 rounded border border-slate-200 hover:border-blue-300 transition-colors">
-                     <input type="checkbox" className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" checked={formData.partner === 'TRUE'} onChange={e => setFormData({...formData, partner: e.target.checked ? 'TRUE' : 'FALSE'})} />
+                     <div className={`w-10 h-5 rounded-full relative transition-colors ${formData.partner === 'TRUE' ? 'bg-blue-600' : 'bg-slate-300'}`}>
+                        <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${formData.partner === 'TRUE' ? 'translate-x-5' : ''}`}></div>
+                     </div>
+                     <input type="checkbox" className="hidden" checked={formData.partner === 'TRUE'} onChange={e => setFormData({...formData, partner: e.target.checked ? 'TRUE' : 'FALSE'})} />
                      <span className="text-sm font-medium text-slate-700">Ist Partner-Session</span>
                   </label>
                </div>
@@ -949,7 +939,6 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
                <div><label className={labelStd}>Dauer (Min)</label><input type="number" className={inputStd} value={formData.duration} onChange={e => setFormData({...formData, duration: parseInt(e.target.value)})} /></div>
              </div>
           </div>
-          
           <div className="grid grid-cols-2 gap-4">
              <div>
                 <label className={labelStd}>Sprecher (Suche)</label>
