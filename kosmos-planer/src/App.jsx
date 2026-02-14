@@ -68,8 +68,6 @@ const calculateEndTime = (startStr, durationMin) => {
 };
 
 const checkOverlap = (startA, endA, startB, endB, buffer = 0) => {
-  // A ends before B starts (minus buffer) OR A starts after B ends (plus buffer)
-  // Inverse: Overlap exists
   return (startA < endB + buffer) && (endA + buffer > startB);
 };
 
@@ -176,7 +174,7 @@ const DraggableTimelineItem = ({ session, onClick, style, onToggleLock, hasConfl
     disabled: isLocked
   });
 
-  const baseStyle = { ...style, opacity: isDragging ? 0 : 1 };
+  const baseStyle = { ...style, opacity: isDragging ? 0 : 1, touchAction: 'none' };
 
   return (
     <div ref={setNodeRef} style={baseStyle} className={`absolute w-full px-1 z-10 ${isLocked ? 'z-0' : ''}`}>
@@ -195,7 +193,7 @@ const SortableInboxItem = ({ session, onClick, onToggleLock, hasConflict, confli
     id: session.id, data: session, disabled: isLocked 
   });
 
-  const style = { transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.3 : 1 };
+  const style = { transform: CSS.Translate.toString(transform), transition, opacity: isDragging ? 0.3 : 1, touchAction: 'none' };
 
   return (
     <div ref={setNodeRef} style={style} className="w-[260px] shrink-0">
@@ -221,7 +219,12 @@ const StageColumn = ({ stage, children, height }) => {
          <div className="text-[10px] text-slate-400 font-mono">{stage.capacity} PAX</div>
        </div>
        <div className="absolute w-full bottom-0 z-0" style={{ top: HEADER_HEIGHT, height: height }}>
-          <div className="absolute inset-0 pointer-events-none">
+          {/* Grid Background (Separate layer) */}
+          <div className="absolute inset-0 pointer-events-none z-0">
+             {/* Lines defined by parent or empty */}
+          </div>
+          {/* Content Layer (Interactive) */}
+          <div className="absolute inset-0 z-10">
               {children}
           </div>
        </div>
@@ -262,18 +265,18 @@ function App() {
   const [tokenClient, setTokenClient] = useState(null);
   const [gapiInited, setGapiInited] = useState(false);
 
+  // Sensor Config: Distance 5px to distinguish click from drag
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // --- DERIVED VALUES ---
   const timelineHeight = (config.endHour - config.startHour) * 60 * PIXELS_PER_MINUTE;
 
   // Speaker Conflicts Analysis
   const speakerConflicts = useMemo(() => {
     const usage = {};
-    const conflicts = {}; // { sessionId: ["Conflict with Session B (Speaker X)"] }
+    const conflicts = {}; 
 
     data.program.forEach(s => {
       if (s.stage === INBOX_ID || s.start === '-') return;
@@ -286,10 +289,8 @@ function App() {
       speakerList.forEach(sp => {
         if (!usage[sp]) usage[sp] = [];
         
-        // Check overlap with existing usage
         usage[sp].forEach(existing => {
-          if (checkOverlap(sStart, sEnd, existing.start, existing.end, 0)) { // No buffer needed for people, just strict overlap
-             // Found conflict
+          if (checkOverlap(sStart, sEnd, existing.start, existing.end, 0)) { 
              if (!conflicts[s.id]) conflicts[s.id] = [];
              if (!conflicts[existing.id]) conflicts[existing.id] = [];
              
@@ -349,7 +350,13 @@ function App() {
       });
       const ranges = batch.result.valueRanges;
       
-      const sp = (ranges[0].values || []).filter(r=>r[0]).map((r,i) => ({id:`sp-${i}`, fullName:`${r[2]||''} ${r[3]||''}`, status:r[0]}));
+      // Filter Speaker by Status (Strict check with partial match)
+      const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag'];
+      const sp = (ranges[0].values || []).filter(r => {
+          const s = (r[0] || '').toLowerCase();
+          return allowedSpeakerStatus.some(k => s.includes(k));
+      }).map((r,i) => ({id:`sp-${i}`, fullName:`${r[2]||''} ${r[3]||''}`, status:r[0]}));
+
       const mo = (ranges[1].values || []).filter(r=>r[0]).map((r,i) => ({id:`mod-${i}`, fullName:r[1], status:r[0]}));
       const st = (ranges[3].values || []).map((r,i) => ({id:r[0]||`st-${i}`, name:r[1], capacity:r[2]}));
       if (st.length===0) st.push({id:'main', name:'Main Stage', capacity:200});
@@ -431,7 +438,6 @@ function App() {
     const topPx = (clampedMinutes - (config.startHour * 60)) * PIXELS_PER_MINUTE;
     const heightPx = activeDragItem.duration * PIXELS_PER_MINUTE;
 
-    // Check overlaps for Ghost Color
     const ghostStart = clampedMinutes;
     const ghostEnd = clampedMinutes + activeDragItem.duration;
     const hasOverlap = data.program.some(p => 
@@ -459,7 +465,6 @@ function App() {
     const targetStage = over.id;
     const session = active.data.current;
 
-    // 1. Move to Inbox
     if (targetStage === INBOX_ID) {
         if (session.stage !== INBOX_ID) {
             updateSession(session.id, { stage: INBOX_ID, start: '-' });
@@ -467,22 +472,19 @@ function App() {
         return;
     }
 
-    // 2. Timeline Drop
     let newStartMinutes;
     if (session.stage === INBOX_ID || session.start === '-') {
         if (ghostPosition) newStartMinutes = timeToMinutes(ghostPosition.timeLabel);
-        else newStartMinutes = config.startHour * 60 + 60; // Default fallback
+        else newStartMinutes = config.startHour * 60 + 60;
     } else {
         const originalMinutes = timeToMinutes(session.start);
         const rawNewMinutes = originalMinutes + (delta.y / PIXELS_PER_MINUTE);
         newStartMinutes = Math.round(rawNewMinutes / SNAP_MINUTES) * SNAP_MINUTES;
     }
 
-    // Clamp
     newStartMinutes = Math.max(config.startHour*60, Math.min(config.endHour*60 - session.duration, newStartMinutes));
     const newEndMinutes = newStartMinutes + session.duration;
 
-    // CONFLICT RESOLUTION
     const collisions = data.program.filter(p => 
        p.id !== session.id &&
        p.stage === targetStage &&
@@ -491,21 +493,18 @@ function App() {
     );
 
     if (collisions.length > 0) {
-        // Check for Locked sessions
         if (collisions.some(c => c.status === 'Fixiert')) {
             setToast({ msg: "Konflikt mit fixierter Session! Verschieben nicht möglich.", type: "error" });
             setTimeout(() => setToast(null), 3000);
-            return; // Abort
+            return;
         }
 
-        // Swap Logic: Exact Duration Match
         const swapCandidate = collisions.find(c => c.duration === session.duration);
         if (swapCandidate && collisions.length === 1) {
-             // Swap positions
              setData(prev => {
                const newProg = prev.program.map(p => {
                  if (p.id === session.id) return { ...p, stage: targetStage, start: minutesToTime(newStartMinutes), end: calculateEndTime(minutesToTime(newStartMinutes), p.duration) };
-                 if (p.id === swapCandidate.id) return { ...p, stage: session.stage, start: session.start, end: session.end }; // Move swap to origin
+                 if (p.id === swapCandidate.id) return { ...p, stage: session.stage, start: session.start, end: session.end };
                  return p;
                });
                return { ...prev, program: newProg };
@@ -514,7 +513,6 @@ function App() {
              return;
         }
 
-        // Displacement Logic: Move collisions to Inbox
         const collisionIds = collisions.map(c => c.id);
         setData(prev => {
            const newProg = prev.program.map(p => {
@@ -533,7 +531,6 @@ function App() {
         setTimeout(() => setToast(null), 3000);
 
     } else {
-        // No Conflict -> Just Move
         const newTimeStr = minutesToTime(newStartMinutes);
         if (session.start !== newTimeStr || session.stage !== targetStage) {
             updateSession(session.id, { stage: targetStage, start: newTimeStr });
@@ -557,7 +554,6 @@ function App() {
     return { top: `${Math.max(0, top)}px`, height: `${Math.max(20, height)}px` };
   };
 
-  // Standard Handlers
   const handleSaveSession = (session) => {
     let newProgram;
     if (editingSession && editingSession.id === session.id) {
@@ -582,8 +578,7 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans overflow-hidden text-slate-900">
-      
-      {/* Toast Notification */}
+      {/* Toast */}
       {toast && (
         <div className={`fixed top-16 left-1/2 -translate-x-1/2 px-4 py-2 rounded shadow-lg z-50 text-sm font-bold text-white
            ${toast.type === 'error' ? 'bg-red-600' : 'bg-blue-600'}`}>
@@ -621,25 +616,26 @@ function App() {
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
         <div className="flex flex-1 overflow-hidden">
-          
-          {/* SIDEBAR (DB) */}
+          {/* SIDEBAR */}
           {isAuthenticated && (
             <div className="w-56 bg-white border-r border-slate-200 flex flex-col shrink-0 z-30 shadow-lg">
                 <div className="p-3 border-b border-slate-100 font-bold text-xs text-slate-500 uppercase">SprecherInnen ({data.speakers.length})</div>
                 <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
                    {data.speakers.map(s => (
-                     <div key={s.id} className="text-[11px] py-1 px-2 border-b border-slate-50 text-slate-700 truncate hover:bg-slate-50">{s.fullName}</div>
+                     <div key={s.id} className="text-[11px] py-1 px-2 border-b border-slate-50 text-slate-700 truncate hover:bg-slate-50 flex justify-between">
+                       <span>{s.fullName}</span>
+                       <span className="text-[9px] text-slate-400">{s.status.substring(0,3)}</span>
+                     </div>
                    ))}
                 </div>
             </div>
           )}
 
           <div className="flex-1 flex flex-col overflow-hidden relative">
-             
              {/* INBOX */}
              <div className="bg-slate-100 border-b border-slate-300 p-2 shrink-0 h-48 flex flex-col shadow-inner z-20">
                 <div className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2">
-                   <Layout className="w-3 h-3"/> Inbox (Drag to Timeline)
+                   <Layout className="w-3 h-3"/> Inbox
                 </div>
                 <div className="flex-1 overflow-x-auto custom-scrollbar">
                    <SortableContext id={INBOX_ID} items={data.program.filter(p=>p.stage===INBOX_ID).map(p=>p.id)}>
@@ -662,11 +658,9 @@ function App() {
 
              {/* TIMELINE */}
              <div className="flex-1 overflow-auto relative custom-scrollbar flex bg-slate-50">
-                
                 {/* TIME AXIS */}
                 <div className="w-12 bg-white border-r border-slate-200 shrink-0 sticky left-0 z-30 shadow-sm" style={{ minHeight: timelineHeight + HEADER_HEIGHT }}>
                    <div style={{height: HEADER_HEIGHT}} className="border-b border-slate-200 bg-white sticky top-0 z-40"></div> 
-                   
                    <div className="absolute w-full bottom-0 z-0" style={{ top: HEADER_HEIGHT }}>
                       {Array.from({length: config.endHour - config.startHour + 1}).map((_,i) => (
                           <div key={i} className="absolute w-full text-right pr-1 text-[10px] font-mono text-slate-400 border-t border-slate-100 -mt-px pt-1"
@@ -681,7 +675,7 @@ function App() {
                 <div className="flex min-w-full">
                    {data.stages.map(stage => (
                       <StageColumn key={stage.id} stage={stage} height={timelineHeight}>
-                         {/* GHOST PREVIEW */}
+                         {/* GHOST */}
                          {ghostPosition && ghostPosition.stageId === stage.name && (
                             <div 
                                className={`absolute left-1 right-1 border-2 border-dashed rounded z-0 pointer-events-none flex items-center justify-center transition-colors
@@ -689,11 +683,10 @@ function App() {
                                style={{ top: ghostPosition.top, height: ghostPosition.height }}
                             >
                                <span className={`text-xs font-bold px-1 rounded ${ghostPosition.hasOverlap ? 'text-red-700 bg-red-100' : 'text-blue-700 bg-blue-100'}`}>
-                                 {ghostPosition.timeLabel} {ghostPosition.hasOverlap ? '(Puffer/Konflikt)' : ''}
+                                 {ghostPosition.timeLabel}
                                </span>
                             </div>
                          )}
-
                          {/* SESSIONS */}
                          {data.program.filter(p => p.stage === stage.name).map(session => (
                             <DraggableTimelineItem 
@@ -709,7 +702,6 @@ function App() {
                       </StageColumn>
                    ))}
                 </div>
-
              </div>
           </div>
         </div>
@@ -773,7 +765,7 @@ function App() {
   );
 }
 
-// Session Modal (Re-Inserted because context was missing)
+// Session Modal (Complete)
 const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) => {
   const [formData, setFormData] = useState({
     id: '', title: '', start: '10:00', duration: 60, stage: 'Main Stage',
@@ -839,7 +831,6 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
                   </select>
                </div>
             </div>
-            {/* Additional Fields simplified for brevity in this block, user has full modal in previous turn */}
             <div className="grid grid-cols-3 gap-4">
                <div><label className={labelStd}>Format</label><input type="text" list="formats" className={inputStd} value={formData.format} onChange={e => setFormData({...formData, format: e.target.value})} /></div>
                <div><label className={labelStd}>Sprache</label><select className={inputStd} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option value="de">DE</option><option value="en">EN</option></select></div>
