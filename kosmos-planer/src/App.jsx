@@ -103,9 +103,8 @@ const Card = React.forwardRef(({ children, className = "", onClick, style, statu
 
 const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConflict, conflictTooltip, listeners, attributes, isDimmed }) => {
   const formatColor = FORMAT_COLORS[session.format] || 'bg-slate-100 text-slate-700';
-  const [activeOverlay, setActiveOverlay] = useState(null); // 'conflict' | 'notes' | null
+  const [activeOverlay, setActiveOverlay] = useState(null); 
 
-  // Handler to clear overlay when leaving the CARD, not the ICON
   const handleMouseLeaveCard = () => {
     setActiveOverlay(null);
   };
@@ -118,7 +117,7 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
         ${isDimmed ? 'opacity-20 grayscale' : 'opacity-100'}
       `}
       onClick={(e) => onClick(session)}
-      onMouseLeave={handleMouseLeaveCard} // Stable overlay: close only when leaving the card
+      onMouseLeave={handleMouseLeaveCard} 
       {...listeners} 
       {...attributes}
     >
@@ -157,7 +156,6 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
               <div 
                 className="text-red-500 mr-1 cursor-help hover:scale-110 transition-transform"
                 onMouseEnter={() => setActiveOverlay('conflict')}
-                // No onMouseLeave here to prevent flickering
               >
                 <AlertTriangle className="w-4 h-4 animate-pulse" />
               </div>
@@ -199,7 +197,6 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
               <div 
                 className="ml-1 text-blue-500 cursor-help"
                 onMouseEnter={() => setActiveOverlay('notes')}
-                // No onMouseLeave here
               >
                 <MessageSquare className="w-2.5 h-2.5" />
               </div>
@@ -268,8 +265,8 @@ const SortableInboxItem = ({ session, onClick, onToggleLock, hasConflict, confli
 
 const StageColumn = ({ stage, children, height }) => {
   const { setNodeRef, isOver } = useDroppable({
-    id: stage.name,
-    data: { type: 'stage', name: stage.name }
+    id: stage.id, // CHANGED: Using Stage ID for Drop Target
+    data: { type: 'stage', name: stage.name } // Keep name for display refs if needed
   });
 
   return (
@@ -332,7 +329,7 @@ function App() {
 
   const timelineHeight = (config.endHour - config.startHour) * 60 * PIXELS_PER_MINUTE;
 
-  // --- ANALYTICS & CONFLICTS ---
+  // --- ANALYTICS ---
   const analysis = useMemo(() => {
     const genderCounts = { m: 0, w: 0, d: 0, u: 0 };
     let partnerSessions = 0;
@@ -379,12 +376,11 @@ function App() {
     }).map(s => s.id);
   }, [searchQuery, data.program]);
 
-  // NEW: Speaker Status Check & Time Conflicts
+  // --- CONFLICTS ---
   const sessionConflicts = useMemo(() => {
     const usage = {};
     const conflicts = {}; 
 
-    // 1. Time Overlaps
     data.program.forEach(s => {
       if (s.stage === INBOX_ID || s.start === '-') return;
       
@@ -417,20 +413,17 @@ function App() {
       });
     });
 
-    // 2. Status Logic: Confirmed Session but Unconfirmed Speaker
     const confirmedSessionStatus = ['1_Zusage', 'Akzeptiert', 'Fixiert'];
-    const confirmedSpeakerStatus = ['zusage']; // lowercase partial match
+    const confirmedSpeakerStatus = ['zusage']; 
 
     data.program.forEach(s => {
         if (confirmedSessionStatus.includes(s.status)) {
             const sList = safeString(s.speakers).split(',').map(n => n.trim()).filter(Boolean);
             sList.forEach(name => {
                 const spObj = data.speakers.find(dbSp => dbSp.fullName.toLowerCase() === name.toLowerCase());
-                // If speaker exists AND status is NOT confirmed
                 if (spObj) {
                     const statusLower = (spObj.status || '').toLowerCase();
                     const isConfirmed = confirmedSpeakerStatus.some(k => statusLower.includes(k));
-                    
                     if (!isConfirmed) {
                         if (!conflicts[s.id]) conflicts[s.id] = [];
                         const msg = `Status: Session ist bestätigt, aber Sprecher "${name}" hat Status: "${spObj.status}"`;
@@ -444,7 +437,7 @@ function App() {
     return conflicts;
   }, [data.program, data.speakers]);
 
-  // --- API ---
+  // --- API & DATA ---
   useEffect(() => {
     const initGapi = async () => {
        if(window.gapi) {
@@ -495,6 +488,7 @@ function App() {
 
       const mo = (ranges[1].values || []).filter(r=>r[0]).map((r,i) => ({id:`mod-${i}`, fullName:safeString(r[1]), status:safeString(r[0])}));
       
+      // Load Stages - ID is Col A (index 0)
       const st = (ranges[3].values || [])
         .map((r,i) => ({
             id: safeString(r[0]) || `st-${i}`, 
@@ -509,8 +503,23 @@ function App() {
       const pr = (ranges[2].values || []).map((r,i) => {
          const dur = parseInt(r[8]) || 60;
          const start = safeString(r[6]) || '-';
-         let stage = safeString(r[5]) || INBOX_ID;
-         if(!st.find(s=>s.name === stage) && stage !== INBOX_ID) stage = INBOX_ID; 
+         
+         const rawStage = safeString(r[5]);
+         let stage = INBOX_ID;
+
+         if (rawStage) {
+             // 1. Try match ID
+             const matchById = st.find(s => s.id === rawStage);
+             if (matchById) {
+                 stage = matchById.id;
+             } else {
+                 // 2. Try match Name (Migration)
+                 const matchByName = st.find(s => s.name === rawStage);
+                 if (matchByName) {
+                     stage = matchByName.id;
+                 }
+             }
+         }
          
          const rawId = safeString(r[0]);
          const id = (rawId && rawId.length > 1) ? rawId : generateId();
@@ -521,7 +530,7 @@ function App() {
            status: safeString(r[2]) || '5_Vorschlag', 
            partner: (safeString(r[3]) === 'TRUE' || safeString(r[3]) === 'P') ? 'TRUE' : 'FALSE', 
            format: safeString(r[4]) || 'Talk', 
-           stage: stage, 
+           stage: stage, // Now consistently ID
            start: start, 
            duration: dur,
            end: calculateEndTime(start, dur), 
@@ -554,7 +563,7 @@ function App() {
                 safeString(p.status), 
                 p.partner === 'TRUE' ? 'TRUE' : 'FALSE', 
                 safeString(p.format), 
-                p.stage === INBOX_ID ? '' : safeString(p.stage), 
+                p.stage === INBOX_ID ? '' : safeString(p.stage), // WRITE ID TO SHEET
                 p.start === '-' ? '' : p.start, 
                 p.start === '-' ? '' : calculateEndTime(p.start, p.duration), 
                 p.duration || 60, 
@@ -593,8 +602,8 @@ function App() {
         return;
     }
 
-    const stageName = over.id; 
-    if (stageName === INBOX_ID) {
+    const stageId = over.id; // Now ID
+    if (stageId === INBOX_ID) {
         setGhostPosition(null);
         return;
     }
@@ -617,13 +626,13 @@ function App() {
     const ghostEnd = clampedMinutes + activeDragItem.duration;
     const hasOverlap = data.program.some(p => 
        p.id !== activeDragItem.id && 
-       p.stage === stageName &&
+       p.stage === stageId &&
        p.stage !== INBOX_ID &&
        checkOverlap(ghostStart, ghostEnd, timeToMinutes(p.start), timeToMinutes(p.start) + p.duration, config.bufferMin)
     );
 
     setGhostPosition({
-        stageId: stageName,
+        stageId: stageId,
         top: topPx,
         height: heightPx,
         timeLabel: minutesToTime(clampedMinutes),
@@ -637,10 +646,10 @@ function App() {
     setGhostPosition(null);
     
     if (!over) return;
-    const targetStage = over.id;
+    const targetStageId = over.id;
     const session = active.data.current;
 
-    if (targetStage === INBOX_ID) {
+    if (targetStageId === INBOX_ID) {
         if (session.stage !== INBOX_ID) {
             updateSession(session.id, { stage: INBOX_ID, start: '-' });
         }
@@ -662,7 +671,7 @@ function App() {
 
     const collisions = data.program.filter(p => 
        p.id !== session.id &&
-       p.stage === targetStage &&
+       p.stage === targetStageId &&
        p.stage !== INBOX_ID &&
        checkOverlap(newStartMinutes, newEndMinutes, timeToMinutes(p.start), timeToMinutes(p.start) + p.duration, config.bufferMin)
     );
@@ -678,7 +687,7 @@ function App() {
         if (swapCandidate && collisions.length === 1) {
              setData(prev => {
                const newProg = prev.program.map(p => {
-                 if (p.id === session.id) return { ...p, stage: targetStage, start: minutesToTime(newStartMinutes), end: calculateEndTime(minutesToTime(newStartMinutes), p.duration) };
+                 if (p.id === session.id) return { ...p, stage: targetStageId, start: minutesToTime(newStartMinutes), end: calculateEndTime(minutesToTime(newStartMinutes), p.duration) };
                  if (p.id === swapCandidate.id) return { ...p, stage: session.stage, start: session.start, end: session.end };
                  return p;
                });
@@ -692,7 +701,7 @@ function App() {
         setData(prev => {
            const newProg = prev.program.map(p => {
               if (p.id === session.id) {
-                 return { ...p, stage: targetStage, start: minutesToTime(newStartMinutes), end: calculateEndTime(minutesToTime(newStartMinutes), p.duration) };
+                 return { ...p, stage: targetStageId, start: minutesToTime(newStartMinutes), end: calculateEndTime(minutesToTime(newStartMinutes), p.duration) };
               }
               if (collisionIds.includes(p.id)) {
                  return { ...p, stage: INBOX_ID, start: '-' };
@@ -707,8 +716,8 @@ function App() {
 
     } else {
         const newTimeStr = minutesToTime(newStartMinutes);
-        if (session.start !== newTimeStr || session.stage !== targetStage) {
-            updateSession(session.id, { stage: targetStage, start: newTimeStr });
+        if (session.start !== newTimeStr || session.stage !== targetStageId) {
+            updateSession(session.id, { stage: targetStageId, start: newTimeStr });
         }
     }
   };
@@ -888,6 +897,7 @@ function App() {
 
              {/* TIMELINE */}
              <div className="flex-1 overflow-auto relative custom-scrollbar flex bg-slate-50">
+                {/* TIME AXIS */}
                 <div className="w-12 bg-white border-r border-slate-200 shrink-0 sticky left-0 z-30 shadow-sm" style={{ minHeight: timelineHeight + HEADER_HEIGHT }}>
                    <div style={{height: HEADER_HEIGHT}} className="border-b border-slate-200 bg-white sticky top-0 z-40"></div> 
                    <div className="absolute w-full bottom-0 z-0" style={{ top: HEADER_HEIGHT }}>
@@ -900,10 +910,11 @@ function App() {
                    </div>
                 </div>
 
+                {/* STAGES */}
                 <div className="flex min-w-full">
                    {data.stages.map(stage => (
                       <StageColumn key={stage.id} stage={stage} height={timelineHeight}>
-                         {ghostPosition && ghostPosition.stageId === stage.name && (
+                         {ghostPosition && ghostPosition.stageId === stage.id && (
                             <div 
                                className={`absolute left-1 right-1 border-2 border-dashed rounded z-0 pointer-events-none flex items-center justify-center transition-colors
                                  ${ghostPosition.hasOverlap ? 'bg-red-500/20 border-red-500' : 'bg-blue-500/20 border-blue-500'}`}
@@ -914,7 +925,7 @@ function App() {
                                </span>
                             </div>
                          )}
-                         {data.program.filter(p => p.stage === stage.name).map(session => (
+                         {data.program.filter(p => p.stage === stage.id).map(session => (
                             <DraggableTimelineItem 
                                key={session.id}
                                session={session}
@@ -1022,7 +1033,7 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
     }
     setSearchTermSp('');
     setSearchTermMod('');
-  }, [initialData, isOpen]);
+  }, [initialData, definedStages, isOpen]);
 
   const toggleListSelection = (field, name) => {
     if (field === 'speakers') {
@@ -1040,7 +1051,7 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
 
   const micWarning = useMemo(() => {
      if (formData.stage === INBOX_ID) return null;
-     const stage = definedStages.find(s => s.name === formData.stage);
+     const stage = definedStages.find(s => s.id === formData.stage); // MATCH BY ID
      if (!stage || !stage.maxMics) return null;
      if (formData.speakers.length > stage.maxMics) {
          return `⚠️ Zu viele Sprecher: ${formData.speakers.length} (Max: ${stage.maxMics})`;
@@ -1106,7 +1117,8 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
              <div className="grid grid-cols-4 gap-4">
                <div className="col-span-2"><label className={labelStd}>Bühne</label><select className={inputStd} value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})}>
                   <option value={INBOX_ID}>📥 Inbox (Parkplatz)</option>
-                  {definedStages.map(s=><option key={s.id} value={s.name}>{s.name} ({s.maxMics} Mics)</option>)}
+                  {/* Using ID for value, Name for display */}
+                  {definedStages.map(s=><option key={s.id} value={s.id}>{s.name} ({s.maxMics} Mics)</option>)}
                </select></div>
                <div><label className={labelStd}>Start</label><input type="time" className={inputStd} value={formData.start} onChange={e => setFormData({...formData, start: e.target.value})} /></div>
                <div><label className={labelStd}>Dauer (Min)</label><input type="number" className={inputStd} value={formData.duration} onChange={e => setFormData({...formData, duration: parseInt(e.target.value)})} /></div>
