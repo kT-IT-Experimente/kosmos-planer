@@ -18,7 +18,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { 
   Users, RefreshCw, Settings, AlertCircle, 
   Trash2, PlusCircle, UploadCloud, LogIn, X, 
-  Lock, Unlock, MessageSquare, Globe, Flag, Layout, GripVertical
+  Lock, Unlock, MessageSquare, Globe, Flag, Layout
 } from 'lucide-react';
 
 // --- KONFIGURATION & KONSTANTEN ---
@@ -29,6 +29,7 @@ const START_HOUR = 9;
 const END_HOUR = 22;
 const PIXELS_PER_MINUTE = 2.5; 
 const SNAP_MINUTES = 5; 
+const HEADER_HEIGHT = 56; // 3.5rem (h-14)
 
 const STATUS_COLORS = {
   '5_Vorschlag': 'border-yellow-400 bg-yellow-50',
@@ -71,7 +72,7 @@ const calculateEndTime = (startStr, durationMin) => {
 // --- COMPONENTS ---
 
 // Card Component (Visuals only)
-const Card = React.forwardRef(({ children, className = "", onClick, style, status }, ref) => {
+const Card = React.forwardRef(({ children, className = "", onClick, style, status, ...props }, ref) => {
   const statusClass = STATUS_COLORS[status] || 'border-slate-200 bg-white';
   return (
     <div 
@@ -79,6 +80,7 @@ const Card = React.forwardRef(({ children, className = "", onClick, style, statu
       onClick={onClick} 
       style={style} 
       className={`rounded-lg shadow-sm border-l-4 p-2 overflow-hidden transition-all ${statusClass} ${className}`}
+      {...props}
     >
       {children}
     </div>
@@ -92,8 +94,10 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, listener
   return (
     <Card 
       status={session.status} 
-      className={`h-full flex flex-col relative group hover:shadow-md ${isLocked ? 'cursor-not-allowed opacity-90' : 'cursor-grab active:cursor-grabbing'}`}
+      className={`h-full flex flex-col relative group hover:shadow-md select-none ${isLocked ? 'cursor-not-allowed opacity-90' : 'cursor-grab active:cursor-grabbing'}`}
       onClick={(e) => onClick(session)}
+      {...listeners} 
+      {...attributes}
     >
        <div className="flex justify-between items-start mb-1">
          <div className="flex flex-col overflow-hidden">
@@ -105,12 +109,7 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, listener
            </span>
          </div>
          
-         <div className="flex gap-1 shrink-0">
-            {!isLocked && (
-              <div {...listeners} {...attributes} className="p-1 text-slate-300 hover:text-slate-600 cursor-grab active:cursor-grabbing">
-                <GripVertical className="w-3.5 h-3.5" />
-              </div>
-            )}
+         <div className="flex gap-1 shrink-0 z-10">
             <button 
                onPointerDown={(e) => e.stopPropagation()} 
                onClick={(e) => { e.stopPropagation(); onToggleLock(session); }}
@@ -150,7 +149,7 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, listener
   );
 };
 
-// Droppable Stage Container (Wiederhergestellt für Inbox)
+// Droppable Stage Container (Inbox)
 const DroppableStage = ({ id, children, className }) => {
   const { setNodeRef } = useDroppable({ id });
   return (
@@ -160,7 +159,7 @@ const DroppableStage = ({ id, children, className }) => {
   );
 };
 
-// Draggable Item for Timeline (Free movement)
+// Draggable Item for Timeline
 const DraggableTimelineItem = ({ session, onClick, style, onToggleLock }) => {
   const isLocked = session.status === 'Fixiert';
   
@@ -189,7 +188,7 @@ const DraggableTimelineItem = ({ session, onClick, style, onToggleLock }) => {
   );
 };
 
-// Sortable Item for Inbox (List movement)
+// Sortable Item for Inbox
 const SortableInboxItem = ({ session, onClick, onToggleLock }) => {
   const isLocked = session.status === 'Fixiert';
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
@@ -230,23 +229,200 @@ const StageColumn = ({ stage, children, activeDrag }) => {
       ref={setNodeRef} 
       className={`min-w-[280px] w-full max-w-[320px] border-r border-slate-200 relative transition-colors ${isOver ? 'bg-blue-50/30' : 'bg-white/30 odd:bg-slate-50/50'}`}
     >
-       {/* Stage Header */}
-       <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-slate-200 p-2 text-center z-20 shadow-sm h-14 flex flex-col justify-center">
+       {/* Stage Header - Fixed Height */}
+       <div 
+          className="bg-white/95 backdrop-blur border-b border-slate-200 p-2 text-center z-20 shadow-sm flex flex-col justify-center"
+          style={{ height: HEADER_HEIGHT }}
+       >
          <div className="font-bold text-slate-700 text-sm truncate">{stage.name}</div>
          <div className="text-[10px] text-slate-400 font-mono">{stage.capacity} PAX</div>
        </div>
        
-       {/* Grid Background */}
-       <div className="absolute inset-0 top-14 z-0 pointer-events-none">
-          {Array.from({ length: (END_HOUR - START_HOUR) }).map((_, i) => (
-             <div key={i} className="border-b border-slate-100 w-full" style={{ height: `${60 * PIXELS_PER_MINUTE}px` }}></div>
-          ))}
-       </div>
-
-       {/* Content Container */}
-       <div className="relative w-full h-full min-h-[1400px]">
+       {/* Content Container - Absolute to match grid perfectly */}
+       <div className="absolute w-full bottom-0 z-0" style={{ top: HEADER_HEIGHT }}>
+          {/* Grid Background */}
+          <div className="absolute inset-0 pointer-events-none">
+              {Array.from({ length: (END_HOUR - START_HOUR) }).map((_, i) => (
+                <div key={i} className="border-b border-slate-100 w-full" style={{ height: `${60 * PIXELS_PER_MINUTE}px` }}></div>
+              ))}
+          </div>
+          
+          {/* Sessions */}
           {children}
        </div>
+    </div>
+  );
+};
+
+// --- MODAL: SESSION EDITOR ---
+const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) => {
+  const [formData, setFormData] = useState({
+    id: '', title: '', start: '10:00', duration: 60, stage: 'Main Stage',
+    status: '5_Vorschlag', format: 'Talk', speakers: [], moderators: '', day: '20.09.',
+    partner: '', language: 'de', notes: ''
+  });
+
+  useEffect(() => {
+    if (initialData) {
+      const duration = initialData.duration || (initialData.end && initialData.start !== '-' ? timeToMinutes(initialData.end) - timeToMinutes(initialData.start) : 60);
+      setFormData({
+        ...initialData,
+        duration: duration > 0 ? duration : 60,
+        speakers: initialData.speakers ? initialData.speakers.split(',').map(s => s.trim()).filter(s => s) : []
+      });
+    } else {
+      setFormData({
+        id: '', title: '', start: '10:00', duration: 60, stage: definedStages[0]?.name || 'Main Stage',
+        status: '5_Vorschlag', format: 'Talk', speakers: [], moderators: '', day: '20.09.',
+        partner: '', language: 'de', notes: ''
+      });
+    }
+  }, [initialData, definedStages, isOpen]);
+
+  const toggleListSelection = (field, name) => {
+    if (field === 'speakers') {
+        setFormData(prev => {
+            const exists = prev.speakers.includes(name);
+            return { ...prev, speakers: exists ? prev.speakers.filter(s => s !== name) : [...prev.speakers, name] };
+        });
+    } else if (field === 'moderators') {
+        setFormData(prev => ({ ...prev, moderators: name })); 
+    }
+  };
+
+  const inputStd = "w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all placeholder:text-slate-300";
+  const labelStd = "block text-[11px] font-bold text-slate-500 uppercase mb-1.5 tracking-wide";
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-200">
+        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-xl">
+          <h3 className="font-bold text-lg text-slate-800">{initialData ? 'Session bearbeiten' : 'Neue Session erstellen'}</h3>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-500"/></button>
+        </div>
+        
+        <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+          {/* Section 1: Core Info */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Basis Informationen</h4>
+            <div className="grid grid-cols-12 gap-4">
+               <div className="col-span-8">
+                  <label className={labelStd}>Titel der Session <span className="text-red-500">*</span></label>
+                  <input type="text" className={`${inputStd} font-bold text-lg`} value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Titel eingeben..." />
+               </div>
+               <div className="col-span-4">
+                  <label className={labelStd}>Status</label>
+                  <select className={inputStd} value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                     <option value="5_Vorschlag">🟡 Vorschlag</option>
+                     <option value="2_Planung">🔵 Planung</option>
+                     <option value="1_Zusage">🟢 Zusage</option>
+                     <option value="Fixiert">🔴 Fixiert</option>
+                  </select>
+               </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+               <div>
+                  <label className={labelStd}>Format</label>
+                  <input type="text" list="formats" className={inputStd} value={formData.format} onChange={e => setFormData({...formData, format: e.target.value})} />
+                  <datalist id="formats"><option value="Talk"/><option value="Panel"/><option value="Workshop"/><option value="Pause"/></datalist>
+               </div>
+               <div>
+                  <label className={labelStd}>Sprache</label>
+                  <select className={inputStd} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>
+                     <option value="de">Deutsch</option>
+                     <option value="en">Englisch</option>
+                  </select>
+               </div>
+               <div>
+                  <label className={labelStd}>Partner</label>
+                  <input type="text" className={inputStd} value={formData.partner} onChange={e => setFormData({...formData, partner: e.target.value})} />
+               </div>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+             <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Zeit & Ort</h4>
+             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 grid grid-cols-4 gap-4">
+               <div className="col-span-2">
+                  <label className={labelStd}>Bühne</label>
+                  <select className={`${inputStd} bg-white`} value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})}>
+                    <option value={INBOX_ID}>📥 Inbox</option>
+                    {definedStages.map(s => (
+                       <option key={s.id} value={s.name}>{s.name}</option>
+                    ))}
+                  </select>
+               </div>
+               <div>
+                  <label className={labelStd}>Startzeit</label>
+                  <input type="time" className={inputStd} value={formData.start} onChange={e => setFormData({...formData, start: e.target.value})} />
+               </div>
+               <div>
+                  <label className={labelStd}>Dauer (Min)</label>
+                  <input type="number" className={inputStd} value={formData.duration} onChange={e => setFormData({...formData, duration: parseInt(e.target.value)})} />
+               </div>
+             </div>
+          </div>
+
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Personen</h4>
+            <div className="grid grid-cols-2 gap-6">
+               <div>
+                  <label className={`${labelStd} mb-2 block`}>SprecherInnen</label>
+                  <div className="border border-slate-300 rounded p-2 min-h-[40px] flex flex-wrap gap-2 bg-white mb-2 text-sm">
+                     {formData.speakers.map(s => (
+                       <span key={s} className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded flex items-center gap-1 border border-indigo-200">
+                         {s} <button onClick={() => toggleListSelection('speakers', s)}><X className="w-3 h-3"/></button>
+                       </span>
+                     ))}
+                  </div>
+                  <div className="h-40 border border-slate-300 rounded overflow-y-auto bg-white p-1 space-y-1">
+                     {speakersList.map(s => (
+                        <div key={s.id} onClick={() => toggleListSelection('speakers', s.fullName)} 
+                             className={`cursor-pointer px-2 py-1 rounded text-xs truncate transition-colors ${formData.speakers.includes(s.fullName) ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 text-slate-700'}`}>
+                           {s.fullName}
+                        </div>
+                     ))}
+                  </div>
+               </div>
+               <div>
+                  <label className={`${labelStd} mb-2 block`}>Moderation</label>
+                  <div className="border border-slate-300 rounded p-2 min-h-[40px] flex items-center bg-white mb-2 text-sm">
+                     {formData.moderators ? (
+                       <span className="bg-pink-100 text-pink-700 px-2 py-0.5 rounded flex items-center gap-1 border border-pink-200">
+                         {formData.moderators} <button onClick={() => setFormData({...formData, moderators: ''})}><X className="w-3 h-3"/></button>
+                       </span>
+                     ) : <span className="text-slate-400 italic text-xs">Leer</span>}
+                  </div>
+                  <div className="h-40 border border-slate-300 rounded overflow-y-auto bg-white p-1 space-y-1">
+                     {moderatorsList.map(m => (
+                        <div key={m.id} onClick={() => toggleListSelection('moderators', m.fullName)} 
+                             className={`cursor-pointer px-2 py-1 rounded text-xs truncate transition-colors ${formData.moderators === m.fullName ? 'bg-pink-600 text-white' : 'hover:bg-slate-100 text-slate-700'}`}>
+                           {m.fullName}
+                        </div>
+                     ))}
+                  </div>
+               </div>
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Notizen</h4>
+            <textarea className={`${inputStd} h-20 bg-yellow-50/50 border-yellow-200`} value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="..." />
+          </div>
+        </div>
+
+        <div className="p-4 border-t border-slate-100 flex justify-between bg-slate-50 rounded-b-xl">
+          {initialData ? (
+             <button onClick={() => onDelete(formData.id)} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded flex items-center gap-2 text-sm"><Trash2 className="w-4 h-4"/> Löschen</button>
+          ) : <div></div>}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded text-sm">Abbrechen</button>
+            <button onClick={() => onSave({ ...formData, speakers: formData.speakers.join(', ') })} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 shadow-md font-medium text-sm">Speichern</button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
@@ -283,6 +459,7 @@ function App() {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
+  // --- API & DATA LOGIC ---
   useEffect(() => {
     const initGapi = async () => {
        if(window.gapi) {
@@ -372,6 +549,31 @@ function App() {
         setStatus({ loading: false, error: e.message });
     }
   };
+
+  const handleSaveSession = (session) => {
+    let newProgram;
+    if (editingSession && editingSession.id === session.id) {
+      newProgram = data.program.map(p => p.id === session.id ? session : p);
+    } else {
+      newProgram = [...data.program, { ...session, id: `NEW-${Math.floor(Math.random()*100000)}` }];
+    }
+    // Update calculated fields
+    newProgram = newProgram.map(p => ({ ...p, end: calculateEndTime(p.start, p.duration) }));
+    setData(prev => ({ ...prev, program: newProgram }));
+    setLocalChanges(true);
+    setIsModalOpen(false);
+    setEditingSession(null);
+  };
+
+  const handleDeleteSession = (id) => {
+    if (window.confirm("Löschen?")) {
+        setData(prev => ({ ...prev, program: prev.program.filter(p => p.id !== id) }));
+        setLocalChanges(true);
+        setIsModalOpen(false);
+    }
+  };
+
+  // --- DRAG & DROP LOGIC ---
 
   const handleDragStart = (event) => {
     const session = event.active.data.current;
@@ -534,13 +736,16 @@ function App() {
                 
                 {/* TIME AXIS */}
                 <div className="w-12 bg-white border-r border-slate-200 shrink-0 sticky left-0 z-30 shadow-sm min-h-[1600px]">
-                   <div className="h-14 border-b border-slate-200 bg-white sticky top-0 z-40"></div> 
-                   {Array.from({length: END_HOUR-START_HOUR + 1}).map((_,i) => (
-                      <div key={i} className="absolute w-full text-right pr-1 text-[10px] font-mono text-slate-400 border-t border-slate-100 -mt-px pt-1"
-                           style={{top: `${i*60*PIXELS_PER_MINUTE}px`}}>
-                         {START_HOUR+i}:00
-                      </div>
-                   ))}
+                   <div style={{height: HEADER_HEIGHT}} className="border-b border-slate-200 bg-white sticky top-0 z-40"></div> 
+                   
+                   <div className="absolute w-full bottom-0 z-0" style={{ top: HEADER_HEIGHT }}>
+                      {Array.from({length: END_HOUR-START_HOUR + 1}).map((_,i) => (
+                          <div key={i} className="absolute w-full text-right pr-1 text-[10px] font-mono text-slate-400 border-t border-slate-100 -mt-px pt-1"
+                              style={{top: `${i*60*PIXELS_PER_MINUTE}px`}}>
+                            {START_HOUR+i}:00
+                          </div>
+                      ))}
+                   </div>
                 </div>
 
                 {/* STAGES */}
@@ -621,18 +826,12 @@ function App() {
          </div>
       )}
       
-      {/* Session Modal - Placeholder for brevity, user has full version */}
-      {isModalOpen && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-              <div className="bg-white p-6 rounded-lg w-full max-w-md">
-                  <h3 className="font-bold mb-4">Session Bearbeiten</h3>
-                  <p className="text-sm text-slate-500 mb-4">Bearbeitungsfenster hier (wie in vorheriger Version implementiert).</p>
-                  <div className="flex justify-end gap-2">
-                      <button onClick={()=>setIsModalOpen(false)} className="px-4 py-2 border rounded">Schließen</button>
-                  </div>
-              </div>
-          </div>
-      )}
+      <SessionModal 
+        isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingSession(null); }}
+        onSave={handleSaveSession} onDelete={handleDeleteSession}
+        initialData={editingSession} definedStages={data.stages}
+        speakersList={data.speakers} moderatorsList={data.moderators}
+      />
     </div>
   );
 }
