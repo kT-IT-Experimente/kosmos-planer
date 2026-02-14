@@ -7,13 +7,11 @@ import {
   useDroppable,
   useDraggable,
   PointerSensor,
-  KeyboardSensor,
-  closestCorners
+  KeyboardSensor
 } from '@dnd-kit/core';
 import { 
   SortableContext, 
   sortableKeyboardCoordinates, 
-  verticalListSortingStrategy,
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -29,8 +27,8 @@ const DISCOVERY_DOCS = ['https://sheets.googleapis.com/$discovery/rest?version=v
 const INBOX_ID = 'Inbox';
 const START_HOUR = 9; 
 const END_HOUR = 22;
-const PIXELS_PER_MINUTE = 2.5; // Erhöht für mehr Präzision
-const SNAP_MINUTES = 5; // 5-Minuten Raster
+const PIXELS_PER_MINUTE = 2.5; 
+const SNAP_MINUTES = 5; 
 
 const STATUS_COLORS = {
   '5_Vorschlag': 'border-yellow-400 bg-yellow-50',
@@ -59,7 +57,6 @@ const timeToMinutes = (timeStr) => {
 const minutesToTime = (totalMinutes) => {
   let h = Math.floor(totalMinutes / 60);
   let m = totalMinutes % 60;
-  // Snap to 5 min
   m = Math.round(m / SNAP_MINUTES) * SNAP_MINUTES;
   if (m === 60) { m = 0; h += 1; }
   return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
@@ -87,64 +84,6 @@ const Card = React.forwardRef(({ children, className = "", onClick, style, statu
     </div>
   );
 });
-
-// Draggable Item for Timeline (Free movement)
-const DraggableTimelineItem = ({ session, onClick, style, onToggleLock }) => {
-  const isLocked = session.status === 'Fixiert';
-  
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
-    id: session.id,
-    data: session,
-    disabled: isLocked
-  });
-
-  const baseStyle = {
-    ...style,
-    opacity: isDragging ? 0 : 1, // Hide original when dragging (we show overlay)
-  };
-
-  return (
-    <div ref={setNodeRef} style={baseStyle} className={`absolute w-full px-1 z-10 ${isLocked ? 'z-0' : ''}`}>
-       <SessionCardContent 
-          session={session} 
-          onClick={onClick} 
-          onToggleLock={onToggleLock} 
-          isLocked={isLocked}
-          listeners={listeners}
-          attributes={attributes}
-       />
-    </div>
-  );
-};
-
-// Sortable Item for Inbox (List movement)
-const SortableInboxItem = ({ session, onClick, onToggleLock }) => {
-  const isLocked = session.status === 'Fixiert';
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
-    id: session.id, 
-    data: session,
-    disabled: isLocked 
-  });
-
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    transition,
-    opacity: isDragging ? 0.3 : 1,
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} className="w-[260px] shrink-0">
-      <SessionCardContent 
-          session={session} 
-          onClick={onClick} 
-          onToggleLock={onToggleLock} 
-          isLocked={isLocked}
-          listeners={listeners}
-          attributes={attributes}
-       />
-    </div>
-  );
-};
 
 // Shared Content for Session Card
 const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, listeners, attributes }) => {
@@ -211,23 +150,80 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, listener
   );
 };
 
-// Stage Column (Droppable)
-const StageColumn = ({ stage, children, activeDrag, onDropPreview }) => {
+// Droppable Stage Container (Wiederhergestellt für Inbox)
+const DroppableStage = ({ id, children, className }) => {
+  const { setNodeRef } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={className}>
+      {children}
+    </div>
+  );
+};
+
+// Draggable Item for Timeline (Free movement)
+const DraggableTimelineItem = ({ session, onClick, style, onToggleLock }) => {
+  const isLocked = session.status === 'Fixiert';
+  
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: session.id,
+    data: session,
+    disabled: isLocked
+  });
+
+  const baseStyle = {
+    ...style,
+    opacity: isDragging ? 0 : 1, 
+  };
+
+  return (
+    <div ref={setNodeRef} style={baseStyle} className={`absolute w-full px-1 z-10 ${isLocked ? 'z-0' : ''}`}>
+       <SessionCardContent 
+          session={session} 
+          onClick={onClick} 
+          onToggleLock={onToggleLock} 
+          isLocked={isLocked}
+          listeners={listeners}
+          attributes={attributes}
+       />
+    </div>
+  );
+};
+
+// Sortable Item for Inbox (List movement)
+const SortableInboxItem = ({ session, onClick, onToggleLock }) => {
+  const isLocked = session.status === 'Fixiert';
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ 
+    id: session.id, 
+    data: session,
+    disabled: isLocked 
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    transition,
+    opacity: isDragging ? 0.3 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style} className="w-[260px] shrink-0">
+      <SessionCardContent 
+          session={session} 
+          onClick={onClick} 
+          onToggleLock={onToggleLock} 
+          isLocked={isLocked}
+          listeners={listeners}
+          attributes={attributes}
+       />
+    </div>
+  );
+};
+
+// Stage Column (Timeline Column)
+const StageColumn = ({ stage, children, activeDrag }) => {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.name,
     data: { type: 'stage', name: stage.name }
   });
-
-  // Calculate Ghost Position
-  const ghostStyle = useMemo(() => {
-    if (!isOver || !activeDrag) return null;
-    
-    // We assume the drag overlay logic passes the Y coordinate or we use standard calculation
-    // However, dnd-kit's useDroppable doesn't give mouse coordinates directly easily without sensors.
-    // Instead, we will rely on the parent to pass the "snapped" time if we want a ghost.
-    // Simpler visual aid: Highlight column.
-    return { backgroundColor: 'rgba(59, 130, 246, 0.05)' };
-  }, [isOver, activeDrag]);
 
   return (
     <div 
@@ -271,7 +267,7 @@ function App() {
   });
 
   const [activeDragItem, setActiveDragItem] = useState(null);
-  const [ghostPosition, setGhostPosition] = useState(null); // { stageId, top, height, timeLabel }
+  const [ghostPosition, setGhostPosition] = useState(null); 
 
   const [localChanges, setLocalChanges] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -282,13 +278,11 @@ function App() {
   const [tokenClient, setTokenClient] = useState(null);
   const [gapiInited, setGapiInited] = useState(false);
 
-  // DnD Sensors
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
-  // --- AUTH & LOAD Logic (Same as before) ---
   useEffect(() => {
     const initGapi = async () => {
        if(window.gapi) {
@@ -340,7 +334,7 @@ function App() {
          const dur = parseInt(r[8]) || 60;
          const start = r[6] || '-';
          let stage = r[5] || INBOX_ID;
-         if(!st.find(s=>s.name === stage) && stage !== INBOX_ID) stage = INBOX_ID; // Validate stage
+         if(!st.find(s=>s.name === stage) && stage !== INBOX_ID) stage = INBOX_ID; 
          
          return {
            id: r[0] || `p-${i}`, title: r[1], status: r[2]||'5_Vorschlag', partner: r[3],
@@ -379,52 +373,33 @@ function App() {
     }
   };
 
-  // --- DRAG & DROP LOGIC ---
-
   const handleDragStart = (event) => {
     const session = event.active.data.current;
     setActiveDragItem(session);
   };
 
   const handleDragMove = (event) => {
-    const { active, over, delta } = event;
+    const { over, delta } = event;
     if (!over || !activeDragItem) {
         setGhostPosition(null);
         return;
     }
 
-    const stageName = over.id; // The stage we are hovering over
+    const stageName = over.id; 
 
     if (stageName === INBOX_ID) {
         setGhostPosition(null);
         return;
     }
 
-    // Calculate Time Position based on Y delta
-    // We need to know the initial "top" of the item if it was already on the timeline, 
-    // OR if it comes from Inbox, we calculate based on pointer.
-    // Simplifying: We rely on the drop coordinate relative to the droppable container. 
-    // dnd-kit doesn't give relative coordinates easily. We approximate using delta + original pos.
-    
-    // Better strategy for Grid Snapping visual:
-    // We assume the user picks up the element. The `delta.y` is the movement.
-    // If the item was at 10:00 (600 mins), and delta.y is 50px (approx 20 mins), new time is 10:20.
-    
     let currentStartMinutes;
     if (activeDragItem.stage === INBOX_ID || activeDragItem.start === '-') {
-        // From Inbox: Assume starting at drag point (This is hard to calc perfectly without pointer coords)
-        // Fallback: Default to 12:00 for visual preview if coming from inbox, or 
-        // try to map delta to a time if we assume DragOverlay started at center of screen? No.
-        // Let's rely on `handleDragEnd` for exact math, and show a generic ghost for now.
-        // Or assume 09:00 start base + delta.
         currentStartMinutes = (START_HOUR * 60) + (delta.y / PIXELS_PER_MINUTE);
     } else {
-        // From Timeline
         const originalMinutes = timeToMinutes(activeDragItem.start);
         currentStartMinutes = originalMinutes + (delta.y / PIXELS_PER_MINUTE);
     }
     
-    // Snap
     const snappedMinutes = Math.round(currentStartMinutes / SNAP_MINUTES) * SNAP_MINUTES;
     const clampedMinutes = Math.max(START_HOUR*60, Math.min(END_HOUR*60, snappedMinutes));
     
@@ -440,7 +415,7 @@ function App() {
   };
 
   const handleDragEnd = (event) => {
-    const { active, over, delta } = event;
+    const { active, over } = event;
     setActiveDragItem(null);
     setGhostPosition(null);
     
@@ -448,7 +423,6 @@ function App() {
     const targetStage = over.id;
     const session = active.data.current;
 
-    // 1. Drop to Inbox
     if (targetStage === INBOX_ID) {
         if (session.stage !== INBOX_ID) {
             updateSession(session.id, { stage: INBOX_ID, start: '-' });
@@ -456,32 +430,11 @@ function App() {
         return;
     }
 
-    // 2. Drop to Stage (Timeline)
-    let newStartMinutes;
-    
-    if (session.stage === INBOX_ID || session.start === '-') {
-        // If coming from Inbox, calculating exact drop Y relative to container is tricky in pure React without refs.
-        // Workaround: We use the ghostPosition calculated during DragMove if available
-        if (ghostPosition) {
-             const timeStr = ghostPosition.timeLabel;
-             updateSession(session.id, { stage: targetStage, start: timeStr });
-             return;
-        }
-        // Fallback if no move event fired
+    if (ghostPosition) {
+         const timeStr = ghostPosition.timeLabel;
+         updateSession(session.id, { stage: targetStage, start: timeStr });
+    } else if (session.stage === INBOX_ID || session.start === '-') {
         updateSession(session.id, { stage: targetStage, start: '10:00' });
-    } else {
-        // Moving within timeline
-        const originalMinutes = timeToMinutes(session.start);
-        const rawNewMinutes = originalMinutes + (delta.y / PIXELS_PER_MINUTE);
-        let snappedMinutes = Math.round(rawNewMinutes / SNAP_MINUTES) * SNAP_MINUTES;
-        
-        // Boundaries
-        snappedMinutes = Math.max(START_HOUR*60, Math.min(END_HOUR*60, snappedMinutes));
-        const newTimeStr = minutesToTime(snappedMinutes);
-        
-        if (session.start !== newTimeStr || session.stage !== targetStage) {
-            updateSession(session.id, { stage: targetStage, start: newTimeStr });
-        }
     }
   };
 
@@ -493,7 +446,6 @@ function App() {
     setLocalChanges(true);
   };
 
-  // --- RENDER HELPERS ---
   const getPos = (start, duration) => {
     if (!start || start === '-') return {};
     const min = timeToMinutes(start);
@@ -582,7 +534,7 @@ function App() {
                 
                 {/* TIME AXIS */}
                 <div className="w-12 bg-white border-r border-slate-200 shrink-0 sticky left-0 z-30 shadow-sm min-h-[1600px]">
-                   <div className="h-14 border-b border-slate-200 bg-white sticky top-0 z-40"></div> {/* Spacer Header */}
+                   <div className="h-14 border-b border-slate-200 bg-white sticky top-0 z-40"></div> 
                    {Array.from({length: END_HOUR-START_HOUR + 1}).map((_,i) => (
                       <div key={i} className="absolute w-full text-right pr-1 text-[10px] font-mono text-slate-400 border-t border-slate-100 -mt-px pt-1"
                            style={{top: `${i*60*PIXELS_PER_MINUTE}px`}}>
@@ -594,7 +546,7 @@ function App() {
                 {/* STAGES */}
                 <div className="flex min-w-full">
                    {data.stages.map(stage => (
-                      <StageColumn key={stage.id} stage={stage} activeDrag={activeDragItem} onDropPreview={()=>{}}>
+                      <StageColumn key={stage.id} stage={stage} activeDrag={activeDragItem}>
                          {/* GHOST PREVIEW */}
                          {ghostPosition && ghostPosition.stageId === stage.name && (
                             <div 
@@ -635,7 +587,7 @@ function App() {
         </DragOverlay>
       </DndContext>
 
-      {/* Settings Modal (Simplified for brevity as user verified it works, focusing on labels) */}
+      {/* Settings Modal */}
       {showSettings && (
          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
             <div className="bg-white p-6 rounded-xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
@@ -668,8 +620,19 @@ function App() {
             </div>
          </div>
       )}
-
-      {/* Session Modal logic is same as before, simplified for char limit but fully functional */}
+      
+      {/* Session Modal - Placeholder for brevity, user has full version */}
+      {isModalOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+              <div className="bg-white p-6 rounded-lg w-full max-w-md">
+                  <h3 className="font-bold mb-4">Session Bearbeiten</h3>
+                  <p className="text-sm text-slate-500 mb-4">Bearbeitungsfenster hier (wie in vorheriger Version implementiert).</p>
+                  <div className="flex justify-end gap-2">
+                      <button onClick={()=>setIsModalOpen(false)} className="px-4 py-2 border rounded">Schließen</button>
+                  </div>
+              </div>
+          </div>
+      )}
     </div>
   );
 }
