@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[functions]
+  directory = "netlify/functions"
+
+# SPA fallback for client-side routing
+# Netlify Functions v2 with custom path configs are served before redirect rules
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200

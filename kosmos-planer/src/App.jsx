@@ -15,17 +15,17 @@ import {
   useSortable
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { 
-  Users, RefreshCw, Settings, AlertCircle, 
-  Trash2, PlusCircle, UploadCloud, LogIn, X, 
-  Lock, Unlock, MessageSquare, Globe, Flag, Layout, 
+import {
+  Users, RefreshCw, Settings, AlertCircle,
+  Trash2, PlusCircle, UploadCloud, LogIn, X,
+  Lock, Unlock, MessageSquare, Globe, Flag, Layout,
   AlertTriangle, Mic2, PieChart, Search, CheckCircle2, Languages,
-  Download, Loader2, Cookie, Key
+  Download, Loader2, Key, LogOut
 } from 'lucide-react';
 
 // --- KONSTANTEN ---
 const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
-const DISCOVERY_DOCS = ['https://sheets.googleapis.com/$discovery/rest?version=v4'];
+const AUTH_STORAGE_KEY = 'kosmos_auth';
 const INBOX_ID = 'Inbox';
 const HEADER_HEIGHT = 64; 
 const PIXELS_PER_MINUTE = 2.5; 
@@ -88,30 +88,114 @@ const checkOverlap = (startA, endA, startB, endB, buffer = 0) => {
 
 const getErrorMessage = (e) => {
   if (typeof e === 'string') return e;
-  return e?.result?.error?.message || e?.message || "Unbekannter Fehler beim Speichern";
+  return e?.result?.error?.message || e?.error || e?.message || "Unbekannter Fehler beim Speichern";
+};
+
+// --- AUTH HELPERS ---
+const getStoredAuth = () => {
+  try {
+    const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+    if (!raw) return null;
+    const auth = JSON.parse(raw);
+    // Check if token is expired (with 60s buffer)
+    if (auth.expires_at && Date.now() > auth.expires_at - 60000) {
+      // Token expired but we might have a refresh token
+      if (auth.refresh_token) return { ...auth, expired: true };
+      localStorage.removeItem(AUTH_STORAGE_KEY);
+      return null;
+    }
+    return auth;
+  } catch { return null; }
+};
+
+const storeAuth = (tokenData) => {
+  const auth = {
+    access_token: tokenData.access_token,
+    expires_at: Date.now() + (parseInt(tokenData.expires_in) || 3600) * 1000,
+    ...(tokenData.refresh_token ? { refresh_token: tokenData.refresh_token } : {}),
+  };
+  // Preserve existing refresh_token if not provided in new data
+  const existing = getStoredAuth();
+  if (!auth.refresh_token && existing?.refresh_token) {
+    auth.refresh_token = existing.refresh_token;
+  }
+  localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
+  return auth;
+};
+
+const clearAuth = () => {
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+};
+
+const parseAuthFromFragment = () => {
+  const hash = window.location.hash;
+  if (!hash.startsWith('#auth=')) return null;
+  try {
+    const params = new URLSearchParams(hash.slice(6));
+    const access_token = params.get('access_token');
+    if (!access_token) return null;
+    return {
+      access_token,
+      expires_in: params.get('expires_in') || '3600',
+      refresh_token: params.get('refresh_token') || null,
+    };
+  } catch { return null; }
+};
+
+const refreshAccessToken = async (refreshToken) => {
+  const res = await fetch('/api/auth/refresh', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data.error || 'Token refresh failed');
+  }
+  return res.json();
+};
+
+const getValidAccessToken = async () => {
+  // If we have a manual token, return it directly
+  const manualToken = localStorage.getItem('kosmos_manualToken');
+  if (manualToken) return manualToken;
+
+  const auth = getStoredAuth();
+  if (!auth) return null;
+
+  // If token is not expired, return it
+  if (!auth.expired) return auth.access_token;
+
+  // Try to refresh
+  if (auth.refresh_token) {
+    try {
+      const newTokenData = await refreshAccessToken(auth.refresh_token);
+      storeAuth(newTokenData);
+      return newTokenData.access_token;
+    } catch {
+      clearAuth();
+      return null;
+    }
+  }
+
+  clearAuth();
+  return null;
+};
+
+const buildGoogleAuthUrl = (clientId) => {
+  const redirectUri = `${window.location.origin}/api/auth/callback`;
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: SCOPES,
+    access_type: 'offline',
+    prompt: 'consent',
+  });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 };
 
 // --- COMPONENTS ---
-
-// Cookie Consent Banner
-const CookieBanner = ({ onAccept }) => (
-  <div className="fixed bottom-4 left-4 right-4 md:left-auto md:w-96 bg-slate-900 text-white p-4 rounded-xl shadow-2xl z-[100] flex flex-col gap-3 animate-in slide-in-from-bottom-10">
-    <div className="flex items-start gap-3">
-      <Cookie className="w-6 h-6 text-yellow-400 shrink-0" />
-      <div>
-        <h4 className="font-bold text-sm">Probleme beim Login?</h4>
-        <p className="text-xs text-slate-300 mt-1">
-          Google Login benötigt Drittanbieter-Cookies. Falls der Button nicht reagiert, nutzen Sie bitte einen Chrome-Standard-Tab oder tragen Sie den Access Token manuell in den Einstellungen ein.
-        </p>
-      </div>
-    </div>
-    <div className="flex gap-2 justify-end">
-      <button onClick={onAccept} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-xs font-bold transition-colors">
-        Verstanden
-      </button>
-    </div>
-  </div>
-);
 
 const Card = React.forwardRef(({ children, className = "", onClick, style, status, ...props }, ref) => {
   const statusClass = STATUS_COLORS[status] || 'border-slate-200 bg-white';
@@ -337,7 +421,7 @@ function App() {
     startHour: parseInt(localStorage.getItem('kosmos_start_hour')) || 9,
     endHour: parseInt(localStorage.getItem('kosmos_end_hour')) || 22,
     bufferMin: parseInt(localStorage.getItem('kosmos_buffer_min')) || 5,
-    manualToken: localStorage.getItem('kosmos_manual_token') || '' // Neuer Fallback Token
+    manualToken: localStorage.getItem('kosmos_manualToken') || ''
   });
 
   const [activeDragItem, setActiveDragItem] = useState(null);
@@ -353,10 +437,9 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
 
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [tokenClient, setTokenClient] = useState(null);
-  const [gapiInited, setGapiInited] = useState(false);
+  const [accessToken, setAccessToken] = useState(null);
   const [loginLoading, setLoginLoading] = useState(true);
-  const [showCookieBanner, setShowCookieBanner] = useState(true);
+  const [authError, setAuthError] = useState(null);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -499,100 +582,189 @@ function App() {
     return conflicts;
   }, [data.program, data.speakers]);
 
-  // --- API & AUTH ---
+  // --- AUTH: Single consolidated initialization ---
+  // This runs once on mount and handles everything:
+  // 1. Parse auth tokens from URL fragment (OAuth callback return)
+  // 2. Check for auth errors in URL params
+  // 3. Check for manual token fallback
+  // 4. Check stored tokens / refresh expired tokens
+  // 5. Fetch server config (Google Client ID) for the login button
   useEffect(() => {
-    // 1. GAPI (Sheets)
-    const initGapi = async () => {
-       if(window.gapi) {
-         await window.gapi.client.init({ apiKey: config.googleApiKey, discoveryDocs: DISCOVERY_DOCS });
-         setGapiInited(true);
-         // Manual Token Injection if available
-         if (config.manualToken) {
-             window.gapi.client.setToken({ access_token: config.manualToken });
-             setIsAuthenticated(true);
-         }
-       }
-    };
-    if (config.googleApiKey && !gapiInited) {
-        if (!window.gapi) {
-            const script = document.createElement('script');
-            script.src = "https://apis.google.com/js/api.js";
-            script.onload = () => window.gapi.load('client', initGapi);
-            document.body.appendChild(script);
-        } else {
-            window.gapi.load('client', initGapi);
+    let cancelled = false;
+
+    const initAuth = async () => {
+      // Step 1: Check for auth tokens in URL fragment (returned from OAuth callback)
+      // This must happen FIRST and synchronously before any async work
+      const fragmentAuth = parseAuthFromFragment();
+      if (fragmentAuth) {
+        const auth = storeAuth(fragmentAuth);
+        if (!cancelled) {
+          setAccessToken(auth.access_token);
+          setIsAuthenticated(true);
+          setLoginLoading(false);
         }
-    }
-
-    // 2. GSI (Identity) - Improved robustness with timeout
-    if (config.googleClientId && !tokenClient && !config.manualToken) {
-        // Set timeout to stop "Init..." spinner after 3s if blocked
-        const timeout = setTimeout(() => setLoginLoading(false), 3000); 
-
-        if (!document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) {
-            const script = document.createElement('script');
-            script.src = "https://accounts.google.com/gsi/client";
-            script.async = true;
-            script.defer = true;
-            script.onload = () => {
-                clearTimeout(timeout);
-                setLoginLoading(false);
-                try {
-                    const client = window.google.accounts.oauth2.initTokenClient({
-                        client_id: config.googleClientId,
-                        scope: SCOPES,
-                        ux_mode: 'popup', 
-                        callback: (r) => { 
-                            if(r.access_token) setIsAuthenticated(true); 
-                            else console.error("GSI: No access token");
-                        },
-                        error_callback: (err) => {
-                            console.error("GSI Error", err);
-                            setToast({ msg: "Login blockiert! Bitte manuellen Token nutzen.", type: "error" });
-                        }
-                    });
-                    setTokenClient(client);
-                } catch(e) {
-                    console.error("GSI Init Error", e);
-                }
-            };
-            script.onerror = () => {
-                clearTimeout(timeout);
-                setLoginLoading(false);
-            };
-            document.body.appendChild(script);
-        } else {
-            // Script already present
-            clearTimeout(timeout);
-            setLoginLoading(false);
-        }
-    } else {
-        setLoginLoading(false);
-    }
-  }, [config.googleApiKey, config.googleClientId, config.manualToken]);
-
-  const handleLogin = () => {
-      if (tokenClient) {
-          tokenClient.requestAccessToken({ prompt: 'select_account' });
-      } else {
-          setToast({ msg: "Login-Dienst nicht verfügbar. Prüfen Sie Ihren AdBlocker oder nutzen Sie den manuellen Token.", type: "error" });
+        // Clean the URL fragment
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+        return; // Done - successfully authenticated from callback
       }
+
+      // Step 2: Check for auth error in URL params
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlAuthError = urlParams.get('auth_error');
+      if (urlAuthError) {
+        if (!cancelled) {
+          setAuthError(urlAuthError);
+          setToast({ msg: `Login-Fehler: ${urlAuthError}`, type: 'error' });
+        }
+        window.history.replaceState(null, '', window.location.pathname);
+      }
+
+      // Step 3: Check for manual token (from settings)
+      const manualToken = localStorage.getItem('kosmos_manualToken');
+      if (manualToken) {
+        if (!cancelled) {
+          setAccessToken(manualToken);
+          setIsAuthenticated(true);
+          setLoginLoading(false);
+        }
+        return;
+      }
+
+      // Step 4: Check for stored auth (previous session)
+      const storedAuth = getStoredAuth();
+      if (storedAuth && !storedAuth.expired) {
+        if (!cancelled) {
+          setAccessToken(storedAuth.access_token);
+          setIsAuthenticated(true);
+          setLoginLoading(false);
+        }
+        return;
+      }
+
+      // Step 5: Try to refresh expired token
+      if (storedAuth?.expired && storedAuth.refresh_token) {
+        try {
+          const newTokenData = await refreshAccessToken(storedAuth.refresh_token);
+          if (!cancelled) {
+            const auth = storeAuth(newTokenData);
+            setAccessToken(auth.access_token);
+            setIsAuthenticated(true);
+          }
+        } catch {
+          clearAuth();
+        }
+        if (!cancelled) setLoginLoading(false);
+        return;
+      }
+
+      // Step 6: No existing auth - fetch server config for login button
+      try {
+        const res = await fetch('/api/auth/config');
+        const data = await res.json();
+        if (!cancelled && data.google_client_id) {
+          setConfig(prev => {
+            // Only update if not already set from localStorage
+            if (!prev.googleClientId) {
+              return { ...prev, googleClientId: data.google_client_id };
+            }
+            return prev;
+          });
+        }
+      } catch {
+        // Config fetch failed - user can still set client ID in settings
+      }
+
+      if (!cancelled) setLoginLoading(false);
+    };
+
+    initAuth();
+    return () => { cancelled = true; };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-load data when authentication succeeds and spreadsheet is configured
+  useEffect(() => {
+    if (isAuthenticated && config.spreadsheetId && !status.loading) {
+      loadData();
+    }
+  }, [isAuthenticated, loadData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleLogin = async () => {
+    let clientId = config.googleClientId;
+
+    // If no client ID in local state, try fetching from server
+    if (!clientId) {
+      try {
+        const res = await fetch('/api/auth/config');
+        const data = await res.json();
+        if (data.google_client_id) {
+          clientId = data.google_client_id;
+          setConfig(prev => ({ ...prev, googleClientId: clientId }));
+        }
+      } catch {
+        // Server config not available
+      }
+    }
+
+    if (clientId) {
+      window.location.href = buildGoogleAuthUrl(clientId);
+    } else {
+      setToast({ msg: "Google Client ID nicht konfiguriert. Bitte in den Einstellungen oder als Netlify Umgebungsvariable setzen.", type: "error" });
+      setTimeout(() => setToast(null), 5000);
+    }
+  };
+
+  const handleLogout = () => {
+    clearAuth();
+    setAccessToken(null);
+    setIsAuthenticated(false);
+    setToast({ msg: "Abgemeldet.", type: "success" });
+    setTimeout(() => setToast(null), 2000);
   };
 
   const loadData = useCallback(async () => {
-    if (!isAuthenticated || !gapiInited || !config.spreadsheetId) return;
+    if (!isAuthenticated || !config.spreadsheetId) return;
     setStatus({ loading: true, error: null });
     try {
-      const batch = await window.gapi.client.sheets.spreadsheets.values.batchGet({
-        spreadsheetId: config.spreadsheetId,
-        ranges: [
-          `'${config.sheetNameSpeakers}'!A2:I`, 
-          `'${config.sheetNameMods}'!A2:C`,
-          `'${config.sheetNameProgram}'!A2:N`,
-          `'${config.sheetNameStages}'!A2:H`
-        ]
+      const token = await getValidAccessToken();
+      if (!token) {
+        setIsAuthenticated(false);
+        setAccessToken(null);
+        setStatus({ loading: false, error: "Sitzung abgelaufen. Bitte erneut einloggen." });
+        return;
+      }
+
+      const res = await fetch('/api/sheets', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          action: 'batchGet',
+          spreadsheetId: config.spreadsheetId,
+          ranges: [
+            `'${config.sheetNameSpeakers}'!A2:I`,
+            `'${config.sheetNameMods}'!A2:C`,
+            `'${config.sheetNameProgram}'!A2:N`,
+            `'${config.sheetNameStages}'!A2:H`
+          ]
+        }),
       });
-      const ranges = batch.result.valueRanges;
+
+      const batch = await res.json();
+      if (!res.ok) {
+        // If auth error, clear auth state so user can re-login
+        if (res.status === 401 || res.status === 403) {
+          clearAuth();
+          setIsAuthenticated(false);
+          setAccessToken(null);
+          setStatus({ loading: false, error: "Zugriff verweigert. Bitte erneut einloggen." });
+          return;
+        }
+        throw new Error(batch.error || 'Sheets API Fehler');
+      }
+
+      const ranges = batch.valueRanges;
       
       const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag'];
       const sp = (ranges[0].values || []).filter(r => {
@@ -664,7 +836,7 @@ function App() {
     } catch(e) {
       setStatus({ loading: false, error: getErrorMessage(e) });
     }
-  }, [isAuthenticated, gapiInited, config]);
+  }, [isAuthenticated, config]);
 
   // --- MAIL MERGE EXPORT ---
   const handleExportMailMerge = () => {
@@ -734,34 +906,62 @@ function App() {
     if (!isAuthenticated) return;
     setStatus({ loading: true, error: null });
     try {
+        const token = await getValidAccessToken();
+        if (!token) {
+          setIsAuthenticated(false);
+          setAccessToken(null);
+          setStatus({ loading: false, error: "Sitzung abgelaufen. Bitte erneut einloggen." });
+          return;
+        }
+
         const rows = data.program.map(p => {
             const speakersStr = Array.isArray(p.speakers) ? p.speakers.join(', ') : (p.speakers || '');
             const modsStr = Array.isArray(p.moderators) ? p.moderators.join(', ') : (p.moderators || '');
-            
+
             return [
-                safeString(p.id), 
-                safeString(p.title), 
-                safeString(p.status), 
-                p.partner === 'TRUE' ? 'TRUE' : 'FALSE', 
-                safeString(p.format), 
-                p.stage === INBOX_ID ? '' : safeString(p.stage), 
-                p.start === '-' ? '' : p.start, 
-                p.start === '-' ? '' : calculateEndTime(p.start, p.duration), 
-                p.duration || 60, 
-                speakersStr, 
-                modsStr, 
-                safeString(p.language), 
-                safeString(p.notes), 
+                safeString(p.id),
+                safeString(p.title),
+                safeString(p.status),
+                p.partner === 'TRUE' ? 'TRUE' : 'FALSE',
+                safeString(p.format),
+                p.stage === INBOX_ID ? '' : safeString(p.stage),
+                p.start === '-' ? '' : p.start,
+                p.start === '-' ? '' : calculateEndTime(p.start, p.duration),
+                p.duration || 60,
+                speakersStr,
+                modsStr,
+                safeString(p.language),
+                safeString(p.notes),
                 safeString(p.stageDispo)
             ];
         });
 
-        await window.gapi.client.sheets.spreadsheets.values.update({
-            spreadsheetId: config.spreadsheetId, 
+        const res = await fetch('/api/sheets', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            action: 'update',
+            spreadsheetId: config.spreadsheetId,
             range: `'${config.sheetNameProgram}'!A2:N`,
-            valueInputOption: 'USER_ENTERED', 
-            resource: { values: rows }
+            values: rows,
+          }),
         });
+
+        const result = await res.json();
+        if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            clearAuth();
+            setIsAuthenticated(false);
+            setAccessToken(null);
+            setStatus({ loading: false, error: "Zugriff verweigert. Bitte erneut einloggen." });
+            return;
+          }
+          throw new Error(result.error || 'Sheets API Fehler');
+        }
+
         setLocalChanges(false);
         setStatus({ loading: false, error: null });
         setToast({ msg: "Programm erfolgreich gespeichert!", type: "success" });
@@ -950,11 +1150,6 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans overflow-hidden text-slate-900">
-      {/* Cookie Banner */}
-      {showCookieBanner && (
-        <CookieBanner onAccept={() => setShowCookieBanner(false)} />
-      )}
-
       {toast && (
         <div className={`fixed top-16 left-1/2 -translate-x-1/2 px-4 py-2 rounded shadow-lg z-50 text-sm font-bold text-white
            ${toast.type === 'error' ? 'bg-red-600' : 'bg-blue-600'}`}>
@@ -1007,12 +1202,12 @@ function App() {
 
         <div className="flex items-center gap-2">
             {!isAuthenticated ? (
-               <button 
-                 onClick={handleLogin} 
-                 className={`bg-slate-900 text-white px-3 py-1.5 rounded text-sm flex gap-2 items-center ${loginLoading || !tokenClient ? 'opacity-70' : ''}`}
-                 disabled={loginLoading && !tokenClient}
+               <button
+                 onClick={handleLogin}
+                 className={`bg-slate-900 text-white px-3 py-1.5 rounded text-sm flex gap-2 items-center ${loginLoading ? 'opacity-70' : ''}`}
+                 disabled={loginLoading}
                >
-                 {tokenClient ? <><LogIn className="w-3 h-3"/> Login</> : <><Loader2 className="w-3 h-3 animate-spin"/> {loginLoading ? 'Init...' : 'Retry'}</>}
+                 {loginLoading ? <><Loader2 className="w-3 h-3 animate-spin"/> Init...</> : <><LogIn className="w-3 h-3"/> Login</>}
                </button>
             ) : (
                <>
@@ -1026,6 +1221,9 @@ function App() {
                  <button onClick={handleSync} disabled={!localChanges} className={`flex items-center gap-2 px-3 py-1.5 rounded text-white text-sm font-bold shadow-sm ${localChanges ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300'}`}>
                     <UploadCloud className="w-3 h-3"/> Speichern
                  </button>
+                 <button onClick={handleLogout} className="p-2 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title="Abmelden">
+                    <LogOut className="w-4 h-4"/>
+                 </button>
                </>
             )}
             <div className="w-px h-6 bg-slate-200 mx-1"></div>
@@ -1033,7 +1231,7 @@ function App() {
         </div>
       </header>
 
-      {status.error && <div className="bg-red-50 text-red-600 p-2 text-xs text-center border-b border-red-200 font-bold">{status.error}</div>}
+      {(status.error || authError) && <div className="bg-red-50 text-red-600 p-2 text-xs text-center border-b border-red-200 font-bold">{status.error || `Authentifizierungsfehler: ${authError}`}</div>}
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
         <div className="flex flex-1 overflow-hidden">
@@ -1195,11 +1393,12 @@ function App() {
                   </div>
                   <div className="space-y-2 border-t pt-2">
                      <h3 className="text-xs font-bold uppercase text-slate-500">Auth</h3>
-                     <input className="w-full border p-2 rounded text-xs font-mono" placeholder="Client ID" value={config.googleClientId} onChange={e=>setConfig({...config, googleClientId:e.target.value})} />
-                     <input className="w-full border p-2 rounded text-xs font-mono" placeholder="API Key" value={config.googleApiKey} onChange={e=>setConfig({...config, googleApiKey:e.target.value})} />
+                     <p className="text-[10px] text-slate-400">Client ID wird serverseitig konfiguriert. Login erfolgt per Google-Weiterleitung (kein Popup).</p>
+                     <input className="w-full border p-2 rounded text-xs font-mono" placeholder="Client ID (nur für lokale Entwicklung)" value={config.googleClientId} onChange={e=>setConfig({...config, googleClientId:e.target.value})} />
+                     <input className="w-full border p-2 rounded text-xs font-mono" placeholder="API Key (optional)" value={config.googleApiKey} onChange={e=>setConfig({...config, googleApiKey:e.target.value})} />
                      <div className="mt-2 bg-yellow-50 p-2 rounded border border-yellow-200">
                         <label className="text-xs font-bold block mb-1 text-yellow-800 flex items-center gap-1"><Key className="w-3 h-3"/> Access Token (Manuell / Notfall)</label>
-                        <input className="w-full border p-2 rounded text-xs font-mono" placeholder="Paste Token here if button fails..." value={config.manualToken} onChange={e=>setConfig({...config, manualToken:e.target.value})} />
+                        <input className="w-full border p-2 rounded text-xs font-mono" placeholder="Nur als Notfall-Fallback..." value={config.manualToken} onChange={e=>setConfig({...config, manualToken:e.target.value})} />
                         <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 underline block mt-1">Token via Playground generieren (Scope: https://www.googleapis.com/auth/spreadsheets)</a>
                      </div>
                   </div>
