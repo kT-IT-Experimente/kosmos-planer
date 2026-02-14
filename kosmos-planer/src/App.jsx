@@ -20,7 +20,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { 
   Users, Mic2, RefreshCw, Settings, Save, AlertCircle, 
   Calendar, Clock, MapPin, Trash2, PlusCircle, UploadCloud, LogIn, X, 
-  Lock, Unlock, MessageSquare, Globe, Flag, CheckSquare, Square
+  Lock, Unlock, MessageSquare, Globe, Flag, CheckSquare, Square, Monitor, Layout
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -34,7 +34,7 @@ const STATUS_COLORS = {
   '2_Planung': 'border-blue-300 bg-white',
   '1_Zusage': 'border-green-400 bg-green-50',
   'Akzeptiert': 'border-green-500 bg-green-50',
-  'Fixiert': 'border-red-500 bg-slate-100 ring-1 ring-red-500' // Locked look
+  'Fixiert': 'border-red-500 bg-slate-100 ring-1 ring-red-500' 
 };
 
 const FORMAT_COLORS = {
@@ -60,13 +60,14 @@ const minutesToTime = (totalMinutes) => {
 };
 
 const calculateEndTime = (startStr, durationMin) => {
+  if (!startStr || startStr === '-') return '-';
   const startMin = timeToMinutes(startStr);
   return minutesToTime(startMin + parseInt(durationMin || 0));
 };
 
 // --- COMPONENTS ---
 
-const Card = ({ children, className = "", onClick, style, status, format }) => {
+const Card = ({ children, className = "", onClick, style, status }) => {
   const statusClass = STATUS_COLORS[status] || 'border-slate-200 bg-white';
   
   return (
@@ -80,8 +81,7 @@ const Card = ({ children, className = "", onClick, style, status, format }) => {
   );
 };
 
-// Sortable Item Wrapper
-const SortableSessionItem = ({ session, onClick, style, onDelete, onToggleLock }) => {
+const SortableSessionItem = ({ session, onClick, style, onToggleLock }) => {
   const isLocked = session.status === 'Fixiert';
   
   const {
@@ -94,7 +94,7 @@ const SortableSessionItem = ({ session, onClick, style, onDelete, onToggleLock }
   } = useSortable({ 
     id: session.id, 
     data: session,
-    disabled: isLocked // Disable DnD if locked
+    disabled: isLocked 
   });
 
   const dndStyle = {
@@ -111,14 +111,9 @@ const SortableSessionItem = ({ session, onClick, style, onDelete, onToggleLock }
     <div ref={setNodeRef} style={dndStyle} {...attributes} {...listeners} className="touch-none mb-2 relative group">
        <Card 
          status={session.status} 
-         format={session.format}
          className={`cursor-pointer hover:shadow-md ${isLocked ? 'cursor-not-allowed opacity-90' : 'cursor-grab active:cursor-grabbing'}`}
-         onClick={(e) => {
-            // Prevent edit modal if clicking strictly on action buttons (optional, handled by propagation usually)
-            onClick(session);
-         }}
+         onClick={(e) => onClick(session)}
        >
-          {/* Header Row: Time & Lock */}
           <div className="flex justify-between items-start mb-1">
             <div className="flex flex-col">
               <span className="font-mono text-xs font-bold text-slate-600">
@@ -129,24 +124,20 @@ const SortableSessionItem = ({ session, onClick, style, onDelete, onToggleLock }
               </span>
             </div>
             
-            <div className="flex gap-1">
-               <button 
-                  onPointerDown={(e) => e.stopPropagation()} // Prevent drag start
-                  onClick={(e) => { e.stopPropagation(); onToggleLock(session); }}
-                  className={`p-1 rounded hover:bg-black/10 transition-colors ${isLocked ? 'text-red-600' : 'text-slate-400'}`}
-                  title={isLocked ? "Session ist fixiert (Klicken zum Entsperren)" : "Session fixieren"}
-               >
-                 {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
-               </button>
-            </div>
+            <button 
+              onPointerDown={(e) => e.stopPropagation()} 
+              onClick={(e) => { e.stopPropagation(); onToggleLock(session); }}
+              className={`p-1 rounded hover:bg-black/10 transition-colors ${isLocked ? 'text-red-600' : 'text-slate-400'}`}
+              title={isLocked ? "Entsperren" : "Fixieren"}
+            >
+               {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
+            </button>
           </div>
 
-          {/* Title */}
           <div className="font-bold text-sm leading-tight mb-1 text-slate-800 line-clamp-2">
             {session.title || 'Unbenannt'}
           </div>
 
-          {/* Details Row: Speakers, Lang, Notes */}
           <div className="space-y-1">
             {session.speakers && (
               <div className="text-xs text-slate-600 flex items-center gap-1 truncate">
@@ -156,19 +147,13 @@ const SortableSessionItem = ({ session, onClick, style, onDelete, onToggleLock }
             
             <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1 pt-1 border-t border-black/5">
                {session.language && (
-                 <span className="flex items-center gap-0.5" title={`Sprache: ${session.language}`}>
-                   <Globe className="w-2.5 h-2.5" /> {session.language}
-                 </span>
+                 <span className="flex items-center gap-0.5"><Globe className="w-2.5 h-2.5" /> {session.language}</span>
                )}
                {session.partner && (
-                 <span className="flex items-center gap-0.5 truncate max-w-[80px]" title={`Partner: ${session.partner}`}>
-                   <Flag className="w-2.5 h-2.5" /> {session.partner}
-                 </span>
+                 <span className="flex items-center gap-0.5 truncate max-w-[80px]"><Flag className="w-2.5 h-2.5" /> {session.partner}</span>
                )}
                {session.notes && (
-                 <span className="flex items-center gap-0.5 text-blue-500 ml-auto" title={session.notes}>
-                   <MessageSquare className="w-2.5 h-2.5" /> Info
-                 </span>
+                 <span className="flex items-center gap-0.5 text-blue-500 ml-auto"><MessageSquare className="w-2.5 h-2.5" /></span>
                )}
             </div>
           </div>
@@ -178,9 +163,7 @@ const SortableSessionItem = ({ session, onClick, style, onDelete, onToggleLock }
 };
 
 // --- MODAL: SESSION EDITOR ---
-const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, stages, speakersList, moderatorsList }) => {
-  const initialSpeakers = initialData?.speakers ? initialData.speakers.split(',').map(s => s.trim()) : [];
-  
+const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) => {
   const [formData, setFormData] = useState({
     id: '', title: '', start: '10:00', duration: 60, stage: 'Main Stage',
     status: '5_Vorschlag', format: 'Talk', speakers: [], moderators: '', day: '20.09.',
@@ -189,20 +172,20 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, stages, 
 
   useEffect(() => {
     if (initialData) {
-      const duration = initialData.duration || (timeToMinutes(initialData.end) - timeToMinutes(initialData.start)) || 60;
+      const duration = initialData.duration || (initialData.end && initialData.start !== '-' ? timeToMinutes(initialData.end) - timeToMinutes(initialData.start) : 60);
       setFormData({
         ...initialData,
-        duration: duration,
+        duration: duration > 0 ? duration : 60,
         speakers: initialData.speakers ? initialData.speakers.split(',').map(s => s.trim()).filter(s => s) : []
       });
     } else {
       setFormData({
-        id: '', title: '', start: '10:00', duration: 60, stage: stages[0] || 'Main Stage',
+        id: '', title: '', start: '10:00', duration: 60, stage: definedStages[0]?.name || 'Main Stage',
         status: '5_Vorschlag', format: 'Talk', speakers: [], moderators: '', day: '20.09.',
         partner: '', language: 'de', notes: ''
       });
     }
-  }, [initialData, stages]);
+  }, [initialData, definedStages, isOpen]);
 
   const toggleListSelection = (field, name) => {
     if (field === 'speakers') {
@@ -211,8 +194,6 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, stages, 
             return { ...prev, speakers: exists ? prev.speakers.filter(s => s !== name) : [...prev.speakers, name] };
         });
     } else if (field === 'moderators') {
-        // Simple replace for moderators if single string, or append if managing list
-        // Assuming single string for simplicity based on previous CSV structure, but let's make it smart
         setFormData(prev => ({ ...prev, moderators: name })); 
     }
   };
@@ -220,127 +201,138 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, stages, 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col border border-slate-200">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-xl">
-          <h3 className="font-bold text-lg">{initialData ? 'Session bearbeiten' : 'Neue Session erstellen'}</h3>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5"/></button>
+          <h3 className="font-bold text-lg text-slate-800">{initialData ? 'Session bearbeiten' : 'Neue Session erstellen'}</h3>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-500"/></button>
         </div>
         
-        <div className="p-6 space-y-4 overflow-y-auto custom-scrollbar flex-1">
-          {/* Main Info */}
-          <div className="grid grid-cols-12 gap-4">
-             <div className="col-span-8">
-                <label className="label-xs">Titel der Session</label>
-                <input type="text" className="input-std font-bold" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
-             </div>
-             <div className="col-span-4">
-                <label className="label-xs">Status</label>
-                <select className="input-std" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
-                   <option value="5_Vorschlag">Vorschlag (Gelb)</option>
-                   <option value="2_Planung">Planung (Blau)</option>
-                   <option value="1_Zusage">Zusage (Grün)</option>
-                   <option value="Fixiert">Fixiert (Gesperrt)</option>
-                </select>
+        <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+          
+          {/* Section 1: Core Info */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Basis Informationen</h4>
+            <div className="grid grid-cols-12 gap-4">
+               <div className="col-span-8">
+                  <label className="label-std">Titel der Session <span className="text-red-500">*</span></label>
+                  <input type="text" className="input-std font-bold text-lg" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Titel eingeben..." />
+               </div>
+               <div className="col-span-4">
+                  <label className="label-std">Status & Fixierung</label>
+                  <select className="input-std" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
+                     <option value="5_Vorschlag">🟡 Vorschlag</option>
+                     <option value="2_Planung">🔵 Planung</option>
+                     <option value="1_Zusage">🟢 Zusage</option>
+                     <option value="Fixiert">🔴 Fixiert (Gesperrt)</option>
+                  </select>
+               </div>
+            </div>
+            <div className="grid grid-cols-3 gap-4">
+               <div>
+                  <label className="label-std">Format</label>
+                  <input type="text" list="formats" className="input-std" value={formData.format} onChange={e => setFormData({...formData, format: e.target.value})} />
+                  <datalist id="formats"><option value="Talk"/><option value="Panel"/><option value="Workshop"/><option value="Pause"/></datalist>
+               </div>
+               <div>
+                  <label className="label-std">Sprache</label>
+                  <select className="input-std" value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>
+                     <option value="de">Deutsch</option>
+                     <option value="en">Englisch</option>
+                  </select>
+               </div>
+               <div>
+                  <label className="label-std">Partner / Host</label>
+                  <input type="text" className="input-std" value={formData.partner} onChange={e => setFormData({...formData, partner: e.target.value})} placeholder="z.B. Medienboard" />
+               </div>
+            </div>
+          </div>
+
+          {/* Section 2: Time & Place */}
+          <div className="space-y-4">
+             <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Zeit & Ort</h4>
+             <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 grid grid-cols-4 gap-4">
+               <div className="col-span-2">
+                  <label className="label-std">Bühne (aus Single Source)</label>
+                  <select className="input-std bg-white" value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})}>
+                    <option value={INBOX_ID}>📥 Inbox (Nicht platziert)</option>
+                    {definedStages.map(s => (
+                       <option key={s.id} value={s.name}>{s.name} ({s.capacity} Pax)</option>
+                    ))}
+                  </select>
+               </div>
+               <div>
+                  <label className="label-std">Startzeit</label>
+                  <input type="time" className="input-std" value={formData.start} onChange={e => setFormData({...formData, start: e.target.value})} />
+               </div>
+               <div>
+                  <label className="label-std">Dauer (Min)</label>
+                  <input type="number" className="input-std" value={formData.duration} onChange={e => setFormData({...formData, duration: parseInt(e.target.value)})} />
+               </div>
              </div>
           </div>
 
-          {/* Meta Info */}
-          <div className="grid grid-cols-3 gap-4">
-             <div>
-                <label className="label-xs">Format</label>
-                <input type="text" list="formats" className="input-std" value={formData.format} onChange={e => setFormData({...formData, format: e.target.value})} />
-                <datalist id="formats"><option value="Talk"/><option value="Panel"/><option value="Workshop"/><option value="Pause"/></datalist>
-             </div>
-             <div>
-                <label className="label-xs">Sprache</label>
-                <select className="input-std" value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}>
-                   <option value="de">Deutsch</option>
-                   <option value="en">Englisch</option>
-                </select>
-             </div>
-             <div>
-                <label className="label-xs">Partner / Host</label>
-                <input type="text" className="input-std" value={formData.partner} onChange={e => setFormData({...formData, partner: e.target.value})} />
-             </div>
-          </div>
+          {/* Section 3: People */}
+          <div className="space-y-4">
+            <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Personen</h4>
+            <div className="grid grid-cols-2 gap-6">
+               {/* Speakers */}
+               <div className="bg-slate-50 p-3 rounded border border-slate-200">
+                  <label className="label-std mb-2 block">SprecherInnen</label>
+                  <div className="border border-slate-300 rounded p-2 min-h-[40px] flex flex-wrap gap-2 bg-white mb-2 text-sm shadow-inner">
+                     {formData.speakers.map(s => (
+                       <span key={s} className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded flex items-center gap-1 border border-indigo-200">
+                         {s} <button onClick={() => toggleListSelection('speakers', s)}><X className="w-3 h-3"/></button>
+                       </span>
+                     ))}
+                  </div>
+                  <div className="h-40 border border-slate-300 rounded overflow-y-auto bg-white p-1 space-y-1">
+                     {speakersList.map(s => (
+                        <div key={s.id} onClick={() => toggleListSelection('speakers', s.fullName)} 
+                             className={`cursor-pointer px-2 py-1 rounded text-xs truncate transition-colors ${formData.speakers.includes(s.fullName) ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 text-slate-700'}`}>
+                           {s.fullName}
+                        </div>
+                     ))}
+                  </div>
+               </div>
 
-          {/* Timing & Location */}
-          <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 grid grid-cols-4 gap-4">
-             <div className="col-span-2">
-                <label className="label-xs">Bühne</label>
-                <select className="input-std" value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})}>
-                  <option value={INBOX_ID}>-- Inbox (Nicht platziert) --</option>
-                  {stages.filter(s => s !== INBOX_ID).map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
-             </div>
-             <div>
-                <label className="label-xs">Startzeit</label>
-                <input type="time" className="input-std" value={formData.start} onChange={e => setFormData({...formData, start: e.target.value})} />
-             </div>
-             <div>
-                <label className="label-xs">Dauer (Min)</label>
-                <input type="number" className="input-std" value={formData.duration} onChange={e => setFormData({...formData, duration: parseInt(e.target.value)})} />
-             </div>
-          </div>
-
-          {/* People Selection */}
-          <div className="grid grid-cols-2 gap-6">
-             {/* Speakers */}
-             <div>
-                <label className="label-xs mb-2 block">SprecherInnen</label>
-                <div className="border rounded p-2 min-h-[40px] flex flex-wrap gap-2 bg-white mb-2 text-sm">
-                   {formData.speakers.map(s => (
-                     <span key={s} className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded flex items-center gap-1">
-                       {s} <button onClick={() => toggleListSelection('speakers', s)}><X className="w-3 h-3"/></button>
-                     </span>
-                   ))}
-                </div>
-                <div className="h-40 border rounded overflow-y-auto bg-slate-50 p-1 space-y-1">
-                   {speakersList.map(s => (
-                      <div key={s.id} onClick={() => toggleListSelection('speakers', s.fullName)} 
-                           className={`cursor-pointer px-2 py-1 rounded text-xs truncate ${formData.speakers.includes(s.fullName) ? 'bg-indigo-600 text-white' : 'hover:bg-slate-200 text-slate-700'}`}>
-                         {s.fullName}
-                      </div>
-                   ))}
-                </div>
-             </div>
-
-             {/* Moderators */}
-             <div>
-                <label className="label-xs mb-2 block">Moderation</label>
-                <div className="border rounded p-2 min-h-[40px] flex items-center bg-white mb-2 text-sm">
-                   {formData.moderators ? (
-                     <span className="bg-pink-100 text-pink-700 px-2 py-0.5 rounded flex items-center gap-1">
-                       {formData.moderators} <button onClick={() => setFormData({...formData, moderators: ''})}><X className="w-3 h-3"/></button>
-                     </span>
-                   ) : <span className="text-slate-400 italic text-xs">Niemand ausgewählt</span>}
-                </div>
-                <div className="h-40 border rounded overflow-y-auto bg-slate-50 p-1 space-y-1">
-                   {moderatorsList.map(m => (
-                      <div key={m.id} onClick={() => toggleListSelection('moderators', m.fullName)} 
-                           className={`cursor-pointer px-2 py-1 rounded text-xs truncate ${formData.moderators === m.fullName ? 'bg-pink-600 text-white' : 'hover:bg-slate-200 text-slate-700'}`}>
-                         {m.fullName}
-                      </div>
-                   ))}
-                </div>
-             </div>
+               {/* Moderators */}
+               <div className="bg-slate-50 p-3 rounded border border-slate-200">
+                  <label className="label-std mb-2 block">Moderation</label>
+                  <div className="border border-slate-300 rounded p-2 min-h-[40px] flex items-center bg-white mb-2 text-sm shadow-inner">
+                     {formData.moderators ? (
+                       <span className="bg-pink-100 text-pink-700 px-2 py-0.5 rounded flex items-center gap-1 border border-pink-200">
+                         {formData.moderators} <button onClick={() => setFormData({...formData, moderators: ''})}><X className="w-3 h-3"/></button>
+                       </span>
+                     ) : <span className="text-slate-400 italic text-xs">Niemand ausgewählt</span>}
+                  </div>
+                  <div className="h-40 border border-slate-300 rounded overflow-y-auto bg-white p-1 space-y-1">
+                     {moderatorsList.map(m => (
+                        <div key={m.id} onClick={() => toggleListSelection('moderators', m.fullName)} 
+                             className={`cursor-pointer px-2 py-1 rounded text-xs truncate transition-colors ${formData.moderators === m.fullName ? 'bg-pink-600 text-white' : 'hover:bg-slate-100 text-slate-700'}`}>
+                           {m.fullName}
+                        </div>
+                     ))}
+                  </div>
+               </div>
+            </div>
           </div>
           
-          <div>
-            <label className="label-xs">Interne Notizen</label>
-            <textarea className="input-std h-20" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Technik-Infos, Regie-Hinweise, etc..." />
+          <div className="space-y-2">
+            <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Internes</h4>
+            <label className="label-std">Notizen</label>
+            <textarea className="input-std h-20 bg-yellow-50/50 border-yellow-200 focus:border-yellow-400" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Technik-Infos, Regie-Hinweise, etc..." />
           </div>
 
         </div>
 
         <div className="p-4 border-t border-slate-100 flex justify-between bg-slate-50 rounded-b-xl">
           {initialData ? (
-             <button onClick={() => onDelete(formData.id)} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded flex items-center gap-2 text-sm"><Trash2 className="w-4 h-4"/> Löschen</button>
+             <button onClick={() => onDelete(formData.id)} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded flex items-center gap-2 text-sm border border-transparent hover:border-red-200 transition-all"><Trash2 className="w-4 h-4"/> Löschen</button>
           ) : <div></div>}
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded text-sm">Abbrechen</button>
-            <button onClick={() => onSave({ ...formData, speakers: formData.speakers.join(', ') })} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 shadow-sm font-medium text-sm">Speichern</button>
+            <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded text-sm transition-colors">Abbrechen</button>
+            <button onClick={() => onSave({ ...formData, speakers: formData.speakers.join(', ') })} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 shadow-md hover:shadow-lg font-medium text-sm transition-all transform active:scale-95">Speichern</button>
           </div>
         </div>
       </div>
@@ -352,23 +344,19 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, stages, 
 const SyncMenu = ({ isOpen, onClose, onSync }) => {
   if (!isOpen) return null;
   return (
-    <div className="absolute top-12 right-0 bg-white border border-slate-200 shadow-xl rounded-xl p-4 w-72 z-50">
-       <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><UploadCloud className="w-4 h-4"/> Drive Synchronisierung</h4>
-       <p className="text-xs text-slate-500 mb-4 bg-yellow-50 p-2 rounded border border-yellow-100">
-         ⚠️ Achtung: Das Speichern überschreibt die Daten im Google Sheet vollständig mit dem aktuellen Stand der App.
-       </p>
+    <div className="absolute top-12 right-0 bg-white border border-slate-200 shadow-xl rounded-xl p-4 w-80 z-50 animate-in fade-in zoom-in-95 duration-200">
+       <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><UploadCloud className="w-4 h-4 text-blue-600"/> Synchronisierung</h4>
+       <div className="text-xs text-amber-700 mb-4 bg-amber-50 p-2 rounded border border-amber-200 flex gap-2 items-start">
+         <AlertCircle className="w-4 h-4 shrink-0 mt-0.5"/>
+         <span>Achtung: Überschreibt das Google Sheet mit dem App-Status.</span>
+       </div>
        <div className="space-y-2">
-         <button onClick={() => onSync('program')} className="w-full text-left px-3 py-2 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 rounded text-sm font-medium transition-colors border border-slate-200">
-            1. Programm speichern
-         </button>
-         <button onClick={() => onSync('speakers')} className="w-full text-left px-3 py-2 bg-slate-50 hover:bg-indigo-50 hover:text-indigo-600 rounded text-sm font-medium transition-colors border border-slate-200">
-            2. SprecherInnen speichern
-         </button>
-         <button onClick={() => onSync('moderators')} className="w-full text-left px-3 py-2 bg-slate-50 hover:bg-pink-50 hover:text-pink-600 rounded text-sm font-medium transition-colors border border-slate-200">
-            3. ModeratorInnen speichern
+         <button onClick={() => onSync('program')} className="w-full text-left px-3 py-3 bg-white hover:bg-blue-50 hover:border-blue-300 rounded-lg text-sm font-medium transition-all border border-slate-200 shadow-sm group">
+            <span className="block text-slate-800 group-hover:text-blue-700">Programm speichern</span>
+            <span className="block text-[10px] text-slate-400">Aktualisiert Zeitplan & Status</span>
          </button>
        </div>
-       <button onClick={onClose} className="mt-3 w-full text-center text-xs text-slate-400 hover:text-slate-600">Abbrechen</button>
+       <button onClick={onClose} className="mt-3 w-full text-center text-xs text-slate-400 hover:text-slate-600 underline">Abbrechen</button>
     </div>
   );
 }
@@ -382,10 +370,11 @@ function App() {
     spreadsheetId: localStorage.getItem('kosmos_spreadsheet_id') || '',
     sheetNameProgram: localStorage.getItem('kosmos_sheet_program') || 'Programm_Export',
     sheetNameSpeakers: localStorage.getItem('kosmos_sheet_speakers') || '26_Kosmos_SprecherInnen',
-    sheetNameMods: localStorage.getItem('kosmos_sheet_mods') || '26_Kosmos_Moderation'
+    sheetNameMods: localStorage.getItem('kosmos_sheet_mods') || '26_Kosmos_Moderation',
+    sheetNameStages: localStorage.getItem('kosmos_sheet_stages') || 'Bühnen_Import'
   });
 
-  const [data, setData] = useState({ speakers: [], moderators: [], program: [] });
+  const [data, setData] = useState({ speakers: [], moderators: [], program: [], stages: [] });
   const [status, setStatus] = useState({ loading: false, error: null, lastUpdated: null });
   const [showSettings, setShowSettings] = useState(false);
   const [showSyncMenu, setShowSyncMenu] = useState(false);
@@ -438,7 +427,12 @@ function App() {
     try {
       const batchGet = await window.gapi.client.sheets.spreadsheets.values.batchGet({
         spreadsheetId: config.spreadsheetId,
-        ranges: [ `${config.sheetNameSpeakers}!A2:E`, `${config.sheetNameMods}!A2:C`, `${config.sheetNameProgram}!A2:N` ]
+        ranges: [ 
+            `${config.sheetNameSpeakers}!A2:E`, 
+            `${config.sheetNameMods}!A2:C`, 
+            `${config.sheetNameProgram}!A2:N`,
+            `${config.sheetNameStages}!A2:H` // New: Load Stages
+        ]
       });
       const valueRanges = batchGet.result.valueRanges;
       
@@ -448,17 +442,31 @@ function App() {
       const parsedMods = (valueRanges[1].values || []).filter(r => r[0]).map((r, i) => ({
            id: `mod-${i}`, fullName: r[1], status: r[0], function: r[2]
       }));
+      
+      // Parse Stages from "Bühnen_Import"
+      // CSV: ID, Name, Capacity, Type, ...
+      const parsedStages = (valueRanges[3].values || []).map((r, i) => ({
+          id: r[0] || `stage-${i}`,
+          name: r[1] || `Bühne ${i+1}`,
+          capacity: r[2] || '0',
+          type: r[3] || 'standard'
+      }));
+
+      // Fallback if stages sheet is empty
+      if (parsedStages.length === 0) {
+          parsedStages.push({ id: 'main', name: 'Main Stage', capacity: 200 });
+      }
+
       const parsedProgram = (valueRanges[2].values || []).map((r, i) => {
         let start = r[6] || '-';
         let duration = parseInt(r[8]);
         if (!duration || isNaN(duration)) duration = 60;
-        
-        // Map Status "Fixiert" if in CSV
         let status = r[2] || '5_Vorschlag';
-        
-        // Determine Stage: Empty or 'Inbox' means Inbox
         let stage = r[5] || INBOX_ID;
         if (stage.trim() === '' || stage.toLowerCase() === 'inbox') stage = INBOX_ID;
+
+        // Verify stage exists, if not, move to inbox or keep if it looks valid
+        // Optional: strict check against parsedStages
 
         return {
           id: r[0] || `prog-gen-${i}`, title: r[1] || 'Ohne Titel', status: status,
@@ -468,12 +476,12 @@ function App() {
         };
       });
 
-      setData({ speakers: parsedSpeakers, moderators: parsedMods, program: parsedProgram });
+      setData({ speakers: parsedSpeakers, moderators: parsedMods, program: parsedProgram, stages: parsedStages });
       setStatus(s => ({ ...s, loading: false, lastUpdated: new Date() }));
       setLocalChanges(false);
     } catch (err) {
       console.error(err);
-      setStatus(s => ({ ...s, loading: false, error: err.message }));
+      setStatus(s => ({ ...s, loading: false, error: "Ladefehler: " + (err.result?.error?.message || err.message) }));
     }
   }, [isAuthenticated, gapiInited, config]);
 
@@ -484,32 +492,24 @@ function App() {
     setShowSyncMenu(false);
 
     try {
-      let range = '';
-      let rows = [];
-
       if (type === 'program') {
-        range = `${config.sheetNameProgram}!A2:N`;
-        rows = data.program.map(p => [
+        const range = `${config.sheetNameProgram}!A2:N`;
+        const rows = data.program.map(p => [
           p.id, p.title, p.status, p.partner, p.format, 
-          p.stage === INBOX_ID ? '' : p.stage, // If inbox, save empty stage in CSV? Or 'Inbox'
+          p.stage === INBOX_ID ? '' : p.stage, 
           p.start === '-' ? '' : p.start, 
           p.start === '-' ? '' : calculateEndTime(p.start, p.duration), 
           p.duration, p.speakers, p.moderators, p.language, p.notes
         ]);
-      } else {
-         // Placeholder for speaker/mod sync if implemented later
-         alert("Sprecher/Moderator Sync ist in diesem Code-Beispiel noch nicht voll implementiert (nur Programm).");
-         setStatus(s => ({ ...s, loading: false }));
-         return;
-      }
 
-      await window.gapi.client.sheets.spreadsheets.values.update({
-        spreadsheetId: config.spreadsheetId, range: range, valueInputOption: 'USER_ENTERED', resource: { values: rows }
-      });
-
-      setLocalChanges(false);
-      setStatus(s => ({ ...s, loading: false, lastUpdated: new Date() }));
-      alert(`Erfolgreich synchronisiert: ${type}`);
+        await window.gapi.client.sheets.spreadsheets.values.update({
+          spreadsheetId: config.spreadsheetId, range: range, valueInputOption: 'USER_ENTERED', resource: { values: rows }
+        });
+        
+        setLocalChanges(false);
+        setStatus(s => ({ ...s, loading: false, lastUpdated: new Date() }));
+        alert(`Programm erfolgreich gespeichert!`);
+      } 
     } catch (err) {
        console.error(err);
        setStatus(s => ({ ...s, loading: false, error: err.message }));
@@ -524,7 +524,6 @@ function App() {
     } else {
       newProgram = [...data.program, { ...session, id: `NEW-${Math.floor(Math.random()*100000)}` }];
     }
-    // Update Endtime
     newProgram = newProgram.map(p => ({ ...p, end: calculateEndTime(p.start, p.duration) }));
     setData(prev => ({ ...prev, program: newProgram }));
     setLocalChanges(true);
@@ -538,6 +537,14 @@ function App() {
       handleSaveSession(updated);
   };
 
+  const handleDeleteSession = (id) => {
+      if (window.confirm("Session wirklich löschen?")) {
+          setData(prev => ({ ...prev, program: prev.program.filter(p => p.id !== id) }));
+          setLocalChanges(true);
+          setIsModalOpen(false);
+      }
+  };
+
   // --- DND LOGIC ---
   const handleDragEnd = (event) => {
     const { active, over } = event;
@@ -545,32 +552,29 @@ function App() {
 
     const activeId = active.id;
     const overId = over.id;
-
-    // Find dragged item
     const activeItem = data.program.find(p => p.id === activeId);
-    if (!activeItem || activeItem.status === 'Fixiert') return; // Double check lock
-
-    // Target Determination
-    let targetStage = overId;
     
-    // If we dropped on another Item, find that item's stage
+    if (!activeItem || activeItem.status === 'Fixiert') return; 
+
+    // Determine Target Stage Name
+    let targetStageName = overId; // Default assumes dropping on a Stage Column ID (which matches stage name)
+    
+    // Check if dropping on another item
     const overItem = data.program.find(p => p.id === overId);
     if (overItem) {
-      targetStage = overItem.stage;
+      targetStageName = overItem.stage;
     }
 
-    // Logic: If moved to Inbox, reset time. If moved to Stage, keep time (or update if implementing time-slot-drop)
+    // Logic: If moved to Inbox, reset time
     let updates = {};
-    if (targetStage === INBOX_ID) {
+    if (targetStageName === INBOX_ID) {
        updates = { stage: INBOX_ID, start: '-' };
     } else {
-       // Moving to a stage
-       // If coming from Inbox, maybe set default time? For now keep '-' until edited or define default
        if (activeItem.stage === INBOX_ID) updates = { start: '10:00' };
-       updates = { ...updates, stage: targetStage };
+       updates = { ...updates, stage: targetStageName };
     }
 
-    if (activeItem.stage !== targetStage) {
+    if (activeItem.stage !== targetStageName) {
       setData(prev => ({
         ...prev,
         program: prev.program.map(p => p.id === activeId ? { ...p, ...updates } : p)
@@ -580,16 +584,15 @@ function App() {
   };
 
   // --- VIEWS ---
-  const stages = useMemo(() => {
-    const s = [...new Set(data.program.map(p => p.stage))].filter(s => s && s !== INBOX_ID).sort();
-    return s.length ? s : ['Main Stage'];
-  }, [data.program]);
+  // Derive stage columns solely from loaded Stage Data
+  const stageColumns = useMemo(() => {
+    return data.stages.map(s => s.name);
+  }, [data.stages]);
 
-  // Styling Helpers
   const START_HOUR = 9; 
   const PIXELS_PER_MINUTE = 2;
   const getPositionStyle = (start, duration) => {
-    if (!start || start === '-') return { position: 'relative' }; // For Inbox
+    if (!start || start === '-') return { position: 'relative' }; 
     const startMin = timeToMinutes(start);
     const top = (startMin - (START_HOUR * 60)) * PIXELS_PER_MINUTE;
     const height = duration * PIXELS_PER_MINUTE;
@@ -607,23 +610,23 @@ function App() {
           </h1>
           <div className="flex items-center gap-2 text-[10px] text-slate-500 uppercase tracking-wide font-bold mt-0.5">
              {status.loading ? <span className="text-blue-600 animate-pulse">Synchronisiere...</span> : <span>Bereit</span>}
-             {localChanges && <span className="text-orange-600 bg-orange-100 px-1 rounded">● Ungespeichert</span>}
+             {localChanges && <span className="text-orange-600 bg-orange-100 px-1 rounded border border-orange-200">● Ungespeichert</span>}
           </div>
         </div>
 
         <div className="flex items-center gap-3 relative">
           {!isAuthenticated ? (
-            <button onClick={() => tokenClient?.requestAccessToken({ prompt: '' })} className="btn-primary flex items-center gap-2">
+            <button onClick={() => tokenClient?.requestAccessToken({ prompt: '' })} className="flex items-center gap-2 px-4 py-2 bg-slate-900 text-white rounded-lg hover:bg-slate-800 shadow-md transition-all text-sm font-medium">
               <LogIn className="w-4 h-4" /> Login
             </button>
           ) : (
              <>
-               <button onClick={loadData} className="p-2 hover:bg-slate-100 rounded text-slate-600" title="Neu laden"><RefreshCw className="w-4 h-4"/></button>
+               <button onClick={loadData} className="p-2 hover:bg-slate-100 rounded text-slate-600 border border-transparent hover:border-slate-200 transition-all" title="Neu laden"><RefreshCw className="w-4 h-4"/></button>
                <div className="relative">
                  <button 
                    onClick={() => setShowSyncMenu(!showSyncMenu)} 
                    disabled={!localChanges && !status.loading}
-                   className={`btn-primary flex items-center gap-2 ${!localChanges ? 'opacity-50 grayscale' : 'animate-pulse'}`}
+                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white shadow-md text-sm font-bold transition-all ${localChanges ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-lg hover:scale-105' : 'bg-slate-400 cursor-not-allowed'}`}
                  >
                    <UploadCloud className="w-4 h-4" /> Speichern
                  </button>
@@ -631,12 +634,17 @@ function App() {
                </div>
              </>
           )}
-          <button onClick={() => { setEditingSession(null); setIsModalOpen(true); }} className="p-2 bg-blue-50 text-blue-600 rounded hover:bg-blue-100"><PlusCircle className="w-5 h-5"/></button>
-          <button onClick={() => setShowSettings(true)} className="p-2 text-slate-400 hover:text-slate-600"><Settings className="w-5 h-5"/></button>
+          <div className="h-8 w-px bg-slate-200 mx-1"></div>
+          <button onClick={() => { setEditingSession(null); setIsModalOpen(true); }} className="p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 border border-indigo-200 transition-all shadow-sm"><PlusCircle className="w-5 h-5"/></button>
+          <button onClick={() => setShowSettings(true)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all"><Settings className="w-5 h-5"/></button>
         </div>
       </header>
       
-      {status.error && <div className="bg-red-600 text-white p-2 text-xs text-center font-bold">{status.error}</div>}
+      {status.error && (
+        <div className="bg-red-50 border-b border-red-200 text-red-700 p-2 text-xs text-center font-bold flex justify-center items-center gap-2">
+            <AlertCircle className="w-4 h-4"/> {status.error}
+        </div>
+      )}
 
       {/* MAIN CONTENT */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -644,38 +652,47 @@ function App() {
             
             {/* LEFT SIDEBAR (Speakers/Mods) */}
             {isAuthenticated && (
-              <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-20 shadow-md">
-                 <div className="p-3 border-b border-slate-100 font-bold text-slate-700 text-sm">Datenbank</div>
-                 <div className="flex-1 overflow-y-auto p-2 custom-scrollbar space-y-4">
+              <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-20 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+                 <div className="p-4 border-b border-slate-100 font-bold text-slate-800 text-sm flex items-center gap-2">
+                    <Users className="w-4 h-4 text-indigo-500"/> Personen-Datenbank
+                 </div>
+                 <div className="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-6">
                     <div>
-                      <h4 className="text-xs font-bold text-slate-400 uppercase mb-2">SprecherInnen ({data.speakers.length})</h4>
-                      {data.speakers.map(s => (
-                        <div key={s.id} className="text-xs p-1.5 mb-1 bg-slate-50 rounded border border-slate-100 text-slate-700">{s.fullName}</div>
-                      ))}
+                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">SprecherInnen ({data.speakers.length})</h4>
+                      <div className="space-y-1">
+                        {data.speakers.map(s => (
+                            <div key={s.id} className="text-xs p-2 bg-slate-50 hover:bg-white hover:shadow-sm rounded border border-slate-100 text-slate-700 transition-all cursor-default flex justify-between">
+                                <span className="font-medium truncate">{s.fullName}</span>
+                                <span className={`text-[9px] px-1 rounded ${s.status.includes('1') ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>{s.status.substring(0,1)}</span>
+                            </div>
+                        ))}
+                      </div>
                     </div>
                  </div>
               </div>
             )}
 
             {/* RIGHT AREA: INBOX & TIMELINE */}
-            <div className="flex-1 flex flex-col overflow-hidden bg-slate-100">
+            <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50">
                 
                 {/* INBOX (TOP) */}
-                <div className="bg-slate-200/80 border-b border-slate-300 p-4 shrink-0 max-h-[220px] flex flex-col">
-                   <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2 mb-2">
-                     <div className="w-2 h-2 rounded-full bg-slate-400"></div> Inbox (Ungeplante Sessions)
+                <div className="bg-slate-100 border-b border-slate-300 p-4 shrink-0 max-h-[240px] flex flex-col shadow-inner">
+                   <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2 mb-3">
+                     <div className="w-2 h-2 rounded-full bg-slate-400 shadow-sm"></div> Inbox (Ungeplante Sessions)
                    </h3>
                    <div className="flex-1 overflow-x-auto custom-scrollbar">
                      <SortableContext id={INBOX_ID} items={data.program.filter(p => p.stage === INBOX_ID).map(p => p.id)}>
-                        <div className="flex gap-3 min-w-max pb-2 h-full items-center">
+                        <div className="flex gap-3 min-w-max pb-4 h-full items-start px-1">
                           {data.program.filter(p => p.stage === INBOX_ID).length === 0 && (
-                            <div className="text-slate-400 text-xs italic border-2 border-dashed border-slate-300 rounded px-4 py-2">Keine Sessions in der Inbox</div>
+                            <div className="text-slate-400 text-xs italic border-2 border-dashed border-slate-300 rounded-lg px-6 py-4 flex items-center gap-2">
+                                <Layout className="w-4 h-4"/> Keine Sessions in der Inbox
+                            </div>
                           )}
                           {data.program.filter(p => p.stage === INBOX_ID).map(session => (
-                            <div key={session.id} className="w-[240px] shrink-0">
+                            <div key={session.id} className="w-[260px] shrink-0">
                                <SortableSessionItem 
                                   session={session} 
-                                  onClick={() => { setEditingSession(session); setIsModalOpen(true); }}
+                                  onClick={(s) => { setEditingSession(s); setIsModalOpen(true); }}
                                   onToggleLock={handleToggleLock}
                                />
                             </div>
@@ -688,11 +705,11 @@ function App() {
                 {/* TIMELINE (BOTTOM) */}
                 <div className="flex-1 overflow-auto relative custom-scrollbar flex bg-slate-100">
                     {/* Time Scale */}
-                    <div className="w-14 bg-white border-r border-slate-200 shrink-0 sticky left-0 z-10 min-h-[1400px]">
+                    <div className="w-14 bg-white border-r border-slate-200 shrink-0 sticky left-0 z-10 min-h-[1400px] shadow-sm">
                         {Array.from({ length: 14 }).map((_, i) => {
                           const h = START_HOUR + i;
                           return (
-                            <div key={h} className="absolute w-full text-right pr-2 text-[10px] font-mono text-slate-400 border-t border-slate-100"
+                            <div key={h} className="absolute w-full text-right pr-2 text-[10px] font-mono text-slate-400 border-t border-slate-100 pt-1"
                                   style={{ top: `${i * 60 * PIXELS_PER_MINUTE}px`, height: '1px' }}>
                               {h}:00
                             </div>
@@ -702,19 +719,22 @@ function App() {
 
                     {/* Stage Columns */}
                     <div className="flex min-w-full">
-                        {stages.map(stage => (
-                          <div key={stage} className="min-w-[280px] w-full max-w-[360px] border-r border-slate-200 relative bg-white/50 odd:bg-slate-50/50">
-                              <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-slate-200 p-2 text-center font-bold text-slate-700 z-10 shadow-sm text-sm">
-                                {stage}
+                        {stageColumns.map((stageName, idx) => (
+                          <div key={stageName} className="min-w-[280px] w-full max-w-[360px] border-r border-slate-200 relative bg-white/30 odd:bg-slate-50/50">
+                              <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-slate-200 p-3 text-center z-10 shadow-sm">
+                                <div className="font-bold text-slate-700 text-sm">{stageName}</div>
+                                <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                                    {data.stages.find(s => s.name === stageName)?.capacity || '?'} PAX
+                                </div>
                               </div>
-                              <SortableContext id={stage} items={data.program.filter(p => p.stage === stage).map(p => p.id)} strategy={verticalListSortingStrategy}>
+                              <SortableContext id={stageName} items={data.program.filter(p => p.stage === stageName).map(p => p.id)} strategy={verticalListSortingStrategy}>
                                 <div className="min-h-[1400px] relative w-full mt-2">
-                                    {data.program.filter(p => p.stage === stage).map(session => (
+                                    {data.program.filter(p => p.stage === stageName).map(session => (
                                       <div key={session.id} className="absolute w-full px-1" style={getPositionStyle(session.start, session.duration)}>
                                         <SortableSessionItem 
                                             session={session}
                                             style={{ height: '100%' }}
-                                            onClick={() => { setEditingSession(session); setIsModalOpen(true); }}
+                                            onClick={(s) => { setEditingSession(s); setIsModalOpen(true); }}
                                             onToggleLock={handleToggleLock}
                                         />
                                       </div>
@@ -728,28 +748,68 @@ function App() {
             </div>
         </div>
         <DragOverlay>
-           {/* Visual fix for dragging */}
-           <div className="w-[240px] opacity-80 rotate-2"><Card status="2_Planung" className="bg-blue-100 border-blue-500 h-20">Dragging...</Card></div>
+           <div className="w-[260px] opacity-90 rotate-2"><Card status="2_Planung" className="bg-blue-50 border-blue-400 h-24 shadow-xl">Verschiebe Session...</Card></div>
         </DragOverlay>
       </DndContext>
 
       {/* SETTINGS MODAL */}
       {showSettings && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-           <div className="bg-white p-6 rounded-xl w-full max-w-lg shadow-2xl">
-              <h2 className="font-bold text-lg mb-4">Einstellungen</h2>
-              <div className="space-y-3">
-                 <input type="text" className="input-std" placeholder="Google Client ID" value={config.googleClientId} onChange={e => setConfig({...config, googleClientId: e.target.value})} />
-                 <input type="text" className="input-std" placeholder="Google API Key" value={config.googleApiKey} onChange={e => setConfig({...config, googleApiKey: e.target.value})} />
-                 <input type="text" className="input-std" placeholder="Spreadsheet ID" value={config.spreadsheetId} onChange={e => setConfig({...config, spreadsheetId: e.target.value})} />
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+           <div className="bg-white p-8 rounded-2xl w-full max-w-xl shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
+              <h2 className="font-bold text-xl mb-6 flex items-center gap-2 border-b pb-4">
+                  <Settings className="w-6 h-6 text-slate-600"/> Konfiguration
+              </h2>
+              
+              <div className="space-y-6">
+                 {/* Auth Section */}
+                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase">Google Authentifizierung</h3>
+                    <div>
+                        <label className="label-std">Google Client ID</label>
+                        <input type="text" className="input-std font-mono text-xs" placeholder="...apps.googleusercontent.com" value={config.googleClientId} onChange={e => setConfig({...config, googleClientId: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="label-std">Google API Key</label>
+                        <input type="text" className="input-std font-mono text-xs" placeholder="AIza..." value={config.googleApiKey} onChange={e => setConfig({...config, googleApiKey: e.target.value})} />
+                    </div>
+                 </div>
+
+                 {/* Sheet Config */}
+                 <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-3">
+                    <h3 className="text-xs font-bold text-blue-600 uppercase">Google Sheets Verknüpfung</h3>
+                    <div>
+                        <label className="label-std">Spreadsheet ID</label>
+                        <input type="text" className="input-std font-mono text-xs" placeholder="ID aus der URL (z.B. 1BxiM...)" value={config.spreadsheetId} onChange={e => setConfig({...config, spreadsheetId: e.target.value})} />
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 pt-2">
+                        <div>
+                            <label className="label-std">Blatt: Programm (Sync)</label>
+                            <input type="text" className="input-std" value={config.sheetNameProgram} onChange={e => setConfig({...config, sheetNameProgram: e.target.value})} />
+                        </div>
+                        <div>
+                            <label className="label-std">Blatt: Bühnen (Quelle)</label>
+                            <input type="text" className="input-std" value={config.sheetNameStages} onChange={e => setConfig({...config, sheetNameStages: e.target.value})} />
+                        </div>
+                        <div>
+                            <label className="label-std">Blatt: SprecherInnen</label>
+                            <input type="text" className="input-std" value={config.sheetNameSpeakers} onChange={e => setConfig({...config, sheetNameSpeakers: e.target.value})} />
+                        </div>
+                        <div>
+                            <label className="label-std">Blatt: Moderation</label>
+                            <input type="text" className="input-std" value={config.sheetNameMods} onChange={e => setConfig({...config, sheetNameMods: e.target.value})} />
+                        </div>
+                    </div>
+                 </div>
               </div>
-              <div className="mt-6 flex justify-end gap-2">
-                 <button onClick={() => setShowSettings(false)} className="px-4 py-2 border rounded text-sm">Abbrechen</button>
+
+              <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-slate-100">
+                 <button onClick={() => setShowSettings(false)} className="px-5 py-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors font-medium text-sm">Abbrechen</button>
                  <button onClick={() => {
                     Object.keys(config).forEach(k => localStorage.setItem(`kosmos_${k}`, config[k]));
                     setShowSettings(false);
                     window.location.reload(); 
-                 }} className="px-4 py-2 bg-blue-600 text-white rounded text-sm">Speichern & Reload</button>
+                 }} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-md transition-all font-bold text-sm">Speichern & Neustart</button>
               </div>
            </div>
         </div>
@@ -757,16 +817,20 @@ function App() {
 
       <SessionModal 
         isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingSession(null); }}
-        onSave={handleSaveSession} onDelete={() => { /* del logic */ }}
-        initialData={editingSession} stages={[...stages, INBOX_ID]}
+        onSave={handleSaveSession} onDelete={handleDeleteSession}
+        initialData={editingSession} definedStages={data.stages}
         speakersList={data.speakers} moderatorsList={data.moderators}
       />
     </div>
   );
 }
 
-// Minimal CSS classes reuse
-const inputClass = "w-full p-2 border rounded text-sm border-slate-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none";
-const labelClass = "block text-[10px] font-bold text-slate-500 uppercase mb-1 tracking-wider";
+// Reusable Styles
+const inputClass = "w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all";
+const labelClass = "block text-[11px] font-bold text-slate-500 uppercase mb-1.5 tracking-wide";
+
+// Add to classes for cleaner JSX
+const inputStd = "w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all placeholder:text-slate-300";
+const labelStd = "block text-[11px] font-bold text-slate-500 uppercase mb-1.5 tracking-wide";
 
 export default App;
