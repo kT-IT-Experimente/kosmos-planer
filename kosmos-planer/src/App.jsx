@@ -20,7 +20,7 @@ import {
   Trash2, PlusCircle, UploadCloud, LogIn, X, 
   Lock, Unlock, MessageSquare, Globe, Flag, Layout, 
   AlertTriangle, Mic2, PieChart, Search, CheckCircle2, Languages,
-  Download, Loader2, Cookie
+  Download, Loader2, Cookie, Key
 } from 'lucide-react';
 
 // --- KONSTANTEN ---
@@ -99,9 +99,9 @@ const CookieBanner = ({ onAccept }) => (
     <div className="flex items-start gap-3">
       <Cookie className="w-6 h-6 text-yellow-400 shrink-0" />
       <div>
-        <h4 className="font-bold text-sm">Cookies & Login</h4>
+        <h4 className="font-bold text-sm">Probleme beim Login?</h4>
         <p className="text-xs text-slate-300 mt-1">
-          Google Sign-In benötigt Cookies von Drittanbietern. In Inkognito-Fenstern müssen diese oft explizit zugelassen werden.
+          Google Login benötigt Drittanbieter-Cookies. Falls der Button nicht reagiert, nutzen Sie bitte einen Chrome-Standard-Tab oder tragen Sie den Access Token manuell in den Einstellungen ein.
         </p>
       </div>
     </div>
@@ -336,7 +336,8 @@ function App() {
     sheetNameStages: localStorage.getItem('kosmos_sheet_stages') || 'Bühnen_Import',
     startHour: parseInt(localStorage.getItem('kosmos_start_hour')) || 9,
     endHour: parseInt(localStorage.getItem('kosmos_end_hour')) || 22,
-    bufferMin: parseInt(localStorage.getItem('kosmos_buffer_min')) || 5
+    bufferMin: parseInt(localStorage.getItem('kosmos_buffer_min')) || 5,
+    manualToken: localStorage.getItem('kosmos_manual_token') || '' // Neuer Fallback Token
   });
 
   const [activeDragItem, setActiveDragItem] = useState(null);
@@ -354,8 +355,8 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
   const [gapiInited, setGapiInited] = useState(false);
-  const [loginLoading, setLoginLoading] = useState(true); // Default to loading state for button
-  const [showCookieBanner, setShowCookieBanner] = useState(true); // New Cookie State
+  const [loginLoading, setLoginLoading] = useState(true);
+  const [showCookieBanner, setShowCookieBanner] = useState(true);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -364,23 +365,21 @@ function App() {
 
   const timelineHeight = (config.endHour - config.startHour) * 60 * PIXELS_PER_MINUTE;
 
-  // --- LOCAL STORAGE BACKUP (Data Persistence) ---
+  // --- LOCAL STORAGE BACKUP ---
   useEffect(() => {
-    // 1. Load Backup on Mount
     const savedData = localStorage.getItem('kosmos_local_data');
     if (savedData) {
         try {
             const parsed = JSON.parse(savedData);
             if (parsed.program && parsed.program.length > 0) {
                 setData(parsed);
-                setLocalChanges(true); // Indicate we have data potentially unsynced
+                setLocalChanges(true); 
             }
         } catch(e) { console.error("Local load failed", e); }
     }
   }, []);
 
   useEffect(() => {
-    // 2. Save Backup on Change
     if (data.program.length > 0) {
         localStorage.setItem('kosmos_local_data', JSON.stringify(data));
     }
@@ -500,13 +499,18 @@ function App() {
     return conflicts;
   }, [data.program, data.speakers]);
 
-  // --- API & DATA ---
+  // --- API & AUTH ---
   useEffect(() => {
     // 1. GAPI (Sheets)
     const initGapi = async () => {
        if(window.gapi) {
          await window.gapi.client.init({ apiKey: config.googleApiKey, discoveryDocs: DISCOVERY_DOCS });
          setGapiInited(true);
+         // Manual Token Injection if available
+         if (config.manualToken) {
+             window.gapi.client.setToken({ access_token: config.manualToken });
+             setIsAuthenticated(true);
+         }
        }
     };
     if (config.googleApiKey && !gapiInited) {
@@ -520,9 +524,10 @@ function App() {
         }
     }
 
-    // 2. GSI (Identity) - Improved robustness
-    if (config.googleClientId && !tokenClient) {
-        const timeout = setTimeout(() => setLoginLoading(false), 5000); // Stop loading after 5s if blocked
+    // 2. GSI (Identity) - Improved robustness with timeout
+    if (config.googleClientId && !tokenClient && !config.manualToken) {
+        // Set timeout to stop "Init..." spinner after 3s if blocked
+        const timeout = setTimeout(() => setLoginLoading(false), 3000); 
 
         if (!document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) {
             const script = document.createElement('script');
@@ -536,7 +541,6 @@ function App() {
                     const client = window.google.accounts.oauth2.initTokenClient({
                         client_id: config.googleClientId,
                         scope: SCOPES,
-                        // Enable popup mode explicitly for incognito/privacy browsers
                         ux_mode: 'popup', 
                         callback: (r) => { 
                             if(r.access_token) setIsAuthenticated(true); 
@@ -544,7 +548,7 @@ function App() {
                         },
                         error_callback: (err) => {
                             console.error("GSI Error", err);
-                            setToast({ msg: "Login blockiert (Pop-up/AdBlocker?)", type: "error" });
+                            setToast({ msg: "Login blockiert! Bitte manuellen Token nutzen.", type: "error" });
                         }
                     });
                     setTokenClient(client);
@@ -555,25 +559,23 @@ function App() {
             script.onerror = () => {
                 clearTimeout(timeout);
                 setLoginLoading(false);
-                setToast({ msg: "Google Script blockiert!", type: "error" });
             };
             document.body.appendChild(script);
         } else {
+            // Script already present
             clearTimeout(timeout);
             setLoginLoading(false);
         }
     } else {
         setLoginLoading(false);
     }
-  }, [config.googleApiKey, config.googleClientId]);
+  }, [config.googleApiKey, config.googleClientId, config.manualToken]);
 
   const handleLogin = () => {
       if (tokenClient) {
-          // Force prompt to ensure popup appears even if cookies issues exist
           tokenClient.requestAccessToken({ prompt: 'select_account' });
       } else {
-          // Retry init if client missing (e.g. script loaded late)
-          window.location.reload();
+          setToast({ msg: "Login-Dienst nicht verfügbar. Prüfen Sie Ihren AdBlocker oder nutzen Sie den manuellen Token.", type: "error" });
       }
   };
 
@@ -1195,6 +1197,11 @@ function App() {
                      <h3 className="text-xs font-bold uppercase text-slate-500">Auth</h3>
                      <input className="w-full border p-2 rounded text-xs font-mono" placeholder="Client ID" value={config.googleClientId} onChange={e=>setConfig({...config, googleClientId:e.target.value})} />
                      <input className="w-full border p-2 rounded text-xs font-mono" placeholder="API Key" value={config.googleApiKey} onChange={e=>setConfig({...config, googleApiKey:e.target.value})} />
+                     <div className="mt-2 bg-yellow-50 p-2 rounded border border-yellow-200">
+                        <label className="text-xs font-bold block mb-1 text-yellow-800 flex items-center gap-1"><Key className="w-3 h-3"/> Access Token (Manuell / Notfall)</label>
+                        <input className="w-full border p-2 rounded text-xs font-mono" placeholder="Paste Token here if button fails..." value={config.manualToken} onChange={e=>setConfig({...config, manualToken:e.target.value})} />
+                        <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 underline block mt-1">Token via Playground generieren (Scope: https://www.googleapis.com/auth/spreadsheets)</a>
+                     </div>
                   </div>
                </div>
                <div className="flex justify-end gap-2 mt-4">
