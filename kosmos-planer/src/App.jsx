@@ -20,7 +20,7 @@ import {
   Trash2, PlusCircle, UploadCloud, LogIn, X, 
   Lock, Unlock, MessageSquare, Globe, Flag, Layout, 
   AlertTriangle, Mic2, PieChart, Search, CheckCircle2, Languages,
-  Download, Loader2
+  Download, Loader2, Cookie
 } from 'lucide-react';
 
 // --- KONSTANTEN ---
@@ -92,6 +92,26 @@ const getErrorMessage = (e) => {
 };
 
 // --- COMPONENTS ---
+
+// Cookie Consent Banner
+const CookieBanner = ({ onAccept }) => (
+  <div className="fixed bottom-4 left-4 right-4 md:left-auto md:w-96 bg-slate-900 text-white p-4 rounded-xl shadow-2xl z-[100] flex flex-col gap-3 animate-in slide-in-from-bottom-10">
+    <div className="flex items-start gap-3">
+      <Cookie className="w-6 h-6 text-yellow-400 shrink-0" />
+      <div>
+        <h4 className="font-bold text-sm">Cookies & Login</h4>
+        <p className="text-xs text-slate-300 mt-1">
+          Google Sign-In benötigt Cookies von Drittanbietern. In Inkognito-Fenstern müssen diese oft explizit zugelassen werden.
+        </p>
+      </div>
+    </div>
+    <div className="flex gap-2 justify-end">
+      <button onClick={onAccept} className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded text-xs font-bold transition-colors">
+        Verstanden
+      </button>
+    </div>
+  </div>
+);
 
 const Card = React.forwardRef(({ children, className = "", onClick, style, status, ...props }, ref) => {
   const statusClass = STATUS_COLORS[status] || 'border-slate-200 bg-white';
@@ -334,7 +354,8 @@ function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [tokenClient, setTokenClient] = useState(null);
   const [gapiInited, setGapiInited] = useState(false);
-  const [gsiScriptLoaded, setGsiScriptLoaded] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(true); // Default to loading state for button
+  const [showCookieBanner, setShowCookieBanner] = useState(true); // New Cookie State
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -342,6 +363,28 @@ function App() {
   );
 
   const timelineHeight = (config.endHour - config.startHour) * 60 * PIXELS_PER_MINUTE;
+
+  // --- LOCAL STORAGE BACKUP (Data Persistence) ---
+  useEffect(() => {
+    // 1. Load Backup on Mount
+    const savedData = localStorage.getItem('kosmos_local_data');
+    if (savedData) {
+        try {
+            const parsed = JSON.parse(savedData);
+            if (parsed.program && parsed.program.length > 0) {
+                setData(parsed);
+                setLocalChanges(true); // Indicate we have data potentially unsynced
+            }
+        } catch(e) { console.error("Local load failed", e); }
+    }
+  }, []);
+
+  useEffect(() => {
+    // 2. Save Backup on Change
+    if (data.program.length > 0) {
+        localStorage.setItem('kosmos_local_data', JSON.stringify(data));
+    }
+  }, [data]);
 
   // --- ANALYTICS ---
   const analysis = useMemo(() => {
@@ -355,13 +398,11 @@ function App() {
             totalPlacedSessions++;
             if (s.partner === 'TRUE') partnerSessions++;
             
-            // Language
             const lang = (s.language || '').toLowerCase();
             if (lang === 'de') langCounts.de++;
             else if (lang === 'en') langCounts.en++;
             else langCounts.other++;
 
-            // Speakers & Mods Analysis
             const sList = s.speakers ? (Array.isArray(s.speakers) ? s.speakers : s.speakers.split(',').map(n=>n.trim()).filter(Boolean)) : [];
             const mList = s.moderators ? (Array.isArray(s.moderators) ? s.moderators : s.moderators.split(',').map(n=>n.trim()).filter(Boolean)) : [];
             
@@ -479,19 +520,24 @@ function App() {
         }
     }
 
-    // 2. GSI (Identity) - Force reload if client missing
+    // 2. GSI (Identity) - Improved robustness
     if (config.googleClientId && !tokenClient) {
+        const timeout = setTimeout(() => setLoginLoading(false), 5000); // Stop loading after 5s if blocked
+
         if (!document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) {
             const script = document.createElement('script');
             script.src = "https://accounts.google.com/gsi/client";
             script.async = true;
             script.defer = true;
             script.onload = () => {
-                setGsiScriptLoaded(true);
+                clearTimeout(timeout);
+                setLoginLoading(false);
                 try {
                     const client = window.google.accounts.oauth2.initTokenClient({
                         client_id: config.googleClientId,
                         scope: SCOPES,
+                        // Enable popup mode explicitly for incognito/privacy browsers
+                        ux_mode: 'popup', 
                         callback: (r) => { 
                             if(r.access_token) setIsAuthenticated(true); 
                             else console.error("GSI: No access token");
@@ -506,17 +552,28 @@ function App() {
                     console.error("GSI Init Error", e);
                 }
             };
+            script.onerror = () => {
+                clearTimeout(timeout);
+                setLoginLoading(false);
+                setToast({ msg: "Google Script blockiert!", type: "error" });
+            };
             document.body.appendChild(script);
+        } else {
+            clearTimeout(timeout);
+            setLoginLoading(false);
         }
+    } else {
+        setLoginLoading(false);
     }
   }, [config.googleApiKey, config.googleClientId]);
 
   const handleLogin = () => {
       if (tokenClient) {
-          // Force account selection to avoid hidden cookie issues in incognito
+          // Force prompt to ensure popup appears even if cookies issues exist
           tokenClient.requestAccessToken({ prompt: 'select_account' });
       } else {
-          setToast({ msg: "Login-Dienst lädt noch... Bitte warten.", type: "error" });
+          // Retry init if client missing (e.g. script loaded late)
+          window.location.reload();
       }
   };
 
@@ -891,6 +948,11 @@ function App() {
 
   return (
     <div className="flex flex-col h-screen bg-slate-100 font-sans overflow-hidden text-slate-900">
+      {/* Cookie Banner */}
+      {showCookieBanner && (
+        <CookieBanner onAccept={() => setShowCookieBanner(false)} />
+      )}
+
       {toast && (
         <div className={`fixed top-16 left-1/2 -translate-x-1/2 px-4 py-2 rounded shadow-lg z-50 text-sm font-bold text-white
            ${toast.type === 'error' ? 'bg-red-600' : 'bg-blue-600'}`}>
@@ -905,7 +967,7 @@ function App() {
              <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">KOSMOS Planer</h1>
              <div className="flex gap-2 text-[10px] font-bold uppercase text-slate-400">
                 {status.loading && <span className="text-blue-500 animate-pulse">Laden...</span>}
-                {localChanges && <span className="text-orange-500 bg-orange-100 px-1 rounded">● Ungespeichert</span>}
+                {localChanges && <span className="text-orange-500 bg-orange-100 px-1 rounded">● Ungespeichert (Offline)</span>}
              </div>
            </div>
            
@@ -945,10 +1007,10 @@ function App() {
             {!isAuthenticated ? (
                <button 
                  onClick={handleLogin} 
-                 className={`bg-slate-900 text-white px-3 py-1.5 rounded text-sm flex gap-2 items-center ${!tokenClient ? 'opacity-50 cursor-not-allowed' : ''}`}
-                 disabled={!tokenClient}
+                 className={`bg-slate-900 text-white px-3 py-1.5 rounded text-sm flex gap-2 items-center ${loginLoading || !tokenClient ? 'opacity-70' : ''}`}
+                 disabled={loginLoading && !tokenClient}
                >
-                 {tokenClient ? <><LogIn className="w-3 h-3"/> Login</> : <><Loader2 className="w-3 h-3 animate-spin"/> Lade...</>}
+                 {tokenClient ? <><LogIn className="w-3 h-3"/> Login</> : <><Loader2 className="w-3 h-3 animate-spin"/> {loginLoading ? 'Init...' : 'Retry'}</>}
                </button>
             ) : (
                <>
@@ -974,8 +1036,8 @@ function App() {
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
         <div className="flex flex-1 overflow-hidden">
           {/* SIDEBAR */}
-          {isAuthenticated && (
-            <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-30 shadow-lg">
+          {/* Always show sidebar base, but empty/loading state if not auth */}
+          <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-30 shadow-lg">
                 <div className="p-4 border-b border-slate-100 bg-slate-50/50">
                    <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2"><PieChart className="w-4 h-4"/> Analyse (Live)</h3>
                    <div className="grid grid-cols-2 gap-2 mb-3">
@@ -1023,7 +1085,6 @@ function App() {
                    })}
                 </div>
             </div>
-          )}
 
           <div className="flex-1 flex flex-col overflow-hidden relative">
              {/* INBOX */}
