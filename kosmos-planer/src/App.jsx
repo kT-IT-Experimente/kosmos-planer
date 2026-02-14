@@ -11,7 +11,7 @@ import {
 // --- INITIAL DATA (FALLBACK) ---
 const INITIAL_SPEAKERS = [
   { name: "Luisa Neubauer", gender: "w" }, { name: "Rezo", gender: "m" },
-  { name: "Mai Thi Nguyen-Kim", gender: "w" }, { name: "Sibylle Berg", gender: "w" }, { name: "Kübra Gümüşay", gender: "w" },
+  { name: "Mai Thi Nguyen-Kim", gender: "w" }, { name: "Sibylle Berg", gender: "w" }, { name: "Kübra Gümüşay", gender: "w" }, { name: "Igor", gender: "m" },
   { name: "Tupoka Ogette", gender: "w" }, { name: "Linus Neumann", gender: "m" },
   { name: "Mithu Sanyal", gender: "w" }, { name: "Alice Hasters", gender: "w" },
   { name: "Kevin Kühnert", gender: "m" }, { name: "Aminata Touré", gender: "w" },
