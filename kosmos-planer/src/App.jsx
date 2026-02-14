@@ -8,7 +8,7 @@ import {
   useSensor, 
   useSensors, 
   DragOverlay,
-  defaultDropAnimationSideEffects
+  useDroppable
 } from '@dnd-kit/core';
 import { 
   SortableContext, 
@@ -18,9 +18,9 @@ import {
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { 
-  Users, Mic2, RefreshCw, Settings, Save, AlertCircle, 
-  Calendar, Clock, MapPin, Trash2, PlusCircle, UploadCloud, LogIn, X, 
-  Lock, Unlock, MessageSquare, Globe, Flag, CheckSquare, Square, Monitor, Layout
+  Users, Mic2, RefreshCw, Settings, AlertCircle, 
+  Trash2, PlusCircle, UploadCloud, LogIn, X, 
+  Lock, Unlock, MessageSquare, Globe, Flag, Layout
 } from 'lucide-react';
 
 // --- CONFIGURATION ---
@@ -69,13 +69,22 @@ const calculateEndTime = (startStr, durationMin) => {
 
 const Card = ({ children, className = "", onClick, style, status }) => {
   const statusClass = STATUS_COLORS[status] || 'border-slate-200 bg-white';
-  
   return (
     <div 
       onClick={onClick} 
       style={style} 
       className={`rounded-lg shadow-sm border-l-4 p-2 overflow-hidden transition-all ${statusClass} ${className}`}
     >
+      {children}
+    </div>
+  );
+};
+
+// Droppable Stage Container
+const DroppableStage = ({ id, children, className }) => {
+  const { setNodeRef } = useDroppable({ id });
+  return (
+    <div ref={setNodeRef} className={className}>
       {children}
     </div>
   );
@@ -111,7 +120,7 @@ const SortableSessionItem = ({ session, onClick, style, onToggleLock }) => {
     <div ref={setNodeRef} style={dndStyle} {...attributes} {...listeners} className="touch-none mb-2 relative group">
        <Card 
          status={session.status} 
-         className={`cursor-pointer hover:shadow-md ${isLocked ? 'cursor-not-allowed opacity-90' : 'cursor-grab active:cursor-grabbing'}`}
+         className={`cursor-pointer hover:shadow-md relative ${isLocked ? 'cursor-not-allowed opacity-90' : 'cursor-grab active:cursor-grabbing'}`}
          onClick={(e) => onClick(session)}
        >
           <div className="flex justify-between items-start mb-1">
@@ -152,8 +161,18 @@ const SortableSessionItem = ({ session, onClick, style, onToggleLock }) => {
                {session.partner && (
                  <span className="flex items-center gap-0.5 truncate max-w-[80px]"><Flag className="w-2.5 h-2.5" /> {session.partner}</span>
                )}
+               {/* Notes with Tooltip */}
                {session.notes && (
-                 <span className="flex items-center gap-0.5 text-blue-500 ml-auto"><MessageSquare className="w-2.5 h-2.5" /></span>
+                 <div className="ml-auto relative group/notes">
+                   <span className="flex items-center gap-0.5 text-blue-500 cursor-help">
+                     <MessageSquare className="w-2.5 h-2.5" />
+                   </span>
+                   {/* Tooltip Content */}
+                   <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded shadow-lg hidden group-hover/notes:block z-50 pointer-events-none">
+                     {session.notes}
+                     <div className="absolute top-full right-1 -mt-1 border-4 border-transparent border-t-slate-800"></div>
+                   </div>
+                 </div>
                )}
             </div>
           </div>
@@ -209,8 +228,7 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
         </div>
         
         <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
-          
-          {/* Section 1: Core Info */}
+          {/* Editor Fields - Same as before */}
           <div className="space-y-4">
             <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Basis Informationen</h4>
             <div className="grid grid-cols-12 gap-4">
@@ -219,12 +237,12 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
                   <input type="text" className="input-std font-bold text-lg" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} placeholder="Titel eingeben..." />
                </div>
                <div className="col-span-4">
-                  <label className="label-std">Status & Fixierung</label>
+                  <label className="label-std">Status</label>
                   <select className="input-std" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
                      <option value="5_Vorschlag">🟡 Vorschlag</option>
                      <option value="2_Planung">🔵 Planung</option>
                      <option value="1_Zusage">🟢 Zusage</option>
-                     <option value="Fixiert">🔴 Fixiert (Gesperrt)</option>
+                     <option value="Fixiert">🔴 Fixiert</option>
                   </select>
                </div>
             </div>
@@ -242,22 +260,21 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
                   </select>
                </div>
                <div>
-                  <label className="label-std">Partner / Host</label>
-                  <input type="text" className="input-std" value={formData.partner} onChange={e => setFormData({...formData, partner: e.target.value})} placeholder="z.B. Medienboard" />
+                  <label className="label-std">Partner</label>
+                  <input type="text" className="input-std" value={formData.partner} onChange={e => setFormData({...formData, partner: e.target.value})} />
                </div>
             </div>
           </div>
 
-          {/* Section 2: Time & Place */}
           <div className="space-y-4">
              <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Zeit & Ort</h4>
              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 grid grid-cols-4 gap-4">
                <div className="col-span-2">
-                  <label className="label-std">Bühne (aus Single Source)</label>
+                  <label className="label-std">Bühne</label>
                   <select className="input-std bg-white" value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})}>
-                    <option value={INBOX_ID}>📥 Inbox (Nicht platziert)</option>
+                    <option value={INBOX_ID}>📥 Inbox</option>
                     {definedStages.map(s => (
-                       <option key={s.id} value={s.name}>{s.name} ({s.capacity} Pax)</option>
+                       <option key={s.id} value={s.name}>{s.name}</option>
                     ))}
                   </select>
                </div>
@@ -272,14 +289,12 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
              </div>
           </div>
 
-          {/* Section 3: People */}
           <div className="space-y-4">
             <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Personen</h4>
             <div className="grid grid-cols-2 gap-6">
-               {/* Speakers */}
-               <div className="bg-slate-50 p-3 rounded border border-slate-200">
+               <div>
                   <label className="label-std mb-2 block">SprecherInnen</label>
-                  <div className="border border-slate-300 rounded p-2 min-h-[40px] flex flex-wrap gap-2 bg-white mb-2 text-sm shadow-inner">
+                  <div className="border border-slate-300 rounded p-2 min-h-[40px] flex flex-wrap gap-2 bg-white mb-2 text-sm">
                      {formData.speakers.map(s => (
                        <span key={s} className="bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded flex items-center gap-1 border border-indigo-200">
                          {s} <button onClick={() => toggleListSelection('speakers', s)}><X className="w-3 h-3"/></button>
@@ -295,16 +310,14 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
                      ))}
                   </div>
                </div>
-
-               {/* Moderators */}
-               <div className="bg-slate-50 p-3 rounded border border-slate-200">
+               <div>
                   <label className="label-std mb-2 block">Moderation</label>
-                  <div className="border border-slate-300 rounded p-2 min-h-[40px] flex items-center bg-white mb-2 text-sm shadow-inner">
+                  <div className="border border-slate-300 rounded p-2 min-h-[40px] flex items-center bg-white mb-2 text-sm">
                      {formData.moderators ? (
                        <span className="bg-pink-100 text-pink-700 px-2 py-0.5 rounded flex items-center gap-1 border border-pink-200">
                          {formData.moderators} <button onClick={() => setFormData({...formData, moderators: ''})}><X className="w-3 h-3"/></button>
                        </span>
-                     ) : <span className="text-slate-400 italic text-xs">Niemand ausgewählt</span>}
+                     ) : <span className="text-slate-400 italic text-xs">Leer</span>}
                   </div>
                   <div className="h-40 border border-slate-300 rounded overflow-y-auto bg-white p-1 space-y-1">
                      {moderatorsList.map(m => (
@@ -319,20 +332,18 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
           </div>
           
           <div className="space-y-2">
-            <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Internes</h4>
-            <label className="label-std">Notizen</label>
-            <textarea className="input-std h-20 bg-yellow-50/50 border-yellow-200 focus:border-yellow-400" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Technik-Infos, Regie-Hinweise, etc..." />
+            <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Notizen</h4>
+            <textarea className="input-std h-20 bg-yellow-50/50 border-yellow-200" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="..." />
           </div>
-
         </div>
 
         <div className="p-4 border-t border-slate-100 flex justify-between bg-slate-50 rounded-b-xl">
           {initialData ? (
-             <button onClick={() => onDelete(formData.id)} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded flex items-center gap-2 text-sm border border-transparent hover:border-red-200 transition-all"><Trash2 className="w-4 h-4"/> Löschen</button>
+             <button onClick={() => onDelete(formData.id)} className="px-4 py-2 text-red-600 hover:bg-red-50 rounded flex items-center gap-2 text-sm"><Trash2 className="w-4 h-4"/> Löschen</button>
           ) : <div></div>}
           <div className="flex gap-2">
-            <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded text-sm transition-colors">Abbrechen</button>
-            <button onClick={() => onSave({ ...formData, speakers: formData.speakers.join(', ') })} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 shadow-md hover:shadow-lg font-medium text-sm transition-all transform active:scale-95">Speichern</button>
+            <button onClick={onClose} className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded text-sm">Abbrechen</button>
+            <button onClick={() => onSave({ ...formData, speakers: formData.speakers.join(', ') })} className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 shadow-md font-medium text-sm">Speichern</button>
           </div>
         </div>
       </div>
@@ -344,7 +355,7 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
 const SyncMenu = ({ isOpen, onClose, onSync }) => {
   if (!isOpen) return null;
   return (
-    <div className="absolute top-12 right-0 bg-white border border-slate-200 shadow-xl rounded-xl p-4 w-80 z-50 animate-in fade-in zoom-in-95 duration-200">
+    <div className="absolute top-12 right-0 bg-white border border-slate-200 shadow-xl rounded-xl p-4 w-80 z-50">
        <h4 className="font-bold text-slate-800 mb-2 flex items-center gap-2"><UploadCloud className="w-4 h-4 text-blue-600"/> Synchronisierung</h4>
        <div className="text-xs text-amber-700 mb-4 bg-amber-50 p-2 rounded border border-amber-200 flex gap-2 items-start">
          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5"/>
@@ -353,7 +364,6 @@ const SyncMenu = ({ isOpen, onClose, onSync }) => {
        <div className="space-y-2">
          <button onClick={() => onSync('program')} className="w-full text-left px-3 py-3 bg-white hover:bg-blue-50 hover:border-blue-300 rounded-lg text-sm font-medium transition-all border border-slate-200 shadow-sm group">
             <span className="block text-slate-800 group-hover:text-blue-700">Programm speichern</span>
-            <span className="block text-[10px] text-slate-400">Aktualisiert Zeitplan & Status</span>
          </button>
        </div>
        <button onClick={onClose} className="mt-3 w-full text-center text-xs text-slate-400 hover:text-slate-600 underline">Abbrechen</button>
@@ -431,7 +441,7 @@ function App() {
             `${config.sheetNameSpeakers}!A2:E`, 
             `${config.sheetNameMods}!A2:C`, 
             `${config.sheetNameProgram}!A2:N`,
-            `${config.sheetNameStages}!A2:H` // New: Load Stages
+            `${config.sheetNameStages}!A2:H`
         ]
       });
       const valueRanges = batchGet.result.valueRanges;
@@ -443,33 +453,20 @@ function App() {
            id: `mod-${i}`, fullName: r[1], status: r[0], function: r[2]
       }));
       
-      // Parse Stages from "Bühnen_Import"
-      // CSV: ID, Name, Capacity, Type, ...
       const parsedStages = (valueRanges[3].values || []).map((r, i) => ({
-          id: r[0] || `stage-${i}`,
-          name: r[1] || `Bühne ${i+1}`,
-          capacity: r[2] || '0',
-          type: r[3] || 'standard'
+          id: r[0] || `stage-${i}`, name: r[1] || `Bühne ${i+1}`, capacity: r[2] || '0', type: r[3] || 'standard'
       }));
-
-      // Fallback if stages sheet is empty
-      if (parsedStages.length === 0) {
-          parsedStages.push({ id: 'main', name: 'Main Stage', capacity: 200 });
-      }
+      if (parsedStages.length === 0) parsedStages.push({ id: 'main', name: 'Main Stage', capacity: 200 });
 
       const parsedProgram = (valueRanges[2].values || []).map((r, i) => {
         let start = r[6] || '-';
         let duration = parseInt(r[8]);
         if (!duration || isNaN(duration)) duration = 60;
-        let status = r[2] || '5_Vorschlag';
         let stage = r[5] || INBOX_ID;
         if (stage.trim() === '' || stage.toLowerCase() === 'inbox') stage = INBOX_ID;
 
-        // Verify stage exists, if not, move to inbox or keep if it looks valid
-        // Optional: strict check against parsedStages
-
         return {
-          id: r[0] || `prog-gen-${i}`, title: r[1] || 'Ohne Titel', status: status,
+          id: r[0] || `prog-gen-${i}`, title: r[1] || 'Ohne Titel', status: r[2] || '5_Vorschlag',
           partner: r[3] || '', format: r[4] || 'Talk', stage: stage,
           start: start, duration: duration, end: calculateEndTime(start, duration),
           speakers: r[9], moderators: r[10], language: r[11] || 'de', notes: r[12] || ''
@@ -480,20 +477,16 @@ function App() {
       setStatus(s => ({ ...s, loading: false, lastUpdated: new Date() }));
       setLocalChanges(false);
     } catch (err) {
-      console.error(err);
-      setStatus(s => ({ ...s, loading: false, error: "Ladefehler: " + (err.result?.error?.message || err.message) }));
+      setStatus(s => ({ ...s, loading: false, error: err.result?.error?.message || err.message }));
     }
   }, [isAuthenticated, gapiInited, config]);
 
-  // --- SYNC HANDLER ---
   const handleSync = async (type) => {
     if (!isAuthenticated) return;
     setStatus(s => ({ ...s, loading: true }));
     setShowSyncMenu(false);
-
     try {
       if (type === 'program') {
-        const range = `${config.sheetNameProgram}!A2:N`;
         const rows = data.program.map(p => [
           p.id, p.title, p.status, p.partner, p.format, 
           p.stage === INBOX_ID ? '' : p.stage, 
@@ -501,22 +494,19 @@ function App() {
           p.start === '-' ? '' : calculateEndTime(p.start, p.duration), 
           p.duration, p.speakers, p.moderators, p.language, p.notes
         ]);
-
         await window.gapi.client.sheets.spreadsheets.values.update({
-          spreadsheetId: config.spreadsheetId, range: range, valueInputOption: 'USER_ENTERED', resource: { values: rows }
+          spreadsheetId: config.spreadsheetId, range: `${config.sheetNameProgram}!A2:N`,
+          valueInputOption: 'USER_ENTERED', resource: { values: rows }
         });
-        
         setLocalChanges(false);
         setStatus(s => ({ ...s, loading: false, lastUpdated: new Date() }));
-        alert(`Programm erfolgreich gespeichert!`);
+        alert(`Gespeichert!`);
       } 
     } catch (err) {
-       console.error(err);
        setStatus(s => ({ ...s, loading: false, error: err.message }));
     }
   };
 
-  // --- LOCAL ACTIONS ---
   const handleSaveSession = (session) => {
     let newProgram;
     if (editingSession) {
@@ -533,19 +523,17 @@ function App() {
 
   const handleToggleLock = (session) => {
       const newStatus = session.status === 'Fixiert' ? '2_Planung' : 'Fixiert';
-      const updated = { ...session, status: newStatus };
-      handleSaveSession(updated);
+      handleSaveSession({ ...session, status: newStatus });
   };
 
   const handleDeleteSession = (id) => {
-      if (window.confirm("Session wirklich löschen?")) {
+      if (window.confirm("Löschen?")) {
           setData(prev => ({ ...prev, program: prev.program.filter(p => p.id !== id) }));
           setLocalChanges(true);
           setIsModalOpen(false);
       }
   };
 
-  // --- DND LOGIC ---
   const handleDragEnd = (event) => {
     const { active, over } = event;
     if (!over) return;
@@ -556,16 +544,13 @@ function App() {
     
     if (!activeItem || activeItem.status === 'Fixiert') return; 
 
-    // Determine Target Stage Name
-    let targetStageName = overId; // Default assumes dropping on a Stage Column ID (which matches stage name)
+    // Find Target Stage
+    let targetStageName = overId; 
     
     // Check if dropping on another item
     const overItem = data.program.find(p => p.id === overId);
-    if (overItem) {
-      targetStageName = overItem.stage;
-    }
+    if (overItem) targetStageName = overItem.stage;
 
-    // Logic: If moved to Inbox, reset time
     let updates = {};
     if (targetStageName === INBOX_ID) {
        updates = { stage: INBOX_ID, start: '-' };
@@ -583,14 +568,12 @@ function App() {
     }
   };
 
-  // --- VIEWS ---
-  // Derive stage columns solely from loaded Stage Data
-  const stageColumns = useMemo(() => {
-    return data.stages.map(s => s.name);
-  }, [data.stages]);
+  const stageColumns = useMemo(() => data.stages.map(s => s.name), [data.stages]);
 
   const START_HOUR = 9; 
   const PIXELS_PER_MINUTE = 2;
+  const HEADER_HEIGHT = 56; // Fixed height for alignment
+
   const getPositionStyle = (start, duration) => {
     if (!start || start === '-') return { position: 'relative' }; 
     const startMin = timeToMinutes(start);
@@ -609,7 +592,7 @@ function App() {
             KOSMOS Planer
           </h1>
           <div className="flex items-center gap-2 text-[10px] text-slate-500 uppercase tracking-wide font-bold mt-0.5">
-             {status.loading ? <span className="text-blue-600 animate-pulse">Synchronisiere...</span> : <span>Bereit</span>}
+             {status.loading ? <span className="text-blue-600 animate-pulse">Sync...</span> : <span>Bereit</span>}
              {localChanges && <span className="text-orange-600 bg-orange-100 px-1 rounded border border-orange-200">● Ungespeichert</span>}
           </div>
         </div>
@@ -621,12 +604,12 @@ function App() {
             </button>
           ) : (
              <>
-               <button onClick={loadData} className="p-2 hover:bg-slate-100 rounded text-slate-600 border border-transparent hover:border-slate-200 transition-all" title="Neu laden"><RefreshCw className="w-4 h-4"/></button>
+               <button onClick={loadData} className="p-2 hover:bg-slate-100 rounded text-slate-600" title="Neu laden"><RefreshCw className="w-4 h-4"/></button>
                <div className="relative">
                  <button 
                    onClick={() => setShowSyncMenu(!showSyncMenu)} 
                    disabled={!localChanges && !status.loading}
-                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white shadow-md text-sm font-bold transition-all ${localChanges ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-lg hover:scale-105' : 'bg-slate-400 cursor-not-allowed'}`}
+                   className={`flex items-center gap-2 px-4 py-2 rounded-lg text-white shadow-md text-sm font-bold transition-all ${localChanges ? 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-lg' : 'bg-slate-400 cursor-not-allowed'}`}
                  >
                    <UploadCloud className="w-4 h-4" /> Speichern
                  </button>
@@ -640,52 +623,39 @@ function App() {
         </div>
       </header>
       
-      {status.error && (
-        <div className="bg-red-50 border-b border-red-200 text-red-700 p-2 text-xs text-center font-bold flex justify-center items-center gap-2">
-            <AlertCircle className="w-4 h-4"/> {status.error}
-        </div>
-      )}
+      {status.error && <div className="bg-red-50 border-b border-red-200 text-red-700 p-2 text-xs text-center font-bold">{status.error}</div>}
 
-      {/* MAIN CONTENT */}
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
         <div className="flex flex-1 overflow-hidden">
             
-            {/* LEFT SIDEBAR (Speakers/Mods) */}
             {isAuthenticated && (
-              <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-20 shadow-[4px_0_24px_-12px_rgba(0,0,0,0.1)]">
+              <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-20 shadow-md">
                  <div className="p-4 border-b border-slate-100 font-bold text-slate-800 text-sm flex items-center gap-2">
-                    <Users className="w-4 h-4 text-indigo-500"/> Personen-Datenbank
+                    <Users className="w-4 h-4 text-indigo-500"/> Datenbank
                  </div>
-                 <div className="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-6">
-                    <div>
-                      <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-3">SprecherInnen ({data.speakers.length})</h4>
-                      <div className="space-y-1">
-                        {data.speakers.map(s => (
-                            <div key={s.id} className="text-xs p-2 bg-slate-50 hover:bg-white hover:shadow-sm rounded border border-slate-100 text-slate-700 transition-all cursor-default flex justify-between">
-                                <span className="font-medium truncate">{s.fullName}</span>
-                                <span className={`text-[9px] px-1 rounded ${s.status.includes('1') ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>{s.status.substring(0,1)}</span>
-                            </div>
-                        ))}
-                      </div>
-                    </div>
+                 <div className="flex-1 overflow-y-auto p-3 custom-scrollbar space-y-2">
+                    {data.speakers.map(s => (
+                        <div key={s.id} className="text-xs p-2 bg-slate-50 border border-slate-100 rounded flex justify-between text-slate-700">
+                            <span className="truncate">{s.fullName}</span>
+                            <span className={`text-[9px] px-1 rounded ${s.status.includes('1') ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-500'}`}>{s.status.substring(0,1)}</span>
+                        </div>
+                    ))}
                  </div>
               </div>
             )}
 
-            {/* RIGHT AREA: INBOX & TIMELINE */}
             <div className="flex-1 flex flex-col overflow-hidden bg-slate-50/50">
-                
-                {/* INBOX (TOP) */}
+                {/* INBOX */}
                 <div className="bg-slate-100 border-b border-slate-300 p-4 shrink-0 max-h-[240px] flex flex-col shadow-inner">
                    <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2 mb-3">
-                     <div className="w-2 h-2 rounded-full bg-slate-400 shadow-sm"></div> Inbox (Ungeplante Sessions)
+                     <div className="w-2 h-2 rounded-full bg-slate-400"></div> Inbox
                    </h3>
                    <div className="flex-1 overflow-x-auto custom-scrollbar">
-                     <SortableContext id={INBOX_ID} items={data.program.filter(p => p.stage === INBOX_ID).map(p => p.id)}>
-                        <div className="flex gap-3 min-w-max pb-4 h-full items-start px-1">
+                     <DroppableStage id={INBOX_ID} className="flex gap-3 min-w-max pb-4 h-full items-start px-1">
+                        <SortableContext id={INBOX_ID} items={data.program.filter(p => p.stage === INBOX_ID).map(p => p.id)}>
                           {data.program.filter(p => p.stage === INBOX_ID).length === 0 && (
                             <div className="text-slate-400 text-xs italic border-2 border-dashed border-slate-300 rounded-lg px-6 py-4 flex items-center gap-2">
-                                <Layout className="w-4 h-4"/> Keine Sessions in der Inbox
+                                <Layout className="w-4 h-4"/> Leer
                             </div>
                           )}
                           {data.program.filter(p => p.stage === INBOX_ID).map(session => (
@@ -697,15 +667,18 @@ function App() {
                                />
                             </div>
                           ))}
-                        </div>
-                     </SortableContext>
+                        </SortableContext>
+                     </DroppableStage>
                    </div>
                 </div>
 
-                {/* TIMELINE (BOTTOM) */}
+                {/* TIMELINE */}
                 <div className="flex-1 overflow-auto relative custom-scrollbar flex bg-slate-100">
-                    {/* Time Scale */}
+                    {/* Time Scale - NOW ALIGNED */}
                     <div className="w-14 bg-white border-r border-slate-200 shrink-0 sticky left-0 z-10 min-h-[1400px] shadow-sm">
+                        {/* Placeholder Header matching Stage Header Height */}
+                        <div className="border-b border-slate-200 bg-white sticky top-0 z-20" style={{ height: `${HEADER_HEIGHT}px` }}></div>
+                        
                         {Array.from({ length: 14 }).map((_, i) => {
                           const h = START_HOUR + i;
                           return (
@@ -719,16 +692,16 @@ function App() {
 
                     {/* Stage Columns */}
                     <div className="flex min-w-full">
-                        {stageColumns.map((stageName, idx) => (
-                          <div key={stageName} className="min-w-[280px] w-full max-w-[360px] border-r border-slate-200 relative bg-white/30 odd:bg-slate-50/50">
-                              <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-slate-200 p-3 text-center z-10 shadow-sm">
-                                <div className="font-bold text-slate-700 text-sm">{stageName}</div>
+                        {stageColumns.map((stageName) => (
+                          <DroppableStage key={stageName} id={stageName} className="min-w-[280px] w-full max-w-[360px] border-r border-slate-200 relative bg-white/30 odd:bg-slate-50/50">
+                              <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-slate-200 p-3 text-center z-10 shadow-sm flex flex-col justify-center" style={{ height: `${HEADER_HEIGHT}px` }}>
+                                <div className="font-bold text-slate-700 text-sm truncate">{stageName}</div>
                                 <div className="text-[10px] text-slate-400 font-mono mt-0.5">
                                     {data.stages.find(s => s.name === stageName)?.capacity || '?'} PAX
                                 </div>
                               </div>
                               <SortableContext id={stageName} items={data.program.filter(p => p.stage === stageName).map(p => p.id)} strategy={verticalListSortingStrategy}>
-                                <div className="min-h-[1400px] relative w-full mt-2">
+                                <div className="min-h-[1400px] relative w-full">
                                     {data.program.filter(p => p.stage === stageName).map(session => (
                                       <div key={session.id} className="absolute w-full px-1" style={getPositionStyle(session.start, session.duration)}>
                                         <SortableSessionItem 
@@ -741,75 +714,48 @@ function App() {
                                     ))}
                                 </div>
                               </SortableContext>
-                          </div>
+                          </DroppableStage>
                         ))}
                     </div>
                 </div>
             </div>
         </div>
         <DragOverlay>
-           <div className="w-[260px] opacity-90 rotate-2"><Card status="2_Planung" className="bg-blue-50 border-blue-400 h-24 shadow-xl">Verschiebe Session...</Card></div>
+           <div className="w-[260px] opacity-90 rotate-2"><Card status="2_Planung" className="bg-blue-50 border-blue-400 h-24 shadow-xl">Verschiebe...</Card></div>
         </DragOverlay>
       </DndContext>
 
-      {/* SETTINGS MODAL */}
+      {/* Settings Modal - kept same as before */}
       {showSettings && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
            <div className="bg-white p-8 rounded-2xl w-full max-w-xl shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
               <h2 className="font-bold text-xl mb-6 flex items-center gap-2 border-b pb-4">
                   <Settings className="w-6 h-6 text-slate-600"/> Konfiguration
               </h2>
-              
               <div className="space-y-6">
-                 {/* Auth Section */}
                  <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                     <h3 className="text-xs font-bold text-slate-500 uppercase">Google Authentifizierung</h3>
-                    <div>
-                        <label className="label-std">Google Client ID</label>
-                        <input type="text" className="input-std font-mono text-xs" placeholder="...apps.googleusercontent.com" value={config.googleClientId} onChange={e => setConfig({...config, googleClientId: e.target.value})} />
-                    </div>
-                    <div>
-                        <label className="label-std">Google API Key</label>
-                        <input type="text" className="input-std font-mono text-xs" placeholder="AIza..." value={config.googleApiKey} onChange={e => setConfig({...config, googleApiKey: e.target.value})} />
-                    </div>
+                    <div><label className="label-std">Google Client ID</label><input type="text" className="input-std font-mono text-xs" value={config.googleClientId} onChange={e => setConfig({...config, googleClientId: e.target.value})} /></div>
+                    <div><label className="label-std">Google API Key</label><input type="text" className="input-std font-mono text-xs" value={config.googleApiKey} onChange={e => setConfig({...config, googleApiKey: e.target.value})} /></div>
                  </div>
-
-                 {/* Sheet Config */}
                  <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 space-y-3">
-                    <h3 className="text-xs font-bold text-blue-600 uppercase">Google Sheets Verknüpfung</h3>
-                    <div>
-                        <label className="label-std">Spreadsheet ID</label>
-                        <input type="text" className="input-std font-mono text-xs" placeholder="ID aus der URL (z.B. 1BxiM...)" value={config.spreadsheetId} onChange={e => setConfig({...config, spreadsheetId: e.target.value})} />
-                    </div>
-                    
+                    <h3 className="text-xs font-bold text-blue-600 uppercase">Google Sheets</h3>
+                    <div><label className="label-std">Spreadsheet ID</label><input type="text" className="input-std font-mono text-xs" value={config.spreadsheetId} onChange={e => setConfig({...config, spreadsheetId: e.target.value})} /></div>
                     <div className="grid grid-cols-2 gap-4 pt-2">
-                        <div>
-                            <label className="label-std">Blatt: Programm (Sync)</label>
-                            <input type="text" className="input-std" value={config.sheetNameProgram} onChange={e => setConfig({...config, sheetNameProgram: e.target.value})} />
-                        </div>
-                        <div>
-                            <label className="label-std">Blatt: Bühnen (Quelle)</label>
-                            <input type="text" className="input-std" value={config.sheetNameStages} onChange={e => setConfig({...config, sheetNameStages: e.target.value})} />
-                        </div>
-                        <div>
-                            <label className="label-std">Blatt: SprecherInnen</label>
-                            <input type="text" className="input-std" value={config.sheetNameSpeakers} onChange={e => setConfig({...config, sheetNameSpeakers: e.target.value})} />
-                        </div>
-                        <div>
-                            <label className="label-std">Blatt: Moderation</label>
-                            <input type="text" className="input-std" value={config.sheetNameMods} onChange={e => setConfig({...config, sheetNameMods: e.target.value})} />
-                        </div>
+                        <div><label className="label-std">Blatt: Programm</label><input type="text" className="input-std" value={config.sheetNameProgram} onChange={e => setConfig({...config, sheetNameProgram: e.target.value})} /></div>
+                        <div><label className="label-std">Blatt: Bühnen</label><input type="text" className="input-std" value={config.sheetNameStages} onChange={e => setConfig({...config, sheetNameStages: e.target.value})} /></div>
+                        <div><label className="label-std">Blatt: Sprecher</label><input type="text" className="input-std" value={config.sheetNameSpeakers} onChange={e => setConfig({...config, sheetNameSpeakers: e.target.value})} /></div>
+                        <div><label className="label-std">Blatt: Mod</label><input type="text" className="input-std" value={config.sheetNameMods} onChange={e => setConfig({...config, sheetNameMods: e.target.value})} /></div>
                     </div>
                  </div>
               </div>
-
               <div className="mt-8 flex justify-end gap-3 pt-4 border-t border-slate-100">
                  <button onClick={() => setShowSettings(false)} className="px-5 py-2.5 rounded-lg text-slate-600 hover:bg-slate-100 transition-colors font-medium text-sm">Abbrechen</button>
                  <button onClick={() => {
                     Object.keys(config).forEach(k => localStorage.setItem(`kosmos_${k}`, config[k]));
                     setShowSettings(false);
                     window.location.reload(); 
-                 }} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-md transition-all font-bold text-sm">Speichern & Neustart</button>
+                 }} className="px-6 py-2.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 shadow-md font-bold text-sm">Speichern & Neustart</button>
               </div>
            </div>
         </div>
@@ -825,11 +771,6 @@ function App() {
   );
 }
 
-// Reusable Styles
-const inputClass = "w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all";
-const labelClass = "block text-[11px] font-bold text-slate-500 uppercase mb-1.5 tracking-wide";
-
-// Add to classes for cleaner JSX
 const inputStd = "w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all placeholder:text-slate-300";
 const labelStd = "block text-[11px] font-bold text-slate-500 uppercase mb-1.5 tracking-wide";
 
