@@ -19,7 +19,7 @@ import {
   Users, RefreshCw, Settings, AlertCircle, 
   Trash2, PlusCircle, UploadCloud, LogIn, X, 
   Lock, Unlock, MessageSquare, Globe, Flag, Layout, 
-  AlertTriangle, Mic2, PieChart, Search, CheckCircle2, ToggleLeft, ToggleRight
+  AlertTriangle, Mic2, PieChart, Search, CheckCircle2
 } from 'lucide-react';
 
 // --- KONSTANTEN ---
@@ -74,6 +74,12 @@ const checkOverlap = (startA, endA, startB, endB, buffer = 0) => {
   return (startA < endB + buffer) && (endA + buffer > startB);
 };
 
+// Helper to safely extract error message
+const getErrorMessage = (e) => {
+  if (typeof e === 'string') return e;
+  return e?.result?.error?.message || e?.message || "Unbekannter Fehler beim Speichern";
+};
+
 // --- COMPONENTS ---
 
 const Card = React.forwardRef(({ children, className = "", onClick, style, status, ...props }, ref) => {
@@ -104,7 +110,7 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
     >
        {/* Conflict Overlay (Full Card) */}
        {hasConflict && (
-         <div className="absolute inset-0 bg-red-600/95 z-50 p-3 text-white flex flex-col justify-center items-center text-center opacity-0 transition-opacity duration-200 pointer-events-none group-hover/conflict:opacity-100 backdrop-blur-sm">
+         <div className="absolute inset-0 bg-red-600/95 z-50 p-3 text-white flex flex-col justify-center items-center text-center opacity-0 transition-opacity duration-200 pointer-events-none group-hover/conflict:opacity-100 backdrop-blur-sm rounded-r">
             <AlertTriangle className="w-8 h-8 mb-2 animate-bounce" />
             <span className="font-bold underline mb-1">Terminkollision</span>
             <span className="text-xs leading-tight">{conflictTooltip}</span>
@@ -123,7 +129,6 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
          
          <div className="flex gap-1 shrink-0 z-10 items-center">
             {hasConflict && (
-              // This div triggers the overlay defined above via group-hover/conflict
               <div className="text-red-500 mr-1 group/conflict cursor-help hover:scale-110 transition-transform">
                 <AlertTriangle className="w-4 h-4 animate-pulse" />
               </div>
@@ -157,7 +162,7 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
             {session.notes && (
               <div className="relative group/notes ml-1">
                 <span className="flex items-center gap-0.5 text-blue-500 cursor-help"><MessageSquare className="w-2.5 h-2.5" /></span>
-                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded shadow-lg hidden group-hover/notes:block z-50 pointer-events-none">
+                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded shadow-lg hidden group-hover/notes:block z-50 pointer-events-none text-left">
                   {session.notes}
                 </div>
               </div>
@@ -296,9 +301,8 @@ function App() {
             totalPlacedSessions++;
             if (s.partner === 'TRUE') partnerSessions++;
             
-            const sList = s.speakers ? s.speakers.split(',').map(n=>n.trim()).filter(Boolean) : [];
+            const sList = s.speakers ? (Array.isArray(s.speakers) ? s.speakers : s.speakers.split(',').map(n=>n.trim()).filter(Boolean)) : [];
             sList.forEach(name => {
-                // Find gender using case-insensitive match
                 const spObj = data.speakers.find(dbSp => dbSp.fullName.toLowerCase() === name.toLowerCase());
                 if (spObj) {
                     const p = (spObj.pronoun || '').toLowerCase();
@@ -327,7 +331,7 @@ function App() {
       
       const sStart = timeToMinutes(s.start);
       const sEnd = sStart + s.duration;
-      const speakerList = s.speakers.split(',').map(n => n.trim()).filter(Boolean);
+      const speakerList = Array.isArray(s.speakers) ? s.speakers : s.speakers.split(',').map(n => n.trim()).filter(Boolean);
 
       speakerList.forEach(sp => {
         if (!usage[sp]) usage[sp] = [];
@@ -385,10 +389,10 @@ function App() {
       const batch = await window.gapi.client.sheets.spreadsheets.values.batchGet({
         spreadsheetId: config.spreadsheetId,
         ranges: [
-          `${config.sheetNameSpeakers}!A2:E`,
-          `${config.sheetNameMods}!A2:C`,
-          `${config.sheetNameProgram}!A2:N`,
-          `${config.sheetNameStages}!A2:H`
+          `'${config.sheetNameSpeakers}'!A2:E`,
+          `'${config.sheetNameMods}'!A2:C`,
+          `'${config.sheetNameProgram}'!A2:N`,
+          `'${config.sheetNameStages}'!A2:H`
         ]
       });
       const ranges = batch.result.valueRanges;
@@ -427,7 +431,7 @@ function App() {
       setStatus({ loading: false, error: null });
       setLocalChanges(false);
     } catch(e) {
-      setStatus({ loading: false, error: e.message });
+      setStatus({ loading: false, error: getErrorMessage(e) });
     }
   }, [isAuthenticated, gapiInited, config]);
 
@@ -435,25 +439,45 @@ function App() {
     if (!isAuthenticated) return;
     setStatus({ loading: true, error: null });
     try {
-        const rows = data.program.map(p => [
-            p.id, p.title, p.status, p.partner === 'TRUE' ? 'TRUE' : '', p.format, 
-            p.stage === INBOX_ID ? '' : p.stage, 
-            p.start === '-' ? '' : p.start, 
-            p.start === '-' ? '' : calculateEndTime(p.start, p.duration), 
-            p.duration, p.speakers, p.moderators, p.language, p.notes, p.stageDispo
-        ]);
+        const rows = data.program.map(p => {
+            // SAFETY: Ensure all fields are strings/primitives
+            const speakersStr = Array.isArray(p.speakers) ? p.speakers.join(', ') : (p.speakers || '');
+            const modsStr = Array.isArray(p.moderators) ? p.moderators.join(', ') : (p.moderators || '');
+            
+            return [
+                p.id || generateId(), 
+                p.title || '', 
+                p.status || '5_Vorschlag', 
+                p.partner === 'TRUE' ? 'TRUE' : 'FALSE', 
+                p.format || 'Talk', 
+                p.stage === INBOX_ID ? '' : (p.stage || ''), 
+                p.start === '-' ? '' : p.start, 
+                p.start === '-' ? '' : calculateEndTime(p.start, p.duration), 
+                p.duration || 60, 
+                speakersStr, 
+                modsStr, 
+                p.language || 'de', 
+                p.notes || '', 
+                p.stageDispo || ''
+            ];
+        });
+
         await window.gapi.client.sheets.spreadsheets.values.update({
-            spreadsheetId: config.spreadsheetId, range: `${config.sheetNameProgram}!A2:N`,
-            valueInputOption: 'USER_ENTERED', resource: { values: rows }
+            spreadsheetId: config.spreadsheetId, 
+            range: `'${config.sheetNameProgram}'!A2:N`,
+            valueInputOption: 'USER_ENTERED', 
+            resource: { values: rows }
         });
         setLocalChanges(false);
         setStatus({ loading: false, error: null });
         setToast({ msg: "Programm erfolgreich gespeichert!", type: "success" });
         setTimeout(() => setToast(null), 3000);
     } catch (e) {
-        setStatus({ loading: false, error: e.message });
+        setStatus({ loading: false, error: getErrorMessage(e) });
     }
   };
+
+  // --- DRAG & DROP LOGIC ---
 
   const handleDragStart = (event) => {
     setActiveDragItem(event.active.data.current);
@@ -606,11 +630,14 @@ function App() {
     let newProgram;
     const finalSession = { ...session, stageDispo: autoNote ? (session.stageDispo + ' ' + autoNote).trim() : session.stageDispo };
     
+    // Create new session logic
     if (editingSession && editingSession.id === session.id) {
       newProgram = data.program.map(p => p.id === session.id ? finalSession : p);
     } else {
       newProgram = [...data.program, { ...finalSession, id: generateId() }];
     }
+    
+    // Ensure all fields are calculated
     newProgram = newProgram.map(p => ({ ...p, end: calculateEndTime(p.start, p.duration) }));
     setData(prev => ({ ...prev, program: newProgram }));
     setLocalChanges(true);
@@ -661,7 +688,7 @@ function App() {
         </div>
       </header>
 
-      {status.error && <div className="bg-red-50 text-red-600 p-2 text-xs text-center border-b border-red-200">{status.error}</div>}
+      {status.error && <div className="bg-red-50 text-red-600 p-2 text-xs text-center border-b border-red-200 font-bold">{status.error}</div>}
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
         <div className="flex flex-1 overflow-hidden">
@@ -704,7 +731,7 @@ function App() {
           )}
 
           <div className="flex-1 flex flex-col overflow-hidden relative">
-             {/* INBOX (Parking Lot) */}
+             {/* INBOX */}
              <div className="bg-slate-100 border-b border-slate-300 p-2 shrink-0 h-48 flex flex-col shadow-inner z-20">
                 <div className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2 px-2">
                    <Layout className="w-3 h-3"/> Inbox (Parkplatz)
@@ -835,7 +862,7 @@ function App() {
   );
 }
 
-// Session Modal (Complete)
+// Session Modal (Updated onSave logic)
 const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) => {
   const [formData, setFormData] = useState({
     id: '', title: '', start: '10:00', duration: 60, stage: 'Main Stage',
@@ -851,7 +878,7 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
       setFormData({
         ...initialData,
         duration: duration > 0 ? duration : 60,
-        speakers: initialData.speakers ? initialData.speakers.split(',').map(s => s.trim()).filter(s => s) : []
+        speakers: Array.isArray(initialData.speakers) ? initialData.speakers : (initialData.speakers ? initialData.speakers.split(',').map(s => s.trim()).filter(Boolean) : [])
       });
     } else {
       setFormData({
@@ -939,6 +966,7 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
                <div><label className={labelStd}>Dauer (Min)</label><input type="number" className={inputStd} value={formData.duration} onChange={e => setFormData({...formData, duration: parseInt(e.target.value)})} /></div>
              </div>
           </div>
+          
           <div className="grid grid-cols-2 gap-4">
              <div>
                 <label className={labelStd}>Sprecher (Suche)</label>
@@ -972,7 +1000,8 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
            {initialData && <button onClick={()=>{if(window.confirm('Wirklich löschen?')) onDelete(formData.id)}} className="text-red-500 text-sm flex items-center gap-1 hover:bg-red-50 px-3 py-1 rounded transition-colors"><Trash2 className="w-4 h-4"/> Löschen</button>}
            <div className="flex gap-2 ml-auto">
              <button onClick={onClose} className="px-4 py-2 border rounded text-sm hover:bg-slate-100 transition-colors">Abbrechen</button>
-             <button onClick={()=>onSave(formData, micWarning)} className="px-6 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 shadow-sm font-medium transition-colors">Speichern</button>
+             {/* CRITICAL FIX: Ensure speakers are joined as string before passing to handler to avoid data type mismatch during sync */}
+             <button onClick={()=>onSave({ ...formData, speakers: formData.speakers.join(', ') }, micWarning)} className="px-6 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 shadow-sm font-medium transition-colors">Speichern</button>
            </div>
         </div>
       </div>
