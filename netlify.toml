@@ -1,0 +1,17 @@
+[build]
+  # Der Standard-Build-Befehl für Vite/React
+  command = "npm run build"
+  # Das Verzeichnis, in dem die kompilierten Dateien landen
+  publish = "dist"
+
+[dev]
+  command = "npm run dev"
+  port = 3000
+
+# WICHTIG: Rewrite-Regel für Single Page Applications (SPA)
+# Leitet alle Anfragen an die index.html weiter, damit das Client-Side-Routing funktioniert.
+# Verhindert 404-Fehler beim Neuladen von Unterseiten.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
