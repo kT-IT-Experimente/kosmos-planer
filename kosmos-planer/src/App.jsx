@@ -18,7 +18,8 @@ import { CSS } from '@dnd-kit/utilities';
 import { 
   Users, RefreshCw, Settings, AlertCircle, 
   Trash2, PlusCircle, UploadCloud, LogIn, X, 
-  Lock, Unlock, MessageSquare, Globe, Flag, Layout, AlertTriangle
+  Lock, Unlock, MessageSquare, Globe, Flag, Layout, 
+  AlertTriangle, Mic2, PieChart, Search, CheckCircle2
 } from 'lucide-react';
 
 // --- KONSTANTEN ---
@@ -146,7 +147,7 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
          <div className="flex items-center gap-2 text-[9px] text-slate-400 pt-1 border-t border-black/5">
             <span className="font-mono text-slate-300">ID:{session.id}</span>
             {session.language && <span className="flex items-center gap-0.5 ml-auto">{session.language.toUpperCase()}</span>}
-            {session.partner && <span className="flex items-center gap-0.5 truncate max-w-[60px]"><Flag className="w-2.5 h-2.5" /> {session.partner}</span>}
+            {session.partner === 'TRUE' && <span className="flex items-center gap-0.5 truncate text-blue-600 font-bold bg-blue-50 px-1 rounded"><Flag className="w-2.5 h-2.5" /> Partner</span>}
             {session.notes && (
               <div className="relative group/notes ml-1">
                 <span className="flex items-center gap-0.5 text-blue-500 cursor-help"><MessageSquare className="w-2.5 h-2.5" /></span>
@@ -178,10 +179,15 @@ const DraggableTimelineItem = ({ session, onClick, style, onToggleLock, hasConfl
     disabled: isLocked
   });
 
-  const baseStyle = { ...style, opacity: isDragging ? 0 : 1, touchAction: 'none' };
+  const baseStyle = { 
+    ...style, 
+    opacity: isDragging ? 0 : 1, 
+    touchAction: 'none',
+    zIndex: isDragging ? 50 : 10 // Lift dragged item visually
+  };
 
   return (
-    <div ref={setNodeRef} style={baseStyle} className={`absolute w-full px-1 z-10 ${isLocked ? 'z-0' : ''}`}>
+    <div ref={setNodeRef} style={baseStyle} className={`absolute w-full px-1 ${isLocked ? 'z-0' : ''}`}>
        <SessionCardContent 
           session={session} onClick={onClick} onToggleLock={onToggleLock} isLocked={isLocked}
           hasConflict={hasConflict} conflictTooltip={conflictTooltip}
@@ -220,14 +226,17 @@ const StageColumn = ({ stage, children, height }) => {
     <div ref={setNodeRef} style={{ height: height + HEADER_HEIGHT }} className={`min-w-[280px] w-full max-w-[320px] border-r border-slate-200 relative transition-colors ${isOver ? 'bg-blue-50/30' : 'bg-white/30 odd:bg-slate-50/50'}`}>
        <div className="bg-white/95 backdrop-blur border-b border-slate-200 p-2 text-center z-20 shadow-sm flex flex-col justify-center" style={{ height: HEADER_HEIGHT }}>
          <div className="font-bold text-slate-700 text-sm truncate">{stage.name}</div>
-         <div className="text-[10px] text-slate-400 font-mono">{stage.capacity} PAX</div>
+         <div className="flex justify-center gap-3 text-[10px] text-slate-400 font-mono mt-0.5">
+            <span className="flex items-center gap-1"><Users className="w-3 h-3"/> {stage.capacity}</span>
+            <span className="flex items-center gap-1"><Mic2 className="w-3 h-3"/> {stage.maxMics || '?'}</span>
+         </div>
        </div>
        <div className="absolute w-full bottom-0 z-0" style={{ top: HEADER_HEIGHT, height: height }}>
-          {/* Grid Background (Separate layer) */}
+          {/* Grid Background */}
           <div className="absolute inset-0 pointer-events-none z-0">
-             {/* Lines defined by parent or empty */}
+             {/* Lines handled by parent for performance */}
           </div>
-          {/* Content Layer (Interactive) */}
+          {/* Content Layer */}
           <div className="absolute inset-0 z-10">
               {children}
           </div>
@@ -276,7 +285,41 @@ function App() {
 
   const timelineHeight = (config.endHour - config.startHour) * 60 * PIXELS_PER_MINUTE;
 
-  // Speaker Conflicts Analysis
+  // --- ANALYTICS & CONFLICTS ---
+  const analysis = useMemo(() => {
+    const speakersOnStage = new Set();
+    const genderCounts = { m: 0, w: 0, d: 0, u: 0 };
+    let partnerSessions = 0;
+    let totalPlacedSessions = 0;
+
+    data.program.forEach(s => {
+        if (s.stage !== INBOX_ID && s.start !== '-') {
+            totalPlacedSessions++;
+            if (s.partner === 'TRUE') partnerSessions++;
+            
+            const sList = s.speakers ? s.speakers.split(',').map(n=>n.trim()).filter(Boolean) : [];
+            sList.forEach(name => {
+                if (!speakersOnStage.has(name)) {
+                    speakersOnStage.add(name);
+                    // Find gender
+                    const spObj = data.speakers.find(dbSp => dbSp.fullName === name);
+                    if (spObj) {
+                        const p = (spObj.pronoun || '').toLowerCase();
+                        if (p.includes('männ') || p.includes('man') || p.includes('he')) genderCounts.m++;
+                        else if (p.includes('weib') || p.includes('frau') || p.includes('she')) genderCounts.w++;
+                        else if (p.includes('div') || p.includes('non')) genderCounts.d++;
+                        else genderCounts.u++;
+                    } else {
+                        genderCounts.u++;
+                    }
+                }
+            });
+        }
+    });
+
+    return { genderCounts, partnerPercent: totalPlacedSessions ? Math.round((partnerSessions/totalPlacedSessions)*100) : 0, totalPlaced: totalPlacedSessions };
+  }, [data.program, data.speakers]);
+
   const speakerConflicts = useMemo(() => {
     const usage = {};
     const conflicts = {}; 
@@ -357,31 +400,33 @@ function App() {
       const sp = (ranges[0].values || []).filter(r => {
           const s = (r[0] || '').toLowerCase();
           return allowedSpeakerStatus.some(k => s.includes(k));
-      }).map((r,i) => ({id:`sp-${i}`, fullName:`${r[2]||''} ${r[3]||''}`, status:r[0]}));
+      }).map((r,i) => ({id:`sp-${i}`, fullName:`${r[2]||''} ${r[3]||''}`, status:r[0], pronoun: r[4]}));
 
       const mo = (ranges[1].values || []).filter(r=>r[0]).map((r,i) => ({id:`mod-${i}`, fullName:r[1], status:r[0]}));
       
-      // Stage Load: Filter out "Inbox" named stages from spreadsheet to prevent duplication
       const st = (ranges[3].values || [])
-        .map((r,i) => ({id:r[0]||`st-${i}`, name:r[1], capacity:r[2]}))
+        .map((r,i) => ({
+            id:r[0]||`st-${i}`, 
+            name:r[1], 
+            capacity:r[2],
+            maxMics: parseInt(r[4]) || 4 // Col E is MaxMics
+        }))
         .filter(s => s.name && s.name.toLowerCase() !== 'inbox');
         
-      if (st.length===0) st.push({id:'main', name:'Main Stage', capacity:200});
+      if (st.length===0) st.push({id:'main', name:'Main Stage', capacity:200, maxMics: 4});
 
       const pr = (ranges[2].values || []).map((r,i) => {
          const dur = parseInt(r[8]) || 60;
          const start = r[6] || '-';
          let stage = r[5] || INBOX_ID;
-         // Clean stage assignment
          if(!st.find(s=>s.name === stage) && stage !== INBOX_ID) stage = INBOX_ID; 
-         
-         // Fix Missing IDs with Generator
          const id = (r[0] && r[0].length > 1) ? r[0] : generateId();
 
          return {
-           id: id, title: r[1], status: r[2]||'5_Vorschlag', partner: r[3],
+           id: id, title: r[1], status: r[2]||'5_Vorschlag', 
+           partner: r[3] === 'TRUE' || r[3] === 'P' ? 'TRUE' : 'FALSE', // Normalize Partner Flag
            format: r[4]||'Talk', stage: stage, start: start, duration: dur,
-           end: calculateEndTime(start, dur), speakers: r[9], moderators: r[10], language: r[11], notes: r[12]
+           end: calculateEndTime(start, dur), speakers: r[9], moderators: r[10], language: r[11], notes: r[12], stageDispo: r[13]
          };
       });
       setData({ speakers: sp, moderators: mo, stages: st, program: pr });
@@ -397,11 +442,11 @@ function App() {
     setStatus({ loading: true, error: null });
     try {
         const rows = data.program.map(p => [
-            p.id, p.title, p.status, p.partner, p.format, 
+            p.id, p.title, p.status, p.partner === 'TRUE' ? 'TRUE' : '', p.format, 
             p.stage === INBOX_ID ? '' : p.stage, 
             p.start === '-' ? '' : p.start, 
             p.start === '-' ? '' : calculateEndTime(p.start, p.duration), 
-            p.duration, p.speakers, p.moderators, p.language, p.notes
+            p.duration, p.speakers, p.moderators, p.language, p.notes, p.stageDispo
         ]);
         await window.gapi.client.sheets.spreadsheets.values.update({
             spreadsheetId: config.spreadsheetId, range: `${config.sheetNameProgram}!A2:N`,
@@ -505,7 +550,7 @@ function App() {
 
     if (collisions.length > 0) {
         if (collisions.some(c => c.status === 'Fixiert')) {
-            setToast({ msg: "Konflikt mit fixierter Session! Verschieben nicht möglich.", type: "error" });
+            setToast({ msg: "Konflikt mit fixierter Session!", type: "error" });
             setTimeout(() => setToast(null), 3000);
             return;
         }
@@ -538,7 +583,7 @@ function App() {
            return { ...prev, program: newProg };
         });
         setLocalChanges(true);
-        setToast({ msg: `${collisions.length} Session(s) in die Inbox verschoben.`, type: "info" });
+        setToast({ msg: `${collisions.length} Session(s) verschoben.`, type: "info" });
         setTimeout(() => setToast(null), 3000);
 
     } else {
@@ -565,12 +610,14 @@ function App() {
     return { top: `${Math.max(0, top)}px`, height: `${Math.max(20, height)}px` };
   };
 
-  const handleSaveSession = (session) => {
+  const handleSaveSession = (session, autoNote = '') => {
     let newProgram;
+    const finalSession = { ...session, stageDispo: autoNote ? (session.stageDispo + ' ' + autoNote).trim() : session.stageDispo };
+    
     if (editingSession && editingSession.id === session.id) {
-      newProgram = data.program.map(p => p.id === session.id ? session : p);
+      newProgram = data.program.map(p => p.id === session.id ? finalSession : p);
     } else {
-      newProgram = [...data.program, { ...session, id: generateId() }];
+      newProgram = [...data.program, { ...finalSession, id: generateId() }];
     }
     newProgram = newProgram.map(p => ({ ...p, end: calculateEndTime(p.start, p.duration) }));
     setData(prev => ({ ...prev, program: newProgram }));
@@ -627,15 +674,38 @@ function App() {
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
         <div className="flex flex-1 overflow-hidden">
-          {/* SIDEBAR */}
+          {/* SIDEBAR: ANALYTICS & DB */}
           {isAuthenticated && (
-            <div className="w-56 bg-white border-r border-slate-200 flex flex-col shrink-0 z-30 shadow-lg">
-                <div className="p-3 border-b border-slate-100 font-bold text-xs text-slate-500 uppercase">SprecherInnen ({data.speakers.length})</div>
+            <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-30 shadow-lg">
+                <div className="p-4 border-b border-slate-100 bg-slate-50/50">
+                   <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2"><PieChart className="w-4 h-4"/> Analyse (Live)</h3>
+                   <div className="grid grid-cols-2 gap-2 mb-3">
+                      <div className="bg-white p-2 rounded border border-slate-200 text-center">
+                         <div className="text-lg font-bold text-slate-800">{analysis.genderCounts.w}</div>
+                         <div className="text-[9px] text-slate-400 uppercase">Weiblich</div>
+                      </div>
+                      <div className="bg-white p-2 rounded border border-slate-200 text-center">
+                         <div className="text-lg font-bold text-slate-800">{analysis.genderCounts.m}</div>
+                         <div className="text-[9px] text-slate-400 uppercase">Männlich</div>
+                      </div>
+                      <div className="bg-white p-2 rounded border border-slate-200 text-center">
+                         <div className="text-lg font-bold text-slate-800">{analysis.genderCounts.d}</div>
+                         <div className="text-[9px] text-slate-400 uppercase">Divers</div>
+                      </div>
+                      <div className="bg-white p-2 rounded border border-slate-200 text-center">
+                         <div className="text-lg font-bold text-slate-800">{analysis.partnerPercent}%</div>
+                         <div className="text-[9px] text-slate-400 uppercase">Partner</div>
+                      </div>
+                   </div>
+                   <div className="text-[10px] text-slate-400 text-center">Basis: {analysis.totalPlaced} platzierte Sessions</div>
+                </div>
+
                 <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
+                   <div className="text-xs font-bold text-slate-400 px-2 py-2 uppercase">SprecherInnen ({data.speakers.length})</div>
                    {data.speakers.map(s => (
-                     <div key={s.id} className="text-[11px] py-1 px-2 border-b border-slate-50 text-slate-700 truncate hover:bg-slate-50 flex justify-between">
-                       <span>{s.fullName}</span>
-                       <span className="text-[9px] text-slate-400">{s.status.substring(0,3)}</span>
+                     <div key={s.id} className="text-[11px] py-1.5 px-2 border-b border-slate-50 text-slate-700 truncate hover:bg-slate-50 flex justify-between items-center group">
+                       <span className="truncate w-32">{s.fullName}</span>
+                       <span className="text-[9px] text-slate-400 bg-slate-100 px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity">{s.status.substring(0,3)}</span>
                      </div>
                    ))}
                 </div>
@@ -645,7 +715,7 @@ function App() {
           <div className="flex-1 flex flex-col overflow-hidden relative">
              {/* INBOX */}
              <div className="bg-slate-100 border-b border-slate-300 p-2 shrink-0 h-48 flex flex-col shadow-inner z-20">
-                <div className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2">
+                <div className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2 px-2">
                    <Layout className="w-3 h-3"/> Inbox
                 </div>
                 <div className="flex-1 overflow-x-auto custom-scrollbar">
@@ -658,7 +728,7 @@ function App() {
                                   onClick={()=> {setEditingSession(p); setIsModalOpen(true)}}
                                   onToggleLock={(s)=>updateSession(s.id, {status: s.status==='Fixiert'?'2_Planung':'Fixiert'})}
                                   hasConflict={!!speakerConflicts[p.id]}
-                                  conflictTooltip={speakerConflicts[p.id]}
+                                  conflictTooltip={speakerConflicts[p.id]?.join(' | ')}
                                />
                             ))}
                          </DroppableStage>
@@ -707,7 +777,7 @@ function App() {
                                onClick={()=>{setEditingSession(session); setIsModalOpen(true)}}
                                onToggleLock={(s)=>updateSession(s.id, {status: s.status==='Fixiert'?'2_Planung':'Fixiert'})}
                                hasConflict={!!speakerConflicts[session.id]}
-                               conflictTooltip={speakerConflicts[session.id]}
+                               conflictTooltip={speakerConflicts[session.id]?.join(' | ')}
                             />
                          ))}
                       </StageColumn>
@@ -776,13 +846,15 @@ function App() {
   );
 }
 
-// Session Modal (Complete)
+// Session Modal (Updated with Search & Checkbox)
 const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) => {
   const [formData, setFormData] = useState({
     id: '', title: '', start: '10:00', duration: 60, stage: 'Main Stage',
     status: '5_Vorschlag', format: 'Talk', speakers: [], moderators: '', day: '20.09.',
-    partner: '', language: 'de', notes: ''
+    partner: 'FALSE', language: 'de', notes: '', stageDispo: ''
   });
+  const [searchTermSp, setSearchTermSp] = useState('');
+  const [searchTermMod, setSearchTermMod] = useState('');
 
   useEffect(() => {
     if (initialData) {
@@ -796,9 +868,11 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
       setFormData({
         id: generateId(), title: '', start: '10:00', duration: 60, stage: definedStages[0]?.name || 'Main Stage',
         status: '5_Vorschlag', format: 'Talk', speakers: [], moderators: '', day: '20.09.',
-        partner: '', language: 'de', notes: ''
+        partner: 'FALSE', language: 'de', notes: '', stageDispo: ''
       });
     }
+    setSearchTermSp('');
+    setSearchTermMod('');
   }, [initialData, definedStages, isOpen]);
 
   const toggleListSelection = (field, name) => {
@@ -812,8 +886,23 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
     }
   };
 
+  // Mic Check
+  const micWarning = useMemo(() => {
+     if (formData.stage === INBOX_ID) return null;
+     const stage = definedStages.find(s => s.name === formData.stage);
+     if (!stage || !stage.maxMics) return null;
+     if (formData.speakers.length > stage.maxMics) {
+         return `⚠️ Achtung: ${formData.speakers.length} Sprecher, aber nur ${stage.maxMics} Mikrofone auf dieser Bühne!`;
+     }
+     return null;
+  }, [formData.stage, formData.speakers, definedStages]);
+
   const inputStd = "w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all placeholder:text-slate-300";
   const labelStd = "block text-[11px] font-bold text-slate-500 uppercase mb-1.5 tracking-wide";
+
+  // Filter Lists
+  const filteredSpeakers = speakersList.filter(s => s.fullName.toLowerCase().includes(searchTermSp.toLowerCase()));
+  const filteredMods = moderatorsList.filter(m => m.fullName.toLowerCase().includes(searchTermMod.toLowerCase()));
 
   if (!isOpen) return null;
 
@@ -845,26 +934,56 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
             <div className="grid grid-cols-3 gap-4">
                <div><label className={labelStd}>Format</label><input type="text" list="formats" className={inputStd} value={formData.format} onChange={e => setFormData({...formData, format: e.target.value})} /></div>
                <div><label className={labelStd}>Sprache</label><select className={inputStd} value={formData.language} onChange={e => setFormData({...formData, language: e.target.value})}><option value="de">DE</option><option value="en">EN</option></select></div>
-               <div><label className={labelStd}>Partner</label><input type="text" className={inputStd} value={formData.partner} onChange={e => setFormData({...formData, partner: e.target.value})} /></div>
+               <div className="flex flex-col justify-end pb-2">
+                  <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-50 p-2 rounded border border-slate-200 hover:border-blue-300 transition-colors">
+                     <input type="checkbox" className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" checked={formData.partner === 'TRUE'} onChange={e => setFormData({...formData, partner: e.target.checked ? 'TRUE' : 'FALSE'})} />
+                     <span className="text-sm font-medium text-slate-700">Ist Partner-Session</span>
+                  </label>
+               </div>
             </div>
           </div>
           <div className="space-y-4 bg-slate-50 p-4 rounded border">
              <div className="grid grid-cols-4 gap-4">
-               <div className="col-span-2"><label className={labelStd}>Bühne</label><select className={inputStd} value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})}>{definedStages.map(s=><option key={s.id} value={s.name}>{s.name}</option>)}</select></div>
+               <div className="col-span-2"><label className={labelStd}>Bühne</label><select className={inputStd} value={formData.stage} onChange={e => setFormData({...formData, stage: e.target.value})}>{definedStages.map(s=><option key={s.id} value={s.name}>{s.name} ({s.maxMics} Mics)</option>)}</select></div>
                <div><label className={labelStd}>Start</label><input type="time" className={inputStd} value={formData.start} onChange={e => setFormData({...formData, start: e.target.value})} /></div>
                <div><label className={labelStd}>Dauer (Min)</label><input type="number" className={inputStd} value={formData.duration} onChange={e => setFormData({...formData, duration: parseInt(e.target.value)})} /></div>
              </div>
           </div>
+          
           <div className="grid grid-cols-2 gap-4">
-             <div><label className={labelStd}>Sprecher</label><div className="h-32 border rounded overflow-auto p-1">{speakersList.map(s=><div key={s.id} onClick={()=>toggleListSelection('speakers',s.fullName)} className={`text-xs p-1 cursor-pointer hover:bg-slate-100 ${formData.speakers.includes(s.fullName)?'bg-indigo-100 text-indigo-700':''}`}>{s.fullName}</div>)}</div></div>
-             <div><label className={labelStd}>Moderation</label><div className="h-32 border rounded overflow-auto p-1">{moderatorsList.map(m=><div key={m.id} onClick={()=>toggleListSelection('moderators',m.fullName)} className={`text-xs p-1 cursor-pointer hover:bg-slate-100 ${formData.moderators===m.fullName?'bg-pink-100 text-pink-700':''}`}>{m.fullName}</div>)}</div></div>
+             <div>
+                <label className={labelStd}>Sprecher (Suche)</label>
+                <div className="relative mb-2">
+                   <Search className="w-3 h-3 absolute left-2 top-2.5 text-slate-400"/>
+                   <input className="w-full pl-7 p-1.5 text-xs border rounded" placeholder="Filter..." value={searchTermSp} onChange={e=>setSearchTermSp(e.target.value)} />
+                </div>
+                <div className="h-32 border rounded overflow-auto p-1 bg-white">
+                   {filteredSpeakers.map(s=><div key={s.id} onClick={()=>toggleListSelection('speakers',s.fullName)} className={`text-xs p-1.5 cursor-pointer rounded mb-0.5 flex items-center justify-between ${formData.speakers.includes(s.fullName)?'bg-indigo-100 text-indigo-700 font-bold':'hover:bg-slate-50'}`}><span>{s.fullName}</span>{formData.speakers.includes(s.fullName) && <CheckCircle2 className="w-3 h-3"/>}</div>)}
+                </div>
+                {micWarning && <div className="mt-2 text-xs text-red-600 bg-red-50 p-2 rounded border border-red-100 flex items-start gap-2"><AlertTriangle className="w-4 h-4 shrink-0"/> {micWarning}</div>}
+             </div>
+             <div>
+                <label className={labelStd}>Moderation (Suche)</label>
+                <div className="relative mb-2">
+                   <Search className="w-3 h-3 absolute left-2 top-2.5 text-slate-400"/>
+                   <input className="w-full pl-7 p-1.5 text-xs border rounded" placeholder="Filter..." value={searchTermMod} onChange={e=>setSearchTermMod(e.target.value)} />
+                </div>
+                <div className="h-32 border rounded overflow-auto p-1 bg-white">
+                   {filteredMods.map(m=><div key={m.id} onClick={()=>toggleListSelection('moderators',m.fullName)} className={`text-xs p-1.5 cursor-pointer rounded mb-0.5 flex items-center justify-between ${formData.moderators===m.fullName?'bg-pink-100 text-pink-700 font-bold':'hover:bg-slate-50'}`}><span>{m.fullName}</span>{formData.moderators===m.fullName && <CheckCircle2 className="w-3 h-3"/>}</div>)}
+                </div>
+             </div>
+          </div>
+          <div className="space-y-2">
+            <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Notizen & Technik</h4>
+            <textarea className={`${inputStd} h-16 bg-yellow-50/50 border-yellow-200`} value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} placeholder="Notizen..." />
+            <input className={`${inputStd} text-xs font-mono text-slate-500`} value={formData.stageDispo} readOnly placeholder="Stage Dispo (Auto-generiert bei Fehlern)" />
           </div>
         </div>
-        <div className="p-4 border-t flex justify-between">
-           {initialData && <button onClick={()=>onDelete(formData.id)} className="text-red-500 text-sm flex items-center gap-1"><Trash2 className="w-4 h-4"/> Löschen</button>}
-           <div className="flex gap-2">
-             <button onClick={onClose} className="px-4 py-2 border rounded text-sm">Abbrechen</button>
-             <button onClick={()=>onSave({...formData, speakers: formData.speakers.join(', ')})} className="px-4 py-2 bg-blue-600 text-white rounded text-sm">Speichern</button>
+        <div className="p-4 border-t flex justify-between bg-slate-50 rounded-b-xl">
+           {initialData && <button onClick={()=>{if(window.confirm('Wirklich löschen?')) onDelete(formData.id)}} className="text-red-500 text-sm flex items-center gap-1 hover:bg-red-50 px-3 py-1 rounded transition-colors"><Trash2 className="w-4 h-4"/> Löschen</button>}
+           <div className="flex gap-2 ml-auto">
+             <button onClick={onClose} className="px-4 py-2 border rounded text-sm hover:bg-slate-100 transition-colors">Abbrechen</button>
+             <button onClick={()=>onSave(formData, micWarning)} className="px-6 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 shadow-sm font-medium transition-colors">Speichern</button>
            </div>
         </div>
       </div>
