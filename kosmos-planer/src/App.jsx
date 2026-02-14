@@ -18,7 +18,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { 
   Users, RefreshCw, Settings, AlertCircle, 
   Trash2, PlusCircle, UploadCloud, LogIn, X, 
-  Lock, Unlock, MessageSquare, Globe, Flag, Layout, GripVertical, AlertTriangle
+  Lock, Unlock, MessageSquare, Globe, Flag, Layout, AlertTriangle
 } from 'lucide-react';
 
 // --- KONSTANTEN ---
@@ -47,6 +47,8 @@ const FORMAT_COLORS = {
 };
 
 // --- HELPER FUNCTIONS ---
+const generateId = () => Math.floor(10000 + Math.random() * 90000).toString();
+
 const timeToMinutes = (timeStr) => {
   if (!timeStr || !timeStr.includes(':')) return 0;
   const [hours, minutes] = timeStr.split(':').map(Number);
@@ -111,9 +113,10 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
          
          <div className="flex gap-1 shrink-0 z-10 items-center">
             {hasConflict && (
-              <div className="text-red-500 relative group/conflict mr-1">
-                <AlertTriangle className="w-3.5 h-3.5" />
-                <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-red-600 text-white text-xs rounded shadow-lg hidden group-hover/conflict:block z-50 pointer-events-none">
+              <div className="text-red-500 relative group mr-2 cursor-help">
+                <AlertTriangle className="w-4 h-4 animate-pulse" />
+                <div className="absolute top-full right-0 mt-1 w-64 p-3 bg-red-600 text-white text-xs rounded-lg shadow-xl hidden group-hover:block z-50 pointer-events-none border border-red-400">
+                  <div className="font-bold mb-1 border-b border-red-400 pb-1">Konflikt erkannt:</div>
                   {conflictTooltip}
                 </div>
               </div>
@@ -141,10 +144,11 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
          )}
          
          <div className="flex items-center gap-2 text-[9px] text-slate-400 pt-1 border-t border-black/5">
-            {session.language && <span className="flex items-center gap-0.5">{session.language.toUpperCase()}</span>}
+            <span className="font-mono text-slate-300">ID:{session.id}</span>
+            {session.language && <span className="flex items-center gap-0.5 ml-auto">{session.language.toUpperCase()}</span>}
             {session.partner && <span className="flex items-center gap-0.5 truncate max-w-[60px]"><Flag className="w-2.5 h-2.5" /> {session.partner}</span>}
             {session.notes && (
-              <div className="ml-auto relative group/notes">
+              <div className="relative group/notes ml-1">
                 <span className="flex items-center gap-0.5 text-blue-500 cursor-help"><MessageSquare className="w-2.5 h-2.5" /></span>
                 <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-slate-800 text-white text-xs rounded shadow-lg hidden group-hover/notes:block z-50 pointer-events-none">
                   {session.notes}
@@ -265,7 +269,6 @@ function App() {
   const [tokenClient, setTokenClient] = useState(null);
   const [gapiInited, setGapiInited] = useState(false);
 
-  // Sensor Config: Distance 5px to distinguish click from drag
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
@@ -294,8 +297,8 @@ function App() {
              if (!conflicts[s.id]) conflicts[s.id] = [];
              if (!conflicts[existing.id]) conflicts[existing.id] = [];
              
-             const msg = `Terminkollision: ${sp} ist auch in "${existing.title}"`;
-             const msgRev = `Terminkollision: ${sp} ist auch in "${s.title}"`;
+             const msg = `"${sp}" ist auch in: ${existing.title} (${minutesToTime(existing.start)})`;
+             const msgRev = `"${sp}" ist auch in: ${s.title} (${minutesToTime(sStart)})`;
              
              if (!conflicts[s.id].includes(msg)) conflicts[s.id].push(msg);
              if (!conflicts[existing.id].includes(msgRev)) conflicts[existing.id].push(msgRev);
@@ -350,7 +353,6 @@ function App() {
       });
       const ranges = batch.result.valueRanges;
       
-      // Filter Speaker by Status (Strict check with partial match)
       const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag'];
       const sp = (ranges[0].values || []).filter(r => {
           const s = (r[0] || '').toLowerCase();
@@ -358,17 +360,26 @@ function App() {
       }).map((r,i) => ({id:`sp-${i}`, fullName:`${r[2]||''} ${r[3]||''}`, status:r[0]}));
 
       const mo = (ranges[1].values || []).filter(r=>r[0]).map((r,i) => ({id:`mod-${i}`, fullName:r[1], status:r[0]}));
-      const st = (ranges[3].values || []).map((r,i) => ({id:r[0]||`st-${i}`, name:r[1], capacity:r[2]}));
+      
+      // Stage Load: Filter out "Inbox" named stages from spreadsheet to prevent duplication
+      const st = (ranges[3].values || [])
+        .map((r,i) => ({id:r[0]||`st-${i}`, name:r[1], capacity:r[2]}))
+        .filter(s => s.name && s.name.toLowerCase() !== 'inbox');
+        
       if (st.length===0) st.push({id:'main', name:'Main Stage', capacity:200});
 
       const pr = (ranges[2].values || []).map((r,i) => {
          const dur = parseInt(r[8]) || 60;
          const start = r[6] || '-';
          let stage = r[5] || INBOX_ID;
+         // Clean stage assignment
          if(!st.find(s=>s.name === stage) && stage !== INBOX_ID) stage = INBOX_ID; 
          
+         // Fix Missing IDs with Generator
+         const id = (r[0] && r[0].length > 1) ? r[0] : generateId();
+
          return {
-           id: r[0] || `p-${i}`, title: r[1], status: r[2]||'5_Vorschlag', partner: r[3],
+           id: id, title: r[1], status: r[2]||'5_Vorschlag', partner: r[3],
            format: r[4]||'Talk', stage: stage, start: start, duration: dur,
            end: calculateEndTime(start, dur), speakers: r[9], moderators: r[10], language: r[11], notes: r[12]
          };
@@ -559,7 +570,7 @@ function App() {
     if (editingSession && editingSession.id === session.id) {
       newProgram = data.program.map(p => p.id === session.id ? session : p);
     } else {
-      newProgram = [...data.program, { ...session, id: `NEW-${Math.floor(Math.random()*100000)}` }];
+      newProgram = [...data.program, { ...session, id: generateId() }];
     }
     newProgram = newProgram.map(p => ({ ...p, end: calculateEndTime(p.start, p.duration) }));
     setData(prev => ({ ...prev, program: newProgram }));
@@ -647,7 +658,7 @@ function App() {
                                   onClick={()=> {setEditingSession(p); setIsModalOpen(true)}}
                                   onToggleLock={(s)=>updateSession(s.id, {status: s.status==='Fixiert'?'2_Planung':'Fixiert'})}
                                   hasConflict={!!speakerConflicts[p.id]}
-                                  conflictTooltip={speakerConflicts[p.id]?.join(' | ')}
+                                  conflictTooltip={speakerConflicts[p.id]}
                                />
                             ))}
                          </DroppableStage>
@@ -696,7 +707,7 @@ function App() {
                                onClick={()=>{setEditingSession(session); setIsModalOpen(true)}}
                                onToggleLock={(s)=>updateSession(s.id, {status: s.status==='Fixiert'?'2_Planung':'Fixiert'})}
                                hasConflict={!!speakerConflicts[session.id]}
-                               conflictTooltip={speakerConflicts[session.id]?.join(' | ')}
+                               conflictTooltip={speakerConflicts[session.id]}
                             />
                          ))}
                       </StageColumn>
@@ -783,7 +794,7 @@ const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedS
       });
     } else {
       setFormData({
-        id: '', title: '', start: '10:00', duration: 60, stage: definedStages[0]?.name || 'Main Stage',
+        id: generateId(), title: '', start: '10:00', duration: 60, stage: definedStages[0]?.name || 'Main Stage',
         status: '5_Vorschlag', format: 'Talk', speakers: [], moderators: '', day: '20.09.',
         partner: '', language: 'de', notes: ''
       });
