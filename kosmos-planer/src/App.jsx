@@ -417,7 +417,8 @@ const StageColumn = ({ stage, children, height }) => {
 // --- APP COMPONENT ---
 
 // Session Modal logic remains same
-const SessionModal = ({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) => {
+// Session Modal logic remains same
+function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) {
   // Initialize with INBOX as default for NEW sessions
   const [formData, setFormData] = useState({
     id: '', title: '', start: '10:00', duration: 60, stage: INBOX_ID,
