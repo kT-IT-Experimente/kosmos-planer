@@ -38,8 +38,24 @@ function AuthGate({ onAuthSuccess }) {
             fetchServerConfig();
         }
 
-        // Check for OAuth callback
-        checkOAuthCallback();
+        // 1. Check for OAuth callback in URL hash
+        const hasHash = checkOAuthCallback();
+
+        // 2. If no callback, check for existing session in localStorage
+        if (!hasHash) {
+            const savedSession = localStorage.getItem('kosmos_user_session');
+            if (savedSession) {
+                try {
+                    const session = JSON.parse(savedSession);
+                    if (session.accessToken) {
+                        if (import.meta.env.DEV) console.log('[AuthGate] Found saved session, validating...');
+                        validateAndGrantAccess(session.accessToken);
+                    }
+                } catch (e) {
+                    localStorage.removeItem('kosmos_user_session');
+                }
+            }
+        }
     }, []);
 
     const fetchServerConfig = async () => {
@@ -81,7 +97,7 @@ function AuthGate({ onAuthSuccess }) {
 
     const checkOAuthCallback = () => {
         const hash = window.location.hash.substring(1);
-        if (!hash) return;
+        if (!hash) return false;
 
         const params = new URLSearchParams(hash);
         const accessToken = params.get('access_token');
@@ -90,14 +106,16 @@ function AuthGate({ onAuthSuccess }) {
         if (error) {
             setError(`OAuth Error: ${error}`);
             window.history.replaceState(null, '', window.location.pathname);
-            return;
+            return true;
         }
 
         if (accessToken) {
             // Get user info to validate email
             validateAndGrantAccess(accessToken);
             window.history.replaceState(null, '', window.location.pathname);
+            return true;
         }
+        return false;
     };
 
     const validateAndGrantAccess = async (accessToken) => {
@@ -121,6 +139,15 @@ function AuthGate({ onAuthSuccess }) {
 
             // Check if email is authorized
             if (AUTHORIZED_EMAILS.includes(userEmail)) {
+                // Save session for persistence
+                localStorage.setItem('kosmos_user_session', JSON.stringify({
+                    accessToken,
+                    email: userEmail,
+                    name: userInfo.name,
+                    picture: userInfo.picture,
+                    timestamp: Date.now()
+                }));
+
                 // Grant access - pass user info to main app
                 onAuthSuccess({
                     accessToken,
@@ -143,9 +170,15 @@ function AuthGate({ onAuthSuccess }) {
             return;
         }
 
+        // Ensure redirect_uri exactly matches what's in Google Console
+        // We use window.location.origin + window.location.pathname
+        // But we must ensure it ends with a slash if testing on root domain
+        let redirectUri = window.location.origin + window.location.pathname;
+        if (!redirectUri.endsWith('/')) redirectUri += '/';
+
         const params = new URLSearchParams({
             client_id: clientId,
-            redirect_uri: window.location.origin + window.location.pathname,
+            redirect_uri: redirectUri,
             response_type: 'token',
             scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
             include_granted_scopes: 'true'

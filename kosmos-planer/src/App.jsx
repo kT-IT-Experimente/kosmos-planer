@@ -794,6 +794,7 @@ function App({ authenticatedUser }) {
   const handleLogout = () => {
     // Clear all auth data and reload to show AuthGate
     localStorage.removeItem('kosmos_local_data');
+    localStorage.removeItem('kosmos_user_session');
     window.location.reload();
   };
 
