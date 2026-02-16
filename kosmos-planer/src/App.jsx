@@ -623,53 +623,6 @@ function App() {
     return () => { cancelled = true; };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-load data when authentication succeeds and spreadsheet is configured
-  useEffect(() => {
-    if (isAuthenticated && config.spreadsheetId && !status.loading) {
-      loadData();
-    }
-  }, [isAuthenticated, loadData]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleLogin = async () => {
-    let clientId = config.googleClientId;
-    let serverClientId = localStorage.getItem('kosmos_server_client_id');
-
-    // If no client ID in local state, try fetching from server
-    if (!clientId || !serverClientId) {
-      try {
-        const res = await fetch('/api/auth/config');
-        const data = await res.json();
-        if (data.google_client_id) {
-          serverClientId = data.google_client_id;
-          localStorage.setItem('kosmos_server_client_id', serverClientId);
-
-          // If no custom ID set, use server ID
-          if (!clientId) {
-            clientId = serverClientId;
-            setConfig(prev => ({ ...prev, googleClientId: clientId }));
-          }
-        }
-      } catch {
-        // Server config not available
-      }
-    }
-
-    if (clientId) {
-      window.location.href = buildGoogleAuthUrl(clientId, serverClientId);
-    } else {
-      setToast({ msg: "Google Client ID nicht konfiguriert.", type: "error" });
-      setTimeout(() => setToast(null), 5000);
-    }
-  };
-
-  const handleLogout = () => {
-    clearAuth();
-    setAccessToken(null);
-    setIsAuthenticated(false);
-    setToast({ msg: "Abgemeldet.", type: "success" });
-    setTimeout(() => setToast(null), 2000);
-  };
-
   const loadData = useCallback(async () => {
     if (!isAuthenticated || !config.spreadsheetId) return;
     setStatus({ loading: true, error: null });
@@ -702,7 +655,6 @@ function App() {
 
       const batch = await res.json();
       if (!res.ok) {
-        // If auth error, clear auth state so user can re-login
         if (res.status === 401 || res.status === 403) {
           clearAuth();
           setIsAuthenticated(false);
@@ -743,7 +695,6 @@ function App() {
       const pr = (ranges[2].values || []).map((r, i) => {
         const dur = parseInt(r[8]) || 60;
         const start = safeString(r[6]) || '-';
-
         const rawStage = safeString(r[5]);
         let stage = INBOX_ID;
 
@@ -779,13 +730,60 @@ function App() {
           stageDispo: safeString(r[13])
         };
       });
+
       setData({ speakers: sp, moderators: mo, stages: st, program: pr });
       setStatus({ loading: false, error: null });
       setLocalChanges(false);
+      setToast({ msg: "Daten erfolgreich geladen!", type: "success" });
+      setTimeout(() => setToast(null), 3000);
+
     } catch (e) {
+      console.error(e);
       setStatus({ loading: false, error: getErrorMessage(e) });
     }
-  }, [isAuthenticated, config]);
+  }, [isAuthenticated, config, status.loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-load data when authentication succeeds and spreadsheet is configured
+  useEffect(() => {
+    if (isAuthenticated && config.spreadsheetId && !status.loading) {
+      loadData();
+    }
+  }, [isAuthenticated, config.spreadsheetId, loadData]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleLogin = async () => {
+    let clientId = config.googleClientId;
+    let serverClientId = localStorage.getItem('kosmos_server_client_id');
+
+    if (!clientId || !serverClientId) {
+      try {
+        const res = await fetch('/api/auth/config');
+        const data = await res.json();
+        if (data.google_client_id) {
+          serverClientId = data.google_client_id;
+          localStorage.setItem('kosmos_server_client_id', serverClientId);
+          if (!clientId) {
+            clientId = serverClientId;
+            setConfig(prev => ({ ...prev, googleClientId: clientId }));
+          }
+        }
+      } catch { }
+    }
+
+    if (clientId) {
+      window.location.href = buildGoogleAuthUrl(clientId, serverClientId);
+    } else {
+      setToast({ msg: "Google Client ID nicht konfiguriert.", type: "error" });
+      setTimeout(() => setToast(null), 5000);
+    }
+  };
+
+  const handleLogout = () => {
+    clearAuth();
+    setAccessToken(null);
+    setIsAuthenticated(false);
+    setToast({ msg: "Abgemeldet.", type: "success" });
+    setTimeout(() => setToast(null), 2000);
+  };
 
   // --- MAIL MERGE EXPORT ---
   const handleExportMailMerge = () => {
