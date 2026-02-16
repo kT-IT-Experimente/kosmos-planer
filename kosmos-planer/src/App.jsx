@@ -20,7 +20,7 @@ import {
   Trash2, PlusCircle, UploadCloud, LogIn, X,
   Lock, Unlock, MessageSquare, Globe, Flag, Layout,
   AlertTriangle, Mic2, PieChart, Search, CheckCircle2, Languages,
-  Download, Loader2, Key, LogOut
+  Download, DownloadCloud, Loader2, Key, LogOut, Mail
 } from 'lucide-react';
 import {
   INBOX_ID, HEADER_HEIGHT, PIXELS_PER_MINUTE, SNAP_MINUTES,
@@ -109,6 +109,112 @@ async function getValidAccessToken() {
 
   clearAuth();
   return null;
+}
+
+/**
+ * Robust fetch wrapper for Sheets API that falls back to direct Google API calls
+ * if the local proxy is not available.
+ */
+async function fetchSheets(body, token) {
+  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+  let lastError = null;
+
+  // Try the internal proxy first
+  try {
+    const res = await fetch('/api/sheets', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (res.ok) {
+      const text = await res.text();
+      if (!text) {
+        console.warn('[Direct Sheets Fallback] Empty response from proxy');
+        if (isLocal) throw new Error("EmptyProxyResponse"); // Trigger catch block to fallback
+        return { ok: true, data: {} };
+      }
+      try {
+        const data = JSON.parse(text);
+        return { ok: true, data };
+      } catch (e) {
+        console.warn('[Direct Sheets Fallback] Non-JSON response from proxy');
+        if (isLocal) throw new Error("NonJsonResponse"); // Trigger catch block to fallback
+        return { ok: false, error: "Ungültige Server-Antwort", status: res.status };
+      }
+    }
+
+    // Capture error but maybe fallback
+    let lastError = `HTTP ${res.status}`;
+    const contentType = res.headers.get("content-type");
+    if (contentType && contentType.includes("application/json")) {
+      try {
+        const errorData = await res.json();
+        lastError = errorData.error || lastError;
+      } catch (e) { }
+    }
+
+    // Only fallback if it's a proxy connectivity issue or server error on localhost
+    if (isLocal && (res.status === 404 || res.status === 500 || res.status === 502 || res.status === 504)) {
+      console.warn(`[Direct Sheets Fallback] Proxy returned ${res.status}, attempting direct Google API call...`);
+    } else {
+      return { ok: false, error: lastError, status: res.status };
+    }
+  } catch (e) {
+    console.warn('[Direct Sheets Fallback] Fetch failed (network error), attempting direct Google API call:', e);
+    if (!isLocal) throw e;
+  }
+
+  // FALLBACK: Call Google Sheets API directly from the browser
+  const { action, spreadsheetId, ranges, range, values } = body;
+  const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
+
+  try {
+    let url = '';
+    let method = 'GET';
+    let fetchBody = null;
+
+    if (action === 'batchGet') {
+      const params = new URLSearchParams();
+      ranges.forEach(r => params.append('ranges', r));
+      if (apiKey) params.append('key', apiKey);
+      url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values:batchGet?${params.toString()}`;
+    } else if (action === 'update') {
+      const params = new URLSearchParams({ valueInputOption: 'USER_ENTERED' });
+      if (apiKey) params.append('key', apiKey);
+      url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?${params.toString()}`;
+      method = 'PUT';
+      fetchBody = JSON.stringify({ values });
+    }
+
+    const res = await fetch(url, {
+      method,
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      body: fetchBody
+    });
+
+    const text = await res.text();
+    if (!text) return { ok: true, data: {} };
+
+    try {
+      const data = JSON.parse(text);
+      if (!res.ok) {
+        return { ok: false, error: data.error?.message || 'Sheets API Fehler', status: res.status };
+      }
+      return { ok: true, data };
+    } catch (e) {
+      if (!res.ok) return { ok: false, error: `HTTP ${res.status}`, status: res.status };
+      return { ok: true, data: {} };
+    }
+  } catch (e) {
+    return { ok: false, error: `Verbindung zu Google fehlgeschlagen: ${e.message}` };
+  }
 }
 
 function buildGoogleAuthUrl(clientId, serverClientId) {
@@ -343,13 +449,14 @@ function StageColumn({ stage, children, height }) {
 // Session Modal logic remains same
 
 
-function App() {
+function App({ authenticatedUser }) {
   const [data, setData] = useState({ speakers: [], moderators: [], program: [], stages: [] });
   const [status, setStatus] = useState({ loading: false, error: null });
 
+  // Simplified config - no more complex auth initialization
   const [config, setConfig] = useState({
-    googleClientId: localStorage.getItem('kosmos_google_client_id') || import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
-    googleApiKey: localStorage.getItem('kosmos_google_api_key') || import.meta.env.VITE_GOOGLE_API_KEY || '',
+    googleClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
+    googleApiKey: import.meta.env.VITE_GOOGLE_API_KEY || '',
     spreadsheetId: localStorage.getItem('kosmos_spreadsheet_id') || import.meta.env.VITE_SPREADSHEET_ID || '',
     sheetNameProgram: localStorage.getItem('kosmos_sheet_program') || 'Programm_Export',
     sheetNameSpeakers: localStorage.getItem('kosmos_sheet_speakers') || '26_Kosmos_SprecherInnen',
@@ -357,8 +464,7 @@ function App() {
     sheetNameStages: localStorage.getItem('kosmos_sheet_stages') || 'Bühnen_Import',
     startHour: parseInt(localStorage.getItem('kosmos_start_hour')) || 9,
     endHour: parseInt(localStorage.getItem('kosmos_end_hour')) || 22,
-    bufferMin: parseInt(localStorage.getItem('kosmos_buffer_min')) || 5,
-    manualToken: localStorage.getItem('kosmos_manualToken') || ''
+    bufferMin: parseInt(localStorage.getItem('kosmos_buffer_min')) || 5
   });
 
   const [activeDragItem, setActiveDragItem] = useState(null);
@@ -373,10 +479,29 @@ function App() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [accessToken, setAccessToken] = useState(null);
-  const [loginLoading, setLoginLoading] = useState(true);
-  const [authError, setAuthError] = useState(null);
+  // Auth state is now simplified - user is already authenticated
+  const [isAuthenticated] = useState(true); // Always true since AuthGate handles this
+  const [accessToken] = useState(authenticatedUser.accessToken);
+  const [userProfile] = useState({
+    email: authenticatedUser.email,
+    name: authenticatedUser.name,
+    picture: authenticatedUser.picture
+  });
+
+  // Mobile & Sidebar state
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth < 1024;
+      setIsMobile(mobile);
+      // Auto-collapse sidebar when switching to mobile
+      if (mobile) setIsSidebarOpen(false);
+    };
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -519,156 +644,61 @@ function App() {
     return conflicts;
   }, [data.program, data.speakers]);
 
-  // --- AUTH: Single consolidated initialization ---
-  // This runs once on mount and handles everything:
-  // 1. Parse auth tokens from URL fragment (OAuth callback return)
-  // 2. Check for auth errors in URL params
-  // 3. Check for manual token fallback
-  // 4. Check stored tokens / refresh expired tokens
-  // 5. Fetch server config (Google Client ID) for the login button
-  useEffect(() => {
-    let cancelled = false;
+  // Ref to gate loading frequency and prevent loops
+  const lastLoadRef = React.useRef(0);
 
-    const initAuth = async () => {
-      // Step 1: Check for auth tokens in URL fragment (returned from OAuth callback OR Implicit Flow)
-      // This must happen FIRST and synchronously before any async work
-      const fragmentAuth = parseAuthFromFragment();
-      if (fragmentAuth) {
-        const auth = storeAuth(fragmentAuth);
-        if (!cancelled) {
-          setAccessToken(auth.access_token);
-          setIsAuthenticated(true);
-          setLoginLoading(false);
-          setToast({ msg: "Erfolgreich eingeloggt!", type: "success" });
-          setTimeout(() => setToast(null), 3000);
-        }
-        // Clean the URL fragment
-        window.history.replaceState(null, '', window.location.pathname + window.location.search);
-        return; // Done - successfully authenticated from callback
-      }
+  // Simplified data loading function - uses authenticatedUser.accessToken directly
+  // importProgram: if true, also fetches and overwrites the timeline data
+  const loadData = useCallback(async (options = {}) => {
+    const { manual = false, importProgram = false } = options;
+    if (import.meta.env.DEV) console.log('[loadData] Invoked!', { manual, importProgram, timestamp: new Date().toLocaleTimeString() });
+    if (!config.spreadsheetId) return;
 
-      // Step 2: Check for auth error in URL params
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlAuthError = urlParams.get('auth_error');
-      if (urlAuthError) {
-        if (!cancelled) {
-          setAuthError(urlAuthError);
-          setToast({ msg: `Login-Fehler: ${urlAuthError}`, type: 'error' });
-        }
-        window.history.replaceState(null, '', window.location.pathname);
-      }
+    // Rate limit: prevent reloading more than once every 2 seconds unless manual
+    const now = Date.now();
+    if (!manual && now - lastLoadRef.current < 2000) return;
+    lastLoadRef.current = now;
 
-      // Step 3: Check for manual token (from settings)
-      const manualToken = localStorage.getItem('kosmos_manualToken');
-      if (manualToken) {
-        if (!cancelled) {
-          setAccessToken(manualToken);
-          setIsAuthenticated(true);
-          setLoginLoading(false);
-        }
-        return;
-      }
-
-      // Step 4: Check for stored auth (previous session)
-      const storedAuth = getStoredAuth();
-      if (storedAuth && !storedAuth.expired) {
-        if (!cancelled) {
-          setAccessToken(storedAuth.access_token);
-          setIsAuthenticated(true);
-          setLoginLoading(false);
-        }
-        return;
-      }
-
-      // Step 5: Try to refresh expired token
-      if (storedAuth?.expired && storedAuth.refresh_token) {
-        try {
-          const newTokenData = await refreshAccessToken(storedAuth.refresh_token);
-          if (!cancelled) {
-            const auth = storeAuth(newTokenData);
-            setAccessToken(auth.access_token);
-            setIsAuthenticated(true);
-          }
-        } catch {
-          clearAuth();
-        }
-        if (!cancelled) setLoginLoading(false);
-        return;
-      }
-
-      // Step 6: No existing auth - fetch server config for login button
-      try {
-        const res = await fetch('/api/auth/config');
-        const data = await res.json();
-        if (!cancelled && data.google_client_id) {
-          setConfig(prev => {
-            // Store Server Client ID strictly for comparison
-            localStorage.setItem('kosmos_server_client_id', data.google_client_id);
-
-            // Only update if not already set from localStorage
-            if (!prev.googleClientId) {
-              return { ...prev, googleClientId: data.google_client_id };
-            }
-            return prev;
-          });
-        }
-      } catch {
-        // Config fetch failed - user can still set client ID in settings
-      }
-
-      if (!cancelled) setLoginLoading(false);
-    };
-
-    initAuth();
-    return () => { cancelled = true; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const loadData = useCallback(async () => {
-    if (!isAuthenticated || !config.spreadsheetId) return;
     setStatus({ loading: true, error: null });
     try {
-      const token = await getValidAccessToken();
-      if (!token) {
-        setIsAuthenticated(false);
-        setAccessToken(null);
-        setStatus({ loading: false, error: "Sitzung abgelaufen. Bitte erneut einloggen." });
-        return;
+      // Use the access token from AuthGate
+      const token = authenticatedUser.accessToken;
+
+      const ranges = [
+        `'${config.sheetNameSpeakers}'!A2:I`,
+        `'${config.sheetNameMods}'!A2:C`,
+        `'${config.sheetNameStages}'!A2:H`
+      ];
+
+      if (importProgram) {
+        ranges.push(`'${config.sheetNameProgram}'!A2:N`);
       }
 
-      const res = await fetch('/api/sheets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          action: 'batchGet',
-          spreadsheetId: config.spreadsheetId,
-          ranges: [
-            `'${config.sheetNameSpeakers}'!A2:I`,
-            `'${config.sheetNameMods}'!A2:C`,
-            `'${config.sheetNameProgram}'!A2:N`,
-            `'${config.sheetNameStages}'!A2:H`
-          ]
-        }),
-      });
+      if (import.meta.env.DEV) console.log('[loadData] Final ranges to fetch:', ranges);
 
-      const batch = await res.json();
-      if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
+      const { ok, data: batch, error, status: resStatus } = await fetchSheets({
+        action: 'batchGet',
+        spreadsheetId: config.spreadsheetId,
+        ranges: ranges
+      }, token);
+
+      if (import.meta.env.DEV) console.log('[loadData] Result:', { ok, rangeCount: batch?.valueRanges?.length, error });
+
+      if (!ok) {
+        if (resStatus === 401 || resStatus === 403) {
           clearAuth();
           setIsAuthenticated(false);
           setAccessToken(null);
           setStatus({ loading: false, error: "Zugriff verweigert. Bitte erneut einloggen." });
           return;
         }
-        throw new Error(batch.error || 'Sheets API Fehler');
+        throw new Error(error || 'Sheets API Fehler');
       }
 
-      const ranges = batch.valueRanges;
+      const valRanges = batch.valueRanges;
 
       const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag'];
-      const sp = (ranges[0].values || []).filter(r => {
+      const sp = (valRanges[0].values || []).filter(r => {
         const s = safeString(r[0]).toLowerCase();
         return allowedSpeakerStatus.some(k => s.includes(k));
       }).map((r, i) => ({
@@ -679,9 +709,9 @@ function App() {
         email: safeString(r[8])
       }));
 
-      const mo = (ranges[1].values || []).filter(r => r[0]).map((r, i) => ({ id: `mod-${i}`, fullName: safeString(r[1]), status: safeString(r[0]) }));
+      const mo = (valRanges[1].values || []).filter(r => r[0]).map((r, i) => ({ id: `mod-${i}`, fullName: safeString(r[1]), status: safeString(r[0]) }));
 
-      const st = (ranges[3].values || [])
+      const st = (valRanges[2].values || [])
         .map((r, i) => ({
           id: safeString(r[0]) || `st-${i}`,
           name: safeString(r[1]),
@@ -692,97 +722,79 @@ function App() {
 
       if (st.length === 0) st.push({ id: 'main', name: 'Main Stage', capacity: 200, maxMics: 4 });
 
-      const pr = (ranges[2].values || []).map((r, i) => {
-        const dur = parseInt(r[8]) || 60;
-        const start = safeString(r[6]) || '-';
-        const rawStage = safeString(r[5]);
-        let stage = INBOX_ID;
+      let pr = null;
+      if (importProgram && valRanges[3]) {
+        pr = (valRanges[3].values || []).map((r, i) => {
+          const dur = parseInt(r[8]) || 60;
+          const start = safeString(r[6]) || '-';
+          const rawStage = safeString(r[5]);
+          let stage = INBOX_ID;
 
-        if (rawStage) {
-          const matchById = st.find(s => s.id === rawStage);
-          if (matchById) {
-            stage = matchById.id;
-          } else {
-            const matchByName = st.find(s => s.name === rawStage);
-            if (matchByName) {
-              stage = matchByName.id;
+          if (rawStage) {
+            const matchById = st.find(s => s.id === rawStage);
+            if (matchById) {
+              stage = matchById.id;
+            } else {
+              const matchByName = st.find(s => s.name === rawStage);
+              if (matchByName) {
+                stage = matchByName.id;
+              }
             }
           }
-        }
 
-        const rawId = safeString(r[0]);
-        const id = (rawId && rawId.length > 1) ? rawId : generateId();
+          const rawId = safeString(r[0]);
+          const id = (rawId && rawId.length > 1) ? rawId : generateId();
 
-        return {
-          id: id,
-          title: safeString(r[1]),
-          status: safeString(r[2]) || '5_Vorschlag',
-          partner: (safeString(r[3]) === 'TRUE' || safeString(r[3]) === 'P') ? 'TRUE' : 'FALSE',
-          format: safeString(r[4]) || 'Talk',
-          stage: stage,
-          start: start,
-          duration: dur,
-          end: calculateEndTime(start, dur),
-          speakers: safeString(r[9]),
-          moderators: safeString(r[10]),
-          language: safeString(r[11]),
-          notes: safeString(r[12]),
-          stageDispo: safeString(r[13])
-        };
+          return {
+            id: id,
+            title: safeString(r[1]),
+            status: safeString(r[2]) || '5_Vorschlag',
+            partner: (safeString(r[3]) === 'TRUE' || safeString(r[3]) === 'P') ? 'TRUE' : 'FALSE',
+            format: safeString(r[4]) || 'Talk',
+            stage: stage,
+            start: start,
+            duration: dur,
+            end: calculateEndTime(start, dur),
+            speakers: safeString(r[9]),
+            moderators: safeString(r[10]),
+            language: safeString(r[11]),
+            notes: safeString(r[12]),
+            stageDispo: safeString(r[13])
+          };
+        });
+      }
+
+      setData(prev => {
+        const newData = { ...prev, speakers: sp, moderators: mo, stages: st };
+        if (pr) newData.program = pr;
+        return newData;
       });
-
-      setData({ speakers: sp, moderators: mo, stages: st, program: pr });
       setStatus({ loading: false, error: null });
-      setLocalChanges(false);
-      setToast({ msg: "Daten erfolgreich geladen!", type: "success" });
-      setTimeout(() => setToast(null), 3000);
+      if (pr) setLocalChanges(false);
+
+      if (manual) {
+        const msg = importProgram ? "Programm & Stammdaten importiert!" : "Stammdaten (Sprecher/Bühnen) aktualisiert!";
+        setToast({ msg, type: "success" });
+        setTimeout(() => setToast(null), 3000);
+      }
 
     } catch (e) {
       console.error(e);
       setStatus({ loading: false, error: getErrorMessage(e) });
     }
-  }, [isAuthenticated, config, status.loading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authenticatedUser.accessToken, config.spreadsheetId, config.sheetNameSpeakers, config.sheetNameMods, config.sheetNameProgram, config.sheetNameStages]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Auto-load data when authentication succeeds and spreadsheet is configured
+  // Auto-load data when app mounts
   useEffect(() => {
-    if (isAuthenticated && config.spreadsheetId && !status.loading) {
-      loadData();
+    if (config.spreadsheetId) {
+      loadData({ manual: false, importProgram: false }); // Only metadata on mount
     }
-  }, [isAuthenticated, config.spreadsheetId, loadData]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleLogin = async () => {
-    let clientId = config.googleClientId;
-    let serverClientId = localStorage.getItem('kosmos_server_client_id');
-
-    if (!clientId || !serverClientId) {
-      try {
-        const res = await fetch('/api/auth/config');
-        const data = await res.json();
-        if (data.google_client_id) {
-          serverClientId = data.google_client_id;
-          localStorage.setItem('kosmos_server_client_id', serverClientId);
-          if (!clientId) {
-            clientId = serverClientId;
-            setConfig(prev => ({ ...prev, googleClientId: clientId }));
-          }
-        }
-      } catch { }
-    }
-
-    if (clientId) {
-      window.location.href = buildGoogleAuthUrl(clientId, serverClientId);
-    } else {
-      setToast({ msg: "Google Client ID nicht konfiguriert.", type: "error" });
-      setTimeout(() => setToast(null), 5000);
-    }
-  };
+  }, [config.spreadsheetId, loadData]);
 
   const handleLogout = () => {
-    clearAuth();
-    setAccessToken(null);
-    setIsAuthenticated(false);
-    setToast({ msg: "Abgemeldet.", type: "success" });
-    setTimeout(() => setToast(null), 2000);
+    // Clear all auth data and reload to show AuthGate
+    localStorage.removeItem('kosmos_local_data');
+    window.location.reload();
   };
 
   // --- MAIL MERGE EXPORT ---
@@ -850,16 +862,10 @@ function App() {
   };
 
   const handleSync = async () => {
-    if (!isAuthenticated) return;
     setStatus({ loading: true, error: null });
     try {
-      const token = await getValidAccessToken();
-      if (!token) {
-        setIsAuthenticated(false);
-        setAccessToken(null);
-        setStatus({ loading: false, error: "Sitzung abgelaufen. Bitte erneut einloggen." });
-        return;
-      }
+      // Use the access token from AuthGate
+      const token = authenticatedUser.accessToken;
 
       const rows = data.program.map(p => {
         const speakersStr = Array.isArray(p.speakers) ? p.speakers.join(', ') : (p.speakers || '');
@@ -883,37 +889,24 @@ function App() {
         ];
       });
 
-      const res = await fetch('/api/sheets', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          action: 'update',
-          spreadsheetId: config.spreadsheetId,
-          range: `'${config.sheetNameProgram}'!A2:N`,
-          values: rows,
-        }),
-      });
+      const { ok, data: result, error } = await fetchSheets({
+        action: 'update',
+        spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameProgram}'!A2:N`,
+        values: rows,
+      }, token);
 
-      const result = await res.json();
-      if (!res.ok) {
-        if (res.status === 401 || res.status === 403) {
-          clearAuth();
-          setIsAuthenticated(false);
-          setAccessToken(null);
-          setStatus({ loading: false, error: "Zugriff verweigert. Bitte erneut einloggen." });
-          return;
-        }
-        throw new Error(result.error || 'Sheets API Fehler');
+      if (!ok) {
+        throw new Error(error || 'Sheets API Fehler');
       }
 
-      setLocalChanges(false);
       setStatus({ loading: false, error: null });
-      setToast({ msg: "Programm erfolgreich gespeichert!", type: "success" });
+      setLocalChanges(false);
+      setToast({ msg: `${result.updatedCells || 0} Zellen gespeichert!`, type: "success" });
       setTimeout(() => setToast(null), 3000);
+
     } catch (e) {
+      console.error(e);
       setStatus({ loading: false, error: getErrorMessage(e) });
     }
   };
@@ -1107,11 +1100,20 @@ function App() {
       {/* HEADER */}
       <header className="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shrink-0 z-40 shadow-sm">
         <div className="flex items-center gap-4">
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className={`p-2 rounded-full transition-colors ${isSidebarOpen ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}
+            title="Seitenleiste umschalten"
+          >
+            <Layout className="w-5 h-5" />
+          </button>
           <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">KOSMOS Planer</h1>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+              {isMobile ? 'KOSMOS' : 'KOSMOS Planer'}
+            </h1>
             <div className="flex gap-2 text-[10px] font-bold uppercase text-slate-400">
               {status.loading && <span className="text-blue-500 animate-pulse">Laden...</span>}
-              {localChanges && <span className="text-orange-500 bg-orange-100 px-1 rounded">● Ungespeichert (Offline)</span>}
+              {localChanges && <span className="text-orange-500 bg-orange-100 px-1 rounded truncate max-w-[80px]">● {isMobile ? 'Offline' : 'Ungespeichert'}</span>}
             </div>
           </div>
 
@@ -1147,44 +1149,72 @@ function App() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          {!isAuthenticated ? (
-            <button
-              onClick={handleLogin}
-              className={`bg-slate-900 text-white px-3 py-1.5 rounded text-sm flex gap-2 items-center ${loginLoading ? 'opacity-70' : ''}`}
-              disabled={loginLoading}
-            >
-              {loginLoading ? <><Loader2 className="w-3 h-3 animate-spin" /> Init...</> : <><LogIn className="w-3 h-3" /> Login</>}
-            </button>
-          ) : (
-            <>
-              <button onClick={loadData} className="p-2 hover:bg-slate-100 rounded text-slate-500" title="Neu laden"><RefreshCw className="w-4 h-4" /></button>
-
-              {/* New Export Button */}
-              <button onClick={handleExportMailMerge} className="p-2 hover:bg-slate-100 rounded text-slate-500" title="Mail Merge Export">
-                <Download className="w-4 h-4" />
-              </button>
-
-              <button onClick={handleSync} disabled={!localChanges} className={`flex items-center gap-2 px-3 py-1.5 rounded text-white text-sm font-bold shadow-sm ${localChanges ? 'bg-blue-600 hover:bg-blue-700' : 'bg-slate-300'}`}>
-                <UploadCloud className="w-3 h-3" /> Speichern
-              </button>
-              <button onClick={handleLogout} className="p-2 hover:bg-red-50 rounded text-slate-400 hover:text-red-500" title="Abmelden">
-                <LogOut className="w-4 h-4" />
-              </button>
-            </>
+        <div className="flex items-center gap-3">
+          {/* User Profile - Hidden on tiny mobile */}
+          {!isMobile && userProfile.picture && (
+            <img
+              src={userProfile.picture}
+              alt={userProfile.name}
+              className="w-7 h-7 rounded-full border border-slate-300"
+            />
           )}
-          <div className="w-px h-6 bg-slate-200 mx-1"></div>
-          <button onClick={() => setShowSettings(true)} className="p-1.5 text-slate-400 hover:bg-slate-100 rounded"><Settings className="w-5 h-5" /></button>
+          {!isMobile && <span className="text-sm text-slate-600">{userProfile.name}</span>}
+
+          {/* Action Buttons */}
+          <button
+            onClick={handleSync}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-all ${localChanges
+              ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md animate-pulse'
+              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+              }`}
+            title="Änderungen im Google Sheet speichern"
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Speichern</span>
+          </button>
+
+          <button
+            onClick={() => {
+              if (window.confirm("Ganzes Programm aus Google Sheet importieren? ACHTUNG: Lokale Änderungen am Zeitplan werden überschrieben!")) {
+                loadData({ manual: true, importProgram: true });
+              }
+            }}
+            className="p-2 hover:bg-slate-100 rounded text-slate-500"
+            title="Programm aus Google Sheet importieren (Überschreibt lokale Änderungen!)"
+          >
+            <DownloadCloud className="w-4 h-4" />
+          </button>
+
+          <button onClick={() => loadData({ manual: true })} className="p-2 hover:bg-slate-100 rounded text-slate-500" title="Stammdaten neu laden">
+            <RefreshCw className="w-4 h-4" />
+          </button>
+
+          <button onClick={handleExportMailMerge} className="p-2 hover:bg-slate-100 rounded text-slate-500" title="Mail Merge Export">
+            <Mail className="w-4 h-4" />
+          </button>
+
+          <button onClick={() => setShowSettings(!showSettings)} className="p-2 hover:bg-slate-100 rounded text-slate-500" title="Einstellungen">
+            <Settings className="w-4 h-4" />
+          </button>
+
+          {/* Logout Button */}
+          <button
+            onClick={handleLogout}
+            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded text-sm flex gap-2 items-center transition-colors"
+            title="Abmelden"
+          >
+            <LogOut className="w-3 h-3" />
+            Logout
+          </button>
         </div>
       </header>
 
-      {(status.error || authError) && <div className="bg-red-50 text-red-600 p-2 text-xs text-center border-b border-red-200 font-bold">{status.error || `Authentifizierungsfehler: ${authError}`}</div>}
+      {status.error && <div className="bg-red-50 text-red-600 p-2 text-xs text-center border-b border-red-200 font-bold">{status.error}</div>}
 
       <DndContext sensors={sensors} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
         <div className="flex flex-1 overflow-hidden">
           {/* SIDEBAR */}
-          {/* Always show sidebar base, but empty/loading state if not auth */}
-          <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-30 shadow-lg">
+          <div className={`${isSidebarOpen ? 'w-64 border-r' : 'w-0 border-r-0'} bg-white border-slate-200 flex flex-col shrink-0 z-30 shadow-lg transition-all duration-300 overflow-hidden`}>
             <div className="p-4 border-b border-slate-100 bg-slate-50/50">
               <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2"><PieChart className="w-4 h-4" /> Analyse (Live)</h3>
               <div className="grid grid-cols-2 gap-2 mb-3">
