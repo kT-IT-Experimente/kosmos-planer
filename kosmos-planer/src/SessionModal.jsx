@@ -33,7 +33,7 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
         setSearchTermMod('');
     }, [initialData, definedStages, isOpen]);
 
-    const toggleListSelection = (field, name) => {
+    function toggleListSelection(field, name) {
         if (field === 'speakers') {
             setFormData(prev => {
                 const exists = prev.speakers.includes(name);
@@ -45,7 +45,7 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
                 return { ...prev, moderators: exists ? prev.moderators.filter(s => s !== name) : [...prev.moderators, name] };
             });
         }
-    };
+    }
 
     const micWarning = useMemo(() => {
         if (formData.stage === INBOX_ID) return null;

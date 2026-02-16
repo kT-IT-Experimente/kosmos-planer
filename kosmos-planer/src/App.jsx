@@ -33,87 +33,75 @@ import SessionModal from './SessionModal';
 // --- HELPERS IMPORTED FROM utils.js ---
 
 // --- AUTH HELPERS ---
-const getStoredAuth = () => {
+function getStoredAuth() {
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);
     if (!raw) return null;
     const auth = JSON.parse(raw);
     // Check if token is expired (with 60s buffer)
-    if (auth.expires_at && Date.now() > auth.expires_at - 60000) {
-      // Token expired but we might have a refresh token
-      if (auth.refresh_token) return { ...auth, expired: true };
-      localStorage.removeItem(AUTH_STORAGE_KEY);
+    if (auth.expiresAt && Date.now() > auth.expiresAt - 60000) {
+      if (auth.refreshToken) return { ...auth, expired: true };
+      localStorage.removeItem(AUTH_STORAGE_KEY); // Clear if expired and no refresh token
       return null;
     }
     return auth;
-  } catch { return null; }
-};
-
-const storeAuth = (tokenData) => {
-  const auth = {
-    access_token: tokenData.access_token,
-    expires_at: Date.now() + (parseInt(tokenData.expires_in) || 3600) * 1000,
-    ...(tokenData.refresh_token ? { refresh_token: tokenData.refresh_token } : {}),
-  };
-  // Preserve existing refresh_token if not provided in new data
-  const existing = getStoredAuth();
-  if (!auth.refresh_token && existing?.refresh_token) {
-    auth.refresh_token = existing.refresh_token;
+  } catch (e) {
+    return null;
   }
+}
+
+function storeAuth(tokenData) {
+  const expiresAt = Date.now() + (parseInt(tokenData.expires_in) || 3600) * 1000;
+  const auth = {
+    accessToken: tokenData.access_token,
+    refreshToken: tokenData.refresh_token,
+    expiresAt
+  };
   localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(auth));
   return auth;
-};
+}
 
-const clearAuth = () => {
+function clearAuth() {
   localStorage.removeItem(AUTH_STORAGE_KEY);
-};
+}
 
-const parseAuthFromFragment = () => {
-  const hash = window.location.hash;
-  if (!hash.startsWith('#auth=')) return null;
-  try {
-    const params = new URLSearchParams(hash.slice(6));
-    const access_token = params.get('access_token');
-    if (!access_token) return null;
+function parseAuthFromFragment() {
+  const hash = window.location.hash.substring(1);
+  if (!hash) return null;
+  const params = new URLSearchParams(hash);
+  const accessToken = params.get('access_token');
+  if (accessToken) {
     return {
-      access_token,
-      expires_in: params.get('expires_in') || '3600',
+      access_token: accessToken,
+      expires_in: parseInt(params.get('expires_in') || '3600'),
       refresh_token: params.get('refresh_token') || null,
     };
-  } catch { return null; }
-};
-
-const refreshAccessToken = async (refreshToken) => {
-  const res = await fetch('/api/auth/refresh', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ refresh_token: refreshToken }),
-  });
-  if (!res.ok) {
-    const data = await res.json().catch(() => ({}));
-    throw new Error(data.error || 'Token refresh failed');
   }
-  return res.json();
-};
+  return null;
+}
 
-const getValidAccessToken = async () => {
+async function refreshAccessToken(refreshToken) {
+  // Implicit flow doesn't have refresh tokens generally,
+  // but if we had a server-side component we'd do it here.
+  // For this client-side only app, we'll just throw an error.
+  throw new Error("Refresh not implemented for implicit flow");
+}
+
+async function getValidAccessToken() {
   // If we have a manual token, return it directly
   const manualToken = localStorage.getItem('kosmos_manualToken');
   if (manualToken) return manualToken;
 
   const auth = getStoredAuth();
   if (!auth) return null;
+  if (!auth.expired) return auth.accessToken;
 
-  // If token is not expired, return it
-  if (!auth.expired) return auth.access_token;
-
-  // Try to refresh
-  if (auth.refresh_token) {
+  if (auth.refreshToken) {
     try {
-      const newTokenData = await refreshAccessToken(auth.refresh_token);
-      storeAuth(newTokenData);
-      return newTokenData.access_token;
-    } catch {
+      const newAuth = await refreshAccessToken(auth.refreshToken);
+      storeAuth(newAuth); // Store the new token data
+      return newAuth.accessToken;
+    } catch (e) {
       clearAuth();
       return null;
     }
@@ -121,34 +109,29 @@ const getValidAccessToken = async () => {
 
   clearAuth();
   return null;
-};
+}
 
-const buildGoogleAuthUrl = (clientId, serverClientId) => {
-  const isManaged = clientId === serverClientId;
-  const redirectUri = isManaged
-    ? `${window.location.origin}/api/auth/callback`
-    : window.location.origin; // Implicit flow redirects to origin
+function buildGoogleAuthUrl(clientId, serverClientId) {
+  const params = new URLSearchParams();
+  params.append('client_id', clientId);
+  params.append('redirect_uri', window.location.origin + window.location.pathname);
+  params.append('scope', SCOPES);
+  params.append('include_granted_scopes', 'true');
+  params.append('state', 'kosmos_auth');
 
-  const params = new URLSearchParams({
-    client_id: clientId,
-    redirect_uri: redirectUri,
-    scope: SCOPES,
-    prompt: 'consent',
-  });
-
-  if (isManaged) {
+  if (serverClientId) { // If serverClientId is provided, assume managed flow
     params.append('response_type', 'code');
     params.append('access_type', 'offline');
-  } else {
+  } else { // Otherwise, implicit flow
     params.append('response_type', 'token');
   }
 
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
-};
+}
 
 // --- COMPONENTS ---
 
-const Card = React.forwardRef(({ children, className = "", onClick, style, status, ...props }, ref) => {
+const Card = React.forwardRef(function Card({ children, className = "", onClick, style, status, ...props }, ref) {
   const statusClass = STATUS_COLORS[status] || 'border-slate-200 bg-white';
   return (
     <div
@@ -163,7 +146,7 @@ const Card = React.forwardRef(({ children, className = "", onClick, style, statu
   );
 });
 
-const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConflict, conflictTooltip, listeners, attributes, isDimmed }) => {
+function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConflict, conflictTooltip, listeners, attributes, isDimmed }) {
   const formatColor = FORMAT_COLORS[session.format] || 'bg-slate-100 text-slate-700';
   const [activeOverlay, setActiveOverlay] = useState(null);
 
@@ -275,7 +258,7 @@ const SessionCardContent = ({ session, onClick, onToggleLock, isLocked, hasConfl
   );
 };
 
-const DroppableStage = ({ id, children, className }) => {
+function DroppableStage({ id, children, className }) {
   const { setNodeRef } = useDroppable({ id });
   return (
     <div ref={setNodeRef} className={className}>
@@ -284,7 +267,7 @@ const DroppableStage = ({ id, children, className }) => {
   );
 };
 
-const DraggableTimelineItem = ({ session, onClick, style, onToggleLock, hasConflict, conflictTooltip, isDimmed }) => {
+function DraggableTimelineItem({ session, onClick, style, onToggleLock, hasConflict, conflictTooltip, isDimmed }) {
   const isLocked = session.status === 'Fixiert';
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: session.id,
@@ -311,7 +294,7 @@ const DraggableTimelineItem = ({ session, onClick, style, onToggleLock, hasConfl
   );
 };
 
-const SortableInboxItem = ({ session, onClick, onToggleLock, hasConflict, conflictTooltip, isDimmed }) => {
+function SortableInboxItem({ session, onClick, onToggleLock, hasConflict, conflictTooltip, isDimmed }) {
   const isLocked = session.status === 'Fixiert';
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: session.id, data: session, disabled: isLocked
@@ -331,7 +314,7 @@ const SortableInboxItem = ({ session, onClick, onToggleLock, hasConflict, confli
   );
 };
 
-const StageColumn = ({ stage, children, height }) => {
+function StageColumn({ stage, children, height }) {
   const { setNodeRef, isOver } = useDroppable({
     id: stage.id,
     data: { type: 'stage', name: stage.name }
