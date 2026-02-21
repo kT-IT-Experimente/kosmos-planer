@@ -31,6 +31,8 @@ import {
 import SessionModal from './SessionModal';
 import CurationDashboard from './CurationDashboard';
 import AdminDashboard from './AdminDashboard';
+import SpeakerRegistration from './SpeakerRegistration';
+import SessionSubmission from './SessionSubmission';
 
 // --- HELPERS IMPORTED FROM utils.js ---
 
@@ -539,6 +541,7 @@ function App({ authenticatedUser }) {
     sheetNameMods: localStorage.getItem('kosmos_sheet_mods') || '26_Kosmos_Moderation',
     sheetNameStages: localStorage.getItem('kosmos_sheet_stages') || 'Bühnen_Import',
     curationApiUrl: localStorage.getItem('kosmos_curation_api_url') || '',
+    n8nBaseUrl: localStorage.getItem('kosmos_n8nBaseUrl') || '',
     startHour: parseInt(localStorage.getItem('kosmos_start_hour')) || 9,
     endHour: parseInt(localStorage.getItem('kosmos_end_hour')) || 22,
     bufferMin: parseInt(localStorage.getItem('kosmos_buffer_min')) || 5
@@ -1652,17 +1655,52 @@ function App({ authenticatedUser }) {
             />
           </div>
         )}
+
+        {/* Submit View */}
+        {viewMode === 'SUBMIT' && (
+          <div className="flex-1 overflow-y-auto bg-slate-50 p-6 space-y-6">
+            <SessionSubmission
+              n8nBaseUrl={config.n8nBaseUrl}
+              metadata={curationData.metadata}
+              submitterEmail={authenticatedUser.email}
+              onSuccess={() => setToast({ msg: 'Session erfolgreich eingereicht!', type: 'success' })}
+              onRegisterSpeaker={() => setViewMode('REGISTER')}
+            />
+          </div>
+        )}
+
+        {/* Speaker Registration View */}
+        {viewMode === 'REGISTER' && (
+          <div className="flex-1 overflow-y-auto bg-slate-50 p-6 space-y-6">
+            <SpeakerRegistration
+              n8nBaseUrl={config.n8nBaseUrl}
+              registeredBy={authenticatedUser.email}
+              onSuccess={() => setToast({ msg: 'Speaker registriert!', type: 'success' })}
+            />
+            <div className="text-center">
+              <button
+                onClick={() => setViewMode('SUBMIT')}
+                className="text-sm text-indigo-600 hover:text-indigo-800 underline"
+              >
+                ← Zurück zur Einreichung
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      <div className="h-10 bg-slate-900 flex items-center justify-center gap-8 shrink-0 border-t border-slate-800">
-        <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-2 text-[10px] font-bold uppercase transition-all ${viewMode === 'PLANNER' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
-          <Layout className="w-3.5 h-3.5" /> Planungs-Ansicht
+      <div className="h-10 bg-slate-900 flex items-center justify-center gap-4 sm:gap-8 shrink-0 border-t border-slate-800 overflow-x-auto">
+        <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PLANNER' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <Layout className="w-3.5 h-3.5" /> Planer
         </button>
-        <button onClick={() => setViewMode('CURATION')} className={`flex items-center gap-2 text-[10px] font-bold uppercase transition-all ${viewMode === 'CURATION' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
-          <LayoutDashboard className="w-3.5 h-3.5" /> Kurations-Dashboard
+        <button onClick={() => setViewMode('SUBMIT')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SUBMIT' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <PlusCircle className="w-3.5 h-3.5" /> Einreichung
         </button>
-        <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-2 text-[10px] font-bold uppercase transition-all ${viewMode === 'ADMIN' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
-          <Settings className="w-3.5 h-3.5" /> Admin-Bereich
+        <button onClick={() => setViewMode('CURATION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'CURATION' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <LayoutDashboard className="w-3.5 h-3.5" /> Kuration
+        </button>
+        <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ADMIN' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <Shield className="w-3.5 h-3.5" /> Admin
         </button>
       </div>
 
@@ -1687,6 +1725,8 @@ function App({ authenticatedUser }) {
                 </div>
                 <label className="block text-xs">Curation API URL (optional)</label>
                 <input className="w-full border p-2 rounded text-xs font-mono" placeholder="https://script.google.com/macros/s/.../exec" value={config.curationApiUrl} onChange={e => setConfig({ ...config, curationApiUrl: e.target.value })} />
+                <label className="block text-xs mt-2">n8n Webhook Base URL</label>
+                <input className="w-full border p-2 rounded text-xs font-mono" placeholder="https://n8n.deine-domain.de/webhook" value={config.n8nBaseUrl} onChange={e => setConfig({ ...config, n8nBaseUrl: e.target.value })} />
               </div>
               <div className="space-y-2 border-t pt-2">
                 <h3 className="text-xs font-bold uppercase text-slate-500">Auth</h3>
