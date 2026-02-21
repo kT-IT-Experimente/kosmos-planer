@@ -20,7 +20,7 @@ import {
   Trash2, PlusCircle, UploadCloud, LogIn, X,
   Lock, Unlock, MessageSquare, Globe, Flag, Layout,
   AlertTriangle, Mic2, PieChart, Search, CheckCircle2, Languages,
-  Download, DownloadCloud, Loader2, Key, LogOut, Mail
+  Download, DownloadCloud, Loader2, Key, LogOut, Mail, LayoutDashboard, Shield
 } from 'lucide-react';
 import {
   INBOX_ID, HEADER_HEIGHT, PIXELS_PER_MINUTE, SNAP_MINUTES,
@@ -29,6 +29,8 @@ import {
   calculateEndTime, checkOverlap, getErrorMessage
 } from './utils';
 import SessionModal from './SessionModal';
+import CurationDashboard from './CurationDashboard';
+import AdminDashboard from './AdminDashboard';
 
 // --- HELPERS IMPORTED FROM utils.js ---
 
@@ -446,9 +448,83 @@ function StageColumn({ stage, children, height }) {
 
 // --- APP COMPONENT ---
 
-// Session Modal logic remains same
+const parsePlannerBatch = (batch, config) => {
+  const valRanges = batch.valueRanges;
+  if (!valRanges || valRanges.length < 3) return { speakers: [], moderators: [], stages: [], program: [] };
 
+  const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag'];
+  const sp = (valRanges[0].values || []).filter(r => {
+    const s = safeString(r[0]).toLowerCase();
+    return allowedSpeakerStatus.some(k => s.includes(k));
+  }).map((r, i) => ({
+    id: `sp-${i}`,
+    fullName: `${safeString(r[2])} ${safeString(r[3])}`.trim(),
+    status: safeString(r[0]),
+    pronoun: safeString(r[4]),
+    email: safeString(r[8])
+  }));
 
+  const mo = (valRanges[1].values || []).filter(r => r[0]).map((r, i) => ({ id: `mod-${i}`, fullName: safeString(r[1]), status: safeString(r[0]) }));
+
+  const st = (valRanges[2].values || [])
+    .map((r, i) => ({
+      id: safeString(r[0]) || `st-${i}`,
+      name: safeString(r[1]),
+      capacity: safeString(r[2]),
+      maxMics: parseInt(r[4]) || 4
+    }))
+    .filter(s => s.name && s.name.toLowerCase() !== 'inbox');
+
+  if (st.length === 0) st.push({ id: 'main', name: 'Main Stage', capacity: 200, maxMics: 4 });
+
+  let pr = [];
+  if (valRanges[3] && valRanges[3].values) {
+    pr = valRanges[3].values
+      .filter(r => safeString(r[0]) || safeString(r[1])) // Skip completely empty rows
+      .map((r, i) => {
+        const dur = parseInt(r[8]) || 60;
+        const start = safeString(r[6]) || '-';
+        const rawStage = safeString(r[5]);
+        let stage = INBOX_ID;
+
+        if (rawStage) {
+          const matchById = st.find(s => s.id === rawStage);
+          if (matchById) {
+            stage = matchById.id;
+          } else {
+            const matchByName = st.find(s => s.name === rawStage);
+            if (matchByName) {
+              stage = matchByName.id;
+            }
+          }
+        }
+
+        const rawId = safeString(r[0]);
+        const id = (rawId && rawId.length > 1) ? rawId : generateId();
+
+        return {
+          id: id,
+          title: safeString(r[1]),
+          status: safeString(r[2]) || '5_Vorschlag',
+          partner: (safeString(r[3]) === 'TRUE' || safeString(r[3]) === 'P') ? 'TRUE' : 'FALSE',
+          format: safeString(r[4]) || 'Talk',
+          stage: stage,
+          start: start,
+          duration: dur,
+          end: calculateEndTime(start, dur),
+          speakers: safeString(r[9]),
+          moderators: safeString(r[10]),
+          language: safeString(r[11]),
+          notes: safeString(r[12]), // Internal curation notes
+          stageDispo: safeString(r[13]),
+          shortDescription: safeString(r[14]), // New: Kurzbeschreibung
+          description: safeString(r[15])        // New: Beschreibung
+        };
+      });
+  }
+
+  return { speakers: sp, moderators: mo, stages: st, program: pr };
+};
 function App({ authenticatedUser }) {
   const [data, setData] = useState({ speakers: [], moderators: [], program: [], stages: [] });
   const [status, setStatus] = useState({ loading: false, error: null });
@@ -462,9 +538,22 @@ function App({ authenticatedUser }) {
     sheetNameSpeakers: localStorage.getItem('kosmos_sheet_speakers') || '26_Kosmos_SprecherInnen',
     sheetNameMods: localStorage.getItem('kosmos_sheet_mods') || '26_Kosmos_Moderation',
     sheetNameStages: localStorage.getItem('kosmos_sheet_stages') || 'Bühnen_Import',
+    curationApiUrl: localStorage.getItem('kosmos_curation_api_url') || '',
     startHour: parseInt(localStorage.getItem('kosmos_start_hour')) || 9,
     endHour: parseInt(localStorage.getItem('kosmos_end_hour')) || 22,
     bufferMin: parseInt(localStorage.getItem('kosmos_buffer_min')) || 5
+  });
+
+  const [viewMode, setViewMode] = useState('PLANNER'); // 'PLANNER' or 'CURATION'
+  const [curationData, setCurationData] = useState({
+    sessions: [],
+    users: [
+      { email: 'viva@kosmos-festival.de', role: 'ADMIN' },
+      { email: 'enrique@kosmos-festival.de', role: 'ADMIN' },
+      { email: 'curator@kosmos-festival.de', role: 'CURATOR' }
+    ],
+    metadata: { bereiche: [], themen: [], tags: [], formate: [] },
+    userRole: 'GUEST'
   });
 
   const [activeDragItem, setActiveDragItem] = useState(null);
@@ -480,8 +569,8 @@ function App({ authenticatedUser }) {
   const [searchQuery, setSearchQuery] = useState('');
 
   // Auth state is now simplified - user is already authenticated
-  const [isAuthenticated] = useState(true); // Always true since AuthGate handles this
-  const [accessToken] = useState(authenticatedUser.accessToken);
+  const [isAuthenticated, setIsAuthenticated] = useState(true); // Always true since AuthGate handles this
+  const [accessToken, setAccessToken] = useState(authenticatedUser.accessToken);
   const [userProfile] = useState({
     email: authenticatedUser.email,
     name: authenticatedUser.name,
@@ -491,6 +580,8 @@ function App({ authenticatedUser }) {
   // Mobile & Sidebar state
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
+  const [isInboxCollapsed, setIsInboxCollapsed] = useState(false);
+  const [inboxSortBy, setInboxSortBy] = useState('DEFAULT'); // 'DEFAULT', 'TITLE', 'DURATION', 'SCORE'
 
   useEffect(() => {
     const handleResize = () => {
@@ -537,10 +628,20 @@ function App({ authenticatedUser }) {
     let partnerSessions = 0;
     let totalPlacedSessions = 0;
 
+    // Stage occupancy tracking
+    const stageMinutesUsed = {};
+    data.stages.forEach(st => stageMinutesUsed[st.id] = 0);
+    const totalPossibleMinutes = (config.endHour - config.startHour) * 60;
+
     data.program.forEach(s => {
       if (s.stage !== INBOX_ID && s.start !== '-') {
         totalPlacedSessions++;
         if (s.partner === 'TRUE') partnerSessions++;
+
+        // Track occupancy
+        if (stageMinutesUsed[s.stage] !== undefined) {
+          stageMinutesUsed[s.stage] += (s.duration || 60);
+        }
 
         const lang = (s.language || '').toLowerCase();
         if (lang === 'de') langCounts.de++;
@@ -567,8 +668,20 @@ function App({ authenticatedUser }) {
       }
     });
 
-    return { genderCounts, langCounts, partnerPercent: totalPlacedSessions ? Math.round((partnerSessions / totalPlacedSessions) * 100) : 0, totalPlaced: totalPlacedSessions };
-  }, [data.program, data.speakers, data.moderators]);
+    // Calculate stage occupancy average
+    const totalStages = data.stages.length;
+    const occupancyPercent = totalStages > 0
+      ? Math.round((Object.values(stageMinutesUsed).reduce((a, b) => a + b, 0) / (totalStages * totalPossibleMinutes)) * 100)
+      : 0;
+
+    return {
+      genderCounts,
+      langCounts,
+      partnerPercent: totalPlacedSessions ? Math.round((partnerSessions / totalPlacedSessions) * 100) : 0,
+      totalPlaced: totalPlacedSessions,
+      occupancyPercent
+    };
+  }, [data.program, data.speakers, data.moderators, data.stages, config.startHour, config.endHour]);
 
   const searchResults = useMemo(() => {
     if (!searchQuery) return [];
@@ -582,6 +695,35 @@ function App({ authenticatedUser }) {
       );
     }).map(s => s.id);
   }, [searchQuery, data.program]);
+
+  const filteredAndSortedInbox = useMemo(() => {
+    let items = data.program.filter(p => p.stage === INBOX_ID);
+
+    // Apply Search Filter (same logic as timeline highlighting)
+    if (searchQuery) {
+      const lowerQ = searchQuery.toLowerCase();
+      items = items.filter(s =>
+        safeString(s.title).toLowerCase().includes(lowerQ) ||
+        safeString(s.id).toLowerCase().includes(lowerQ) ||
+        safeString(s.speakers).toLowerCase().includes(lowerQ) ||
+        safeString(s.moderators).toLowerCase().includes(lowerQ)
+      );
+    }
+
+    // Apply Sorting
+    items.sort((a, b) => {
+      if (inboxSortBy === 'TITLE') return safeString(a.title).localeCompare(safeString(b.title));
+      if (inboxSortBy === 'DURATION') return (b.duration || 0) - (a.duration || 0);
+      if (inboxSortBy === 'SCORE') {
+        const scoreA = parseFloat(curationData.sessions.find(s => s.id === a.id)?.average_score || 0);
+        const scoreB = parseFloat(curationData.sessions.find(s => s.id === b.id)?.average_score || 0);
+        return scoreB - scoreA;
+      }
+      return 0; // DEFAULT
+    });
+
+    return items;
+  }, [data.program, searchQuery, inboxSortBy, curationData.sessions]);
 
   // --- CONFLICTS ---
   const sessionConflicts = useMemo(() => {
@@ -664,6 +806,45 @@ function App({ authenticatedUser }) {
       // Use the access token from AuthGate
       const token = authenticatedUser.accessToken;
 
+      // If curationApiUrl is set, we fetch from there first for the program data
+      if (config.curationApiUrl) {
+        try {
+          const emailParam = authenticatedUser.email ? `&email=${encodeURIComponent(authenticatedUser.email)}` : '';
+          const res = await fetch(`${config.curationApiUrl}${config.curationApiUrl.includes('?') ? '&' : '?'}includePlanner=true${emailParam}`);
+          if (res.ok) {
+            const result = await res.json();
+            // Deep merge to ensure all metadata keys exist
+            setCurationData(prev => ({
+              ...prev,
+              ...result,
+              metadata: {
+                ...prev.metadata,
+                ...(result.metadata || {})
+              }
+            }));
+
+            // If the curation API also provided planner data, we use it!
+            if (result.plannerData) {
+              const pData = result.plannerData;
+              const valRanges = [
+                { values: pData.speakers?.values || [] },
+                { values: pData.mods?.values || [] },
+                { values: pData.stages?.values || [] },
+                { values: pData.program?.values || [] }
+              ];
+
+              // Call the internal parsing logic (which we'll extract or replicate)
+              const parsed = parsePlannerBatch({ valueRanges: valRanges }, config);
+              setData(parsed);
+              setStatus({ loading: false, error: null });
+              return; // Done! No need for secondary fetch
+            }
+          }
+        } catch (e) {
+          console.warn("Could not fetch from Curation API:", e);
+        }
+      }
+
       const ranges = [
         `'${config.sheetNameSpeakers}'!A2:I`,
         `'${config.sheetNameMods}'!A2:C`,
@@ -671,7 +852,7 @@ function App({ authenticatedUser }) {
       ];
 
       if (importProgram) {
-        ranges.push(`'${config.sheetNameProgram}'!A2:N`);
+        ranges.push(`'${config.sheetNameProgram}'!A2:P`);
       }
 
       if (import.meta.env.DEV) console.log('[loadData] Final ranges to fetch:', ranges);
@@ -695,82 +876,22 @@ function App({ authenticatedUser }) {
         throw new Error(error || 'Sheets API Fehler');
       }
 
-      const valRanges = batch.valueRanges;
-
-      const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag'];
-      const sp = (valRanges[0].values || []).filter(r => {
-        const s = safeString(r[0]).toLowerCase();
-        return allowedSpeakerStatus.some(k => s.includes(k));
-      }).map((r, i) => ({
-        id: `sp-${i}`,
-        fullName: `${safeString(r[2])} ${safeString(r[3])}`.trim(),
-        status: safeString(r[0]),
-        pronoun: safeString(r[4]),
-        email: safeString(r[8])
-      }));
-
-      const mo = (valRanges[1].values || []).filter(r => r[0]).map((r, i) => ({ id: `mod-${i}`, fullName: safeString(r[1]), status: safeString(r[0]) }));
-
-      const st = (valRanges[2].values || [])
-        .map((r, i) => ({
-          id: safeString(r[0]) || `st-${i}`,
-          name: safeString(r[1]),
-          capacity: safeString(r[2]),
-          maxMics: parseInt(r[4]) || 4
-        }))
-        .filter(s => s.name && s.name.toLowerCase() !== 'inbox');
-
-      if (st.length === 0) st.push({ id: 'main', name: 'Main Stage', capacity: 200, maxMics: 4 });
-
-      let pr = null;
-      if (importProgram && valRanges[3]) {
-        pr = (valRanges[3].values || []).map((r, i) => {
-          const dur = parseInt(r[8]) || 60;
-          const start = safeString(r[6]) || '-';
-          const rawStage = safeString(r[5]);
-          let stage = INBOX_ID;
-
-          if (rawStage) {
-            const matchById = st.find(s => s.id === rawStage);
-            if (matchById) {
-              stage = matchById.id;
-            } else {
-              const matchByName = st.find(s => s.name === rawStage);
-              if (matchByName) {
-                stage = matchByName.id;
-              }
-            }
-          }
-
-          const rawId = safeString(r[0]);
-          const id = (rawId && rawId.length > 1) ? rawId : generateId();
-
-          return {
-            id: id,
-            title: safeString(r[1]),
-            status: safeString(r[2]) || '5_Vorschlag',
-            partner: (safeString(r[3]) === 'TRUE' || safeString(r[3]) === 'P') ? 'TRUE' : 'FALSE',
-            format: safeString(r[4]) || 'Talk',
-            stage: stage,
-            start: start,
-            duration: dur,
-            end: calculateEndTime(start, dur),
-            speakers: safeString(r[9]),
-            moderators: safeString(r[10]),
-            language: safeString(r[11]),
-            notes: safeString(r[12]),
-            stageDispo: safeString(r[13])
-          };
-        });
-      }
+      const parsed = parsePlannerBatch(batch, config);
 
       setData(prev => {
-        const newData = { ...prev, speakers: sp, moderators: mo, stages: st };
-        if (pr) newData.program = pr;
+        const newData = { ...prev, ...parsed };
+        // Only overwrite program if it was actually imported
+        if (importProgram && parsed.program.length > 0) {
+          newData.program = parsed.program;
+        } else {
+          // Keep existing program if not importing
+          newData.program = prev.program;
+        }
         return newData;
       });
+
       setStatus({ loading: false, error: null });
-      if (pr) setLocalChanges(false);
+      if (importProgram && parsed.program.length > 0) setLocalChanges(false);
 
       if (manual) {
         const msg = importProgram ? "Programm & Stammdaten importiert!" : "Stammdaten (Sprecher/Bühnen) aktualisiert!";
@@ -791,11 +912,124 @@ function App({ authenticatedUser }) {
     }
   }, [config.spreadsheetId, loadData]);
 
+  // Fetch curation data whenever switching to curation view if not already loaded
+  useEffect(() => {
+    if (viewMode === 'CURATION' && curationData.sessions.length === 0 && config.curationApiUrl) {
+      loadData({ manual: false });
+    }
+  }, [viewMode, config.curationApiUrl, curationData.sessions.length, loadData]);
+
   const handleLogout = () => {
     // Clear all auth data and reload to show AuthGate
     localStorage.removeItem('kosmos_local_data');
     localStorage.removeItem('kosmos_user_session');
     window.location.reload();
+  };
+
+  const generateMockCurationData = () => {
+    const mockSessions = [
+      { id: 'MOCK-1', timestamp: new Date().toISOString(), title: 'Modern Dance Performance', description: 'A bold new vision for contemporary movement.', format: 'Performance', thema: 'Kultur', bereich: 'Bühne', status: 'Vorschlag', average_score: '4.5', review_count: 3 },
+      { id: 'MOCK-2', timestamp: new Date().toISOString(), title: 'AI in Music Workshop', description: 'Learn how to use AI to compose your next hit.', format: 'Workshop', thema: 'Technologie', bereich: 'Innovation', status: 'Vorschlag', average_score: '3.8', review_count: 5 },
+      { id: 'MOCK-3', timestamp: new Date().toISOString(), title: 'Climate Justice Talk', description: 'Discussion on intersectional environmentalism.', format: 'Talk', thema: 'Nachhaltigkeit', bereich: 'Politik', status: 'Vorschlag', average_score: '4.9', review_count: 8 },
+      { id: 'MOCK-4', timestamp: new Date().toISOString(), title: 'Late Night Jam Session', description: 'Open mic for everyone.', format: 'Performance', thema: 'Musik', bereich: 'Bühne', status: 'Akzeptiert', average_score: '4.2', review_count: 2 },
+      { id: 'MOCK-5', timestamp: new Date().toISOString(), title: 'Zen Meditation', description: 'Morning mindfulness.', format: 'Workshop', thema: 'Wellness', bereich: 'Health', status: 'Vorschlag', average_score: '3.0', review_count: 1 }
+    ];
+
+    setCurationData({
+      sessions: mockSessions,
+      metadata: {
+        bereiche: ['Bühne', 'Innovation', 'Politik', 'Health'],
+        themen: ['Kultur', 'Technologie', 'Nachhaltigkeit', 'Musik', 'Wellness'],
+        tags: ['Live', 'Interactive', 'Panel'],
+        formate: ['Talk', 'Workshop', 'Performance']
+      },
+      userRole: 'ADMIN'
+    });
+
+    // Also add them to the planner as "Vorschlag" so they show in the inbox
+    const newProgramItems = mockSessions.map(s => ({
+      id: s.id,
+      title: s.title,
+      status: '5_Vorschlag',
+      format: s.format,
+      stage: INBOX_ID,
+      start: '-',
+      duration: 60,
+      end: '-',
+      speakers: 'Mock Speaker',
+      notes: s.description
+    }));
+
+    setData(prev => ({
+      ...prev,
+      program: [...prev.program.filter(p => !p.id.startsWith('MOCK-')), ...newProgramItems]
+    }));
+
+    setToast({ msg: "Mock-Daten geladen!", type: "success" });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // --- CURATION ACTIONS ---
+  const handleUpdateCurationStatus = async (sessionId, newStatus) => {
+    if (!config.curationApiUrl) {
+      setToast({ msg: "Keine Curation API URL konfiguriert!", type: "error" });
+      return;
+    }
+
+    try {
+      // Optimistic Update
+      setCurationData(prev => prev.map(s => s.id === sessionId ? { ...s, status: newStatus } : s));
+
+      const res = await fetch(config.curationApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'updateStatus',
+          id: sessionId,
+          status: newStatus,
+          email: authenticatedUser.email
+        })
+      });
+
+      if (res.ok) {
+        setToast({ msg: `Status für ${sessionId} auf "${newStatus}" gesetzt.`, type: "success" });
+      } else {
+        throw new Error("API Fehler");
+      }
+    } catch (e) {
+      console.error(e);
+      setToast({ msg: "Status konnte nicht synchronisiert werden.", type: "error" });
+    }
+  };
+
+  const handleUpdateCurationMetadata = async (sessionId, field, newValue) => {
+    if (!config.curationApiUrl) return;
+
+    try {
+      // Optimistic locally
+      setCurationData(prev => ({
+        ...prev,
+        sessions: prev.sessions.map(s => s.id === sessionId ? { ...s, [field]: newValue } : s)
+      }));
+
+      const res = await fetch(config.curationApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'updateMetadata',
+          id: sessionId,
+          field: field,
+          value: newValue,
+          email: authenticatedUser.email
+        })
+      });
+
+      if (!res.ok) throw new Error("Sync Fehler");
+      setToast({ msg: `${field} aktualisiert & synchronisiert.`, type: "success" });
+    } catch (e) {
+      console.error("Fehler beim Metadata-Update:", e);
+      setToast({ msg: "Synchronisierung fehlgeschlagen.", type: "error" });
+    }
   };
 
   // --- MAIL MERGE EXPORT ---
@@ -886,14 +1120,16 @@ function App({ authenticatedUser }) {
           modsStr,
           safeString(p.language),
           safeString(p.notes),
-          safeString(p.stageDispo)
+          safeString(p.stageDispo),
+          safeString(p.shortDescription),
+          safeString(p.description)
         ];
       });
 
       const { ok, data: result, error } = await fetchSheets({
         action: 'update',
         spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameProgram}'!A2:N`,
+        range: `'${config.sheetNameProgram}'!A2:P`,
         values: rows,
       }, token);
 
@@ -1060,6 +1296,53 @@ function App({ authenticatedUser }) {
     return { top: `${Math.max(0, top)}px`, height: `${Math.max(20, height)}px` };
   };
 
+  // --- ADMIN ACTIONS ---
+  const handleUpdateUserRole = async (email, newRole) => {
+    if (!config.curationApiUrl) return;
+    try {
+      const res = await fetch(config.curationApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'updateUserRole', email, role: newRole })
+      });
+      if (res.ok) {
+        setToast({ msg: `Rolle für ${email} auf ${newRole} gesetzt.`, type: 'success' });
+        loadData({ manual: true }); // Refresh to get updated user list
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleAddUser = async (email, role) => {
+    if (!config.curationApiUrl) return;
+    try {
+      const res = await fetch(config.curationApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'addUser', email, role })
+      });
+      if (res.ok) {
+        setToast({ msg: `${email} als ${role} hinzugefügt.`, type: 'success' });
+        loadData({ manual: true });
+      }
+    } catch (e) { console.error(e); }
+  };
+
+  const handleDeleteUser = async (email) => {
+    if (!window.confirm(`Benutzer ${email} wirklich löschen?`)) return;
+    if (!config.curationApiUrl) return;
+    try {
+      const res = await fetch(config.curationApiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'deleteUser', email })
+      });
+      if (res.ok) {
+        setToast({ msg: `${email} gelöscht.`, type: 'success' });
+        loadData({ manual: true });
+      }
+    } catch (e) { console.error(e); }
+  };
+
   const handleSaveSession = (session, micWarning = '') => {
     const cleanWarning = micWarning ? micWarning.replace(/,/g, ' ') : '';
     const finalSession = {
@@ -1098,256 +1381,290 @@ function App({ authenticatedUser }) {
         </div>
       )}
 
-      {/* HEADER */}
-      <header className="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shrink-0 z-40 shadow-sm">
-        <div className="flex items-center gap-4">
-          <button
-            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-            className={`p-2 rounded-full transition-colors ${isSidebarOpen ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}
-            title="Seitenleiste umschalten"
-          >
-            <Layout className="w-5 h-5" />
-          </button>
-          <div>
-            <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
-              {isMobile ? 'KOSMOS' : 'KOSMOS Planer'}
-            </h1>
-            <div className="flex gap-2 text-[10px] font-bold uppercase text-slate-400">
-              {status.loading && <span className="text-blue-500 animate-pulse">Laden...</span>}
-              {localChanges && <span className="text-orange-500 bg-orange-100 px-1 rounded truncate max-w-[80px]">● {isMobile ? 'Offline' : 'Ungespeichert'}</span>}
-            </div>
-          </div>
-
-          {/* Primary Action Group: Search & Create */}
-          <div className="flex items-center gap-2">
-            <div className={`flex items-center transition-all duration-300 ${isSearchOpen ? 'w-64 bg-slate-100' : 'w-8 bg-transparent'} rounded-full overflow-hidden border ${isSearchOpen ? 'border-blue-200' : 'border-transparent'}`}>
-              <button onClick={() => setIsSearchOpen(!isSearchOpen)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-full transition-colors">
-                <Search className="w-5 h-5" />
-              </button>
-              {isSearchOpen && (
-                <input
-                  autoFocus
-                  className="w-full bg-transparent border-none outline-none text-sm p-1 placeholder:text-slate-400"
-                  placeholder="Suchen..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                />
-              )}
-              {isSearchOpen && searchQuery && (
-                <button onClick={() => setSearchQuery('')} className="p-2 text-slate-400 hover:text-red-500">
-                  <X className="w-3 h-3" />
+      {/* VIEW MODE CONTENT */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+        {viewMode === 'PLANNER' && (
+          <div className="flex flex-col h-full overflow-hidden">
+            <header className="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shrink-0 z-40 shadow-sm">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                  className={`p-2 rounded-full transition-colors ${isSidebarOpen ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}
+                >
+                  <Layout className="w-5 h-5" />
                 </button>
-              )}
-            </div>
-
-            <button
-              onClick={() => { setEditingSession(null); setIsModalOpen(true); }}
-              className="flex items-center justify-center w-8 h-8 bg-green-600 text-white rounded-full hover:bg-green-700 shadow-sm transition-transform hover:scale-105"
-              title="Neue Session"
-            >
-              <PlusCircle className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-3">
-          {/* User Profile - Hidden on tiny mobile */}
-          {!isMobile && userProfile.picture && (
-            <img
-              src={userProfile.picture}
-              alt={userProfile.name}
-              className="w-7 h-7 rounded-full border border-slate-300"
-            />
-          )}
-          {!isMobile && <span className="text-sm text-slate-600">{userProfile.name}</span>}
-
-          {/* Action Buttons */}
-          <button
-            onClick={handleSync}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-all ${localChanges
-              ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md animate-pulse'
-              : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-              }`}
-            title="Änderungen im Google Sheet speichern"
-          >
-            <UploadCloud className="w-4 h-4" />
-            <span>Speichern</span>
-          </button>
-
-          <button
-            onClick={() => {
-              if (window.confirm("Ganzes Programm aus Google Sheet importieren? ACHTUNG: Lokale Änderungen am Zeitplan werden überschrieben!")) {
-                loadData({ manual: true, importProgram: true });
-              }
-            }}
-            className="p-2 hover:bg-slate-100 rounded text-slate-500"
-            title="Programm aus Google Sheet importieren (Überschreibt lokale Änderungen!)"
-          >
-            <DownloadCloud className="w-4 h-4" />
-          </button>
-
-          <button onClick={() => loadData({ manual: true })} className="p-2 hover:bg-slate-100 rounded text-slate-500" title="Stammdaten neu laden">
-            <RefreshCw className="w-4 h-4" />
-          </button>
-
-          <button onClick={handleExportMailMerge} className="p-2 hover:bg-slate-100 rounded text-slate-500" title="Mail Merge Export">
-            <Mail className="w-4 h-4" />
-          </button>
-
-          <button onClick={() => setShowSettings(!showSettings)} className="p-2 hover:bg-slate-100 rounded text-slate-500" title="Einstellungen">
-            <Settings className="w-4 h-4" />
-          </button>
-
-          {/* Logout Button */}
-          <button
-            onClick={handleLogout}
-            className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded text-sm flex gap-2 items-center transition-colors"
-            title="Abmelden"
-          >
-            <LogOut className="w-3 h-3" />
-            Logout
-          </button>
-        </div>
-      </header>
-
-      {status.error && <div className="bg-red-50 text-red-600 p-2 text-xs text-center border-b border-red-200 font-bold">{status.error}</div>}
-
-      <DndContext sensors={sensors} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
-        <div className="flex flex-1 overflow-hidden">
-          {/* SIDEBAR */}
-          <div className={`${isSidebarOpen ? 'w-64 border-r' : 'w-0 border-r-0'} bg-white border-slate-200 flex flex-col shrink-0 z-30 shadow-lg transition-all duration-300 overflow-hidden`}>
-            <div className="p-4 border-b border-slate-100 bg-slate-50/50">
-              <h3 className="text-xs font-bold text-slate-500 uppercase mb-3 flex items-center gap-2"><PieChart className="w-4 h-4" /> Analyse (Live)</h3>
-              <div className="grid grid-cols-2 gap-2 mb-3">
-                <div className="bg-white p-2 rounded border border-slate-200 text-center">
-                  <div className="text-lg font-bold text-slate-800">{analysis.genderCounts.w}</div>
-                  <div className="text-[9px] text-slate-400 uppercase">Weiblich</div>
+                <div>
+                  <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                    {isMobile ? 'KOSMOS' : 'KOSMOS Planer'}
+                  </h1>
                 </div>
-                <div className="bg-white p-2 rounded border border-slate-200 text-center">
-                  <div className="text-lg font-bold text-slate-800">{analysis.genderCounts.m}</div>
-                  <div className="text-[9px] text-slate-400 uppercase">Männlich</div>
-                </div>
-                <div className="bg-white p-2 rounded border border-slate-200 text-center">
-                  <div className="text-lg font-bold text-slate-800">{analysis.genderCounts.d}</div>
-                  <div className="text-[9px] text-slate-400 uppercase">Divers</div>
-                </div>
-                <div className="bg-white p-2 rounded border border-slate-200 text-center">
-                  <div className="text-lg font-bold text-slate-800">{analysis.partnerPercent}%</div>
-                  <div className="text-[9px] text-slate-400 uppercase">Partner</div>
-                </div>
-              </div>
-              {/* Language Analysis */}
-              <div className="flex gap-2 mt-2 pt-2 border-t border-slate-200">
-                <div className="flex-1 bg-white p-1 rounded border border-slate-200 text-center">
-                  <div className="text-xs font-bold text-blue-600">{analysis.langCounts.de}</div>
-                  <div className="text-[8px] text-slate-400">DE</div>
-                </div>
-                <div className="flex-1 bg-white p-1 rounded border border-slate-200 text-center">
-                  <div className="text-xs font-bold text-indigo-600">{analysis.langCounts.en}</div>
-                  <div className="text-[8px] text-slate-400">EN</div>
-                </div>
-              </div>
-              <div className="text-[10px] text-slate-400 text-center mt-2">Basis: {analysis.totalPlaced} platzierte Sessions</div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-2 custom-scrollbar">
-              <div className="text-xs font-bold text-slate-400 px-2 py-2 uppercase">SprecherInnen ({data.speakers.length})</div>
-              {data.speakers.map(s => {
-                const displayStatus = s.status.replace(/^[0-9]+[_\-]/, '');
-                return (
-                  <div key={s.id} className="text-[11px] py-1.5 px-2 border-b border-slate-50 text-slate-700 truncate hover:bg-slate-50 flex justify-between items-center group">
-                    <span className="truncate w-32">{s.fullName}</span>
-                    <span className="text-[9px] text-slate-400 bg-slate-100 px-1 rounded opacity-0 group-hover:opacity-100 transition-opacity capitalize">{displayStatus}</span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="flex-1 flex flex-col overflow-hidden relative">
-            {/* INBOX */}
-            <div className="bg-slate-100 border-b border-slate-300 p-2 shrink-0 h-48 flex flex-col shadow-inner z-20">
-              <div className="text-[10px] font-bold text-slate-500 uppercase mb-2 flex items-center gap-2 px-2">
-                <Layout className="w-3 h-3" /> Inbox (Parkplatz)
-              </div>
-              <div className="flex-1 overflow-y-auto custom-scrollbar p-2">
-                <SortableContext id={INBOX_ID} items={data.program.filter(p => p.stage === INBOX_ID).map(p => p.id)}>
-                  <DroppableStage id={INBOX_ID} className="flex flex-wrap gap-2 min-h-full items-start content-start">
-                    {data.program.filter(p => p.stage === INBOX_ID).map(p => (
-                      <SortableInboxItem
-                        key={p.id} session={p}
-                        onClick={() => { setEditingSession(p); setIsModalOpen(true) }}
-                        onToggleLock={(s) => updateSession(s.id, { status: s.status === 'Fixiert' ? '2_Planung' : 'Fixiert' })}
-                        hasConflict={!!sessionConflicts[p.id]}
-                        conflictTooltip={sessionConflicts[p.id]?.join('\n')}
-                        isDimmed={isSearchOpen && searchQuery && !searchResults.includes(p.id)}
+                {!isMobile && (
+                  <div className="flex items-center gap-2 ml-4 flex-1 max-w-md">
+                    <div className="relative w-full">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                      <input
+                        type="text"
+                        placeholder="Search sessions, speakers, IDs..."
+                        className="w-full pl-9 pr-4 py-1.5 bg-slate-100 border-none rounded-full text-sm focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
                       />
-                    ))}
-                  </DroppableStage>
-                </SortableContext>
-              </div>
-            </div>
-
-            {/* TIMELINE */}
-            <div className="flex-1 overflow-auto relative custom-scrollbar flex bg-slate-50">
-              {/* TIME AXIS */}
-              <div className="w-12 bg-white border-r border-slate-200 shrink-0 sticky left-0 z-30 shadow-sm" style={{ minHeight: timelineHeight + HEADER_HEIGHT }}>
-                <div style={{ height: HEADER_HEIGHT }} className="border-b border-slate-200 bg-white sticky top-0 z-40"></div>
-                <div className="absolute w-full bottom-0 z-0" style={{ top: HEADER_HEIGHT }}>
-                  {Array.from({ length: config.endHour - config.startHour + 1 }).map((_, i) => (
-                    <div key={i} className="absolute w-full text-right pr-1 text-[10px] font-mono text-slate-400 border-t border-slate-100 -mt-px pt-1"
-                      style={{ top: `${i * 60 * PIXELS_PER_MINUTE}px` }}>
-                      {config.startHour + i}:00
+                      {searchQuery && (
+                        <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
-                  ))}
-                </div>
+                  </div>
+                )}
+                {!isMobile && (
+                  <button
+                    onClick={() => { setEditingSession(null); setIsModalOpen(true); }}
+                    className="ml-2 flex items-center gap-2 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-sm font-bold shadow-sm transition-all hover:scale-105 active:scale-95"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>Create Session</span>
+                  </button>
+                )}
               </div>
 
-              {/* STAGES */}
-              <div className="flex min-w-full">
-                {data.stages.map(stage => (
-                  <StageColumn key={stage.id} stage={stage} height={timelineHeight}>
-                    {ghostPosition && ghostPosition.stageId === stage.id && (
-                      <div
-                        className={`absolute left-1 right-1 border-2 border-dashed rounded z-0 pointer-events-none flex items-center justify-center transition-colors
-                                 ${ghostPosition.hasOverlap ? 'bg-red-500/20 border-red-500' : 'bg-blue-500/20 border-blue-500'}`}
-                        style={{ top: ghostPosition.top, height: ghostPosition.height }}
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleExportMailMerge}
+                  className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-sm font-medium transition-all"
+                  title="CSV Export für MailMerge"
+                >
+                  <Download className="w-4 h-4" />
+                  <span>Export CSV</span>
+                </button>
+                <button
+                  onClick={handleSync}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-all ${localChanges ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md animate-pulse' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                >
+                  <UploadCloud className="w-4 h-4" />
+                  <span>Speichern</span>
+                </button>
+                <button onClick={() => setShowSettings(!showSettings)} className="p-2 hover:bg-slate-100 rounded text-slate-500">
+                  <Settings className="w-4 h-4" />
+                </button>
+                <button onClick={handleLogout} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded text-sm flex gap-2 items-center transition-colors">
+                  <LogOut className="w-3 h-3" /> Logout
+                </button>
+              </div>
+            </header>
+
+            {status.error && <div className="bg-red-50 text-red-600 p-2 text-xs text-center border-b border-red-200 font-bold">{status.error}</div>}
+
+            <DndContext sensors={sensors} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
+              <div className="flex flex-1 overflow-hidden">
+                <div className={`${isSidebarOpen ? 'w-64 border-r' : 'w-0 border-r-0'} bg-white flex flex-col shrink-0 z-30 transition-all duration-300 overflow-hidden`}>
+                  <div className="p-4 border-b bg-slate-50/50">
+                    <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><PieChart className="w-4 h-4" /> Analyse</h3>
+                    <div className="grid grid-cols-2 gap-2 mt-2">
+                      <div className="bg-white p-2 rounded border text-center text-xs font-bold">
+                        <div className="text-indigo-600">{analysis.genderCounts.w}</div>
+                        <div className="text-[8px] text-slate-400 uppercase">Frauen (W)</div>
+                      </div>
+                      <div className="bg-white p-2 rounded border text-center text-xs font-bold">
+                        <div className="text-indigo-600">{analysis.genderCounts.m}</div>
+                        <div className="text-[8px] text-slate-400 uppercase">Männer (M)</div>
+                      </div>
+                      <div className="bg-white p-2 rounded border text-center text-xs font-bold col-span-2">
+                        <div className="flex justify-between items-center px-1">
+                          <span className="text-[8px] text-slate-400 uppercase">Partner-Anteil:</span>
+                          <span className="text-indigo-600">{analysis.partnerPercent}%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-1 mt-1 rounded-full overflow-hidden">
+                          <div className="bg-indigo-500 h-full" style={{ width: `${analysis.partnerPercent}%` }}></div>
+                        </div>
+                      </div>
+                      <div className="bg-white p-2 rounded border text-center text-xs font-bold col-span-2">
+                        <div className="flex justify-between items-center px-1">
+                          <span className="text-[8px] text-slate-400 uppercase">Bühnen-Belegung:</span>
+                          <span className="text-indigo-600">{analysis.occupancyPercent}%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 h-1 mt-1 rounded-full overflow-hidden">
+                          <div className="bg-green-500 h-full" style={{ width: `${analysis.occupancyPercent}%` }}></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1 overflow-y-auto p-2">
+                    <div className="text-[10px] font-bold text-slate-400 uppercase p-2 tracking-widest">SprecherInnen ({data.speakers.length})</div>
+                    {data.speakers.slice(0, 50).map(s => <div key={s.id} className="text-[10px] py-1 px-2 hover:bg-slate-100 rounded truncate">{s.fullName}</div>)}
+                  </div>
+                </div>
+
+                <div className="flex-1 flex flex-col overflow-hidden relative">
+                  {/* INBOX */}
+                  <div className={`bg-slate-50 border-b flex flex-col transition-all duration-300 ease-in-out ${isInboxCollapsed ? 'h-10' : 'h-48'}`}>
+                    <div className="flex items-center justify-between px-3 py-1.5 border-b bg-white/50 shrink-0">
+                      <div className="flex items-center gap-3">
+                        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                          <PlusCircle className="w-3.5 h-3.5 text-indigo-500" />
+                          Inbox ({filteredAndSortedInbox.length})
+                        </h3>
+                        {!isInboxCollapsed && (
+                          <div className="flex items-center gap-2 border-l pl-3 ml-1">
+                            <span className="text-[9px] text-slate-400 font-bold uppercase">Sort:</span>
+                            <select
+                              className="text-[9px] bg-transparent border-none focus:ring-0 font-bold text-slate-600 cursor-pointer"
+                              value={inboxSortBy}
+                              onChange={(e) => setInboxSortBy(e.target.value)}
+                            >
+                              <option value="DEFAULT">Eingang</option>
+                              <option value="TITLE">Alphabet</option>
+                              <option value="DURATION">Dauer</option>
+                              <option value="SCORE">Bewertung</option>
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => setIsInboxCollapsed(!isInboxCollapsed)}
+                        className="p-1 hover:bg-slate-200 rounded transition-colors text-slate-400 hover:text-slate-600"
+                        title={isInboxCollapsed ? "Aufklappen" : "Einklappen"}
                       >
-                        <span className={`text-xs font-bold px-1 rounded ${ghostPosition.hasOverlap ? 'text-red-700 bg-red-100' : 'text-blue-700 bg-blue-100'}`}>
-                          {ghostPosition.timeLabel}
-                        </span>
+                        {isInboxCollapsed ? <PlusCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
+                      </button>
+                    </div>
+
+                    {!isInboxCollapsed && (
+                      <div className="flex-1 overflow-x-auto p-2 custom-scrollbar">
+                        <SortableContext id={INBOX_ID} items={filteredAndSortedInbox.map(p => p.id)}>
+                          <DroppableStage id={INBOX_ID} className="flex gap-2 min-h-full items-start">
+                            {filteredAndSortedInbox.map(p => (
+                              <SortableInboxItem
+                                key={p.id}
+                                session={p}
+                                onClick={() => { setEditingSession(p); setIsModalOpen(true) }}
+                                onToggleLock={(s) => updateSession(s.id, { status: s.status === 'Fixiert' ? '2_Planung' : 'Fixiert' })}
+                              />
+                            ))}
+                            {filteredAndSortedInbox.length === 0 && (
+                              <div className="flex flex-col items-center justify-center w-full h-full text-slate-400 animate-pulse">
+                                <Search className="w-5 h-5 mb-1 opacity-20" />
+                                <span className="text-[10px] uppercase font-bold tracking-widest">Keine Übereinstimmung</span>
+                              </div>
+                            )}
+                          </DroppableStage>
+                        </SortableContext>
                       </div>
                     )}
-                    {data.program.filter(p => p.stage === stage.id).map(session => (
-                      <DraggableTimelineItem
-                        key={session.id}
-                        session={session}
-                        style={getPos(session.start, session.duration)}
-                        onClick={() => { setEditingSession(session); setIsModalOpen(true) }}
-                        onToggleLock={(s) => updateSession(s.id, { status: s.status === 'Fixiert' ? '2_Planung' : 'Fixiert' })}
-                        hasConflict={!!sessionConflicts[session.id]}
-                        conflictTooltip={sessionConflicts[session.id]?.join('\n')}
-                        isDimmed={isSearchOpen && searchQuery && !searchResults.includes(session.id)}
-                      />
-                    ))}
-                  </StageColumn>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+                  </div>
 
-        <DragOverlay>
-          {activeDragItem ? (
-            <div className="w-[240px] opacity-90 rotate-2">
-              <Card status={activeDragItem.status} className="bg-blue-600 text-white border-none shadow-2xl">
-                <div className="font-bold text-sm">{activeDragItem.title}</div>
-                <div className="text-xs">{activeDragItem.duration} min</div>
-              </Card>
-            </div>
-          ) : null}
-        </DragOverlay>
-      </DndContext>
+                  {/* TIMELINE */}
+                  <div className="flex-1 overflow-auto relative custom-scrollbar flex bg-slate-50">
+                    <div className="w-10 bg-white border-r shrink-0 sticky left-0 z-30 shadow-sm" style={{ minHeight: timelineHeight }}>
+                    </div>
+                    <div className="flex min-w-full">
+                      {data.stages.map(stage => {
+                        const stageSessions = data.program.filter(p => p.stage === stage.id);
+                        return (
+                          <StageColumn key={stage.id} stage={stage} height={timelineHeight}>
+                            {stageSessions.map(session => {
+                              // Search Highlighting (Dimming)
+                              let isDimmed = false;
+                              if (searchQuery) {
+                                const q = searchQuery.toLowerCase();
+                                const matches =
+                                  safeString(session.title).toLowerCase().includes(q) ||
+                                  safeString(session.id).toLowerCase().includes(q) ||
+                                  safeString(session.speakers).toLowerCase().includes(q) ||
+                                  safeString(session.moderators).toLowerCase().includes(q);
+                                if (!matches) isDimmed = true;
+                              }
+
+                              return (
+                                <DraggableTimelineItem
+                                  key={session.id}
+                                  session={session}
+                                  style={{
+                                    ...getPos(session.start, session.duration),
+                                    opacity: isDimmed ? 0.2 : 1,
+                                    filter: isDimmed ? 'grayscale(1)' : 'none',
+                                    transition: 'opacity 0.3s, filter 0.3s'
+                                  }}
+                                  onClick={() => { setEditingSession(session); setIsModalOpen(true) }}
+                                  onToggleLock={(s) => updateSession(s.id, { status: s.status === 'Fixiert' ? '2_Planung' : 'Fixiert' })}
+                                />
+                              );
+                            })}
+                          </StageColumn>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <DragOverlay>
+                {activeDragItem ? (
+                  <Card status={activeDragItem.status} className="w-[200px] bg-indigo-600 text-white shadow-2xl">
+                    <div className="font-bold text-xs">{activeDragItem.title}</div>
+                  </Card>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
+          </div>
+        )}
+
+        {viewMode === 'CURATION' && (
+          <div className="flex flex-col h-full overflow-hidden">
+            <header className="bg-slate-800 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
+              <h1 className="font-bold flex items-center gap-2"><LayoutDashboard className="w-5 h-5" /> KOSMOS Curation Center</h1>
+              <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
+            </header>
+            <CurationDashboard
+              sessions={[
+                ...curationData.sessions,
+                ...data.program
+                  .filter(p => (p.status || '').includes('Vorschlag') || (p.status || '').includes('Vorgeschlag'))
+                  .map(p => ({
+                    id: p.id,
+                    title: p.title,
+                    speakers: p.speakers,
+                    status: 'Vorschlag', // Unified status for curation
+                    format: p.format,
+                    source: 'Planner'
+                  }))
+              ]}
+              metadata={curationData.metadata}
+              userRole={curationData.userRole}
+              onUpdateStatus={handleUpdateCurationStatus}
+              onUpdateMetadata={handleUpdateCurationMetadata}
+            />
+          </div>
+        )}
+
+        {viewMode === 'ADMIN' && (
+          <div className="flex flex-col h-full overflow-hidden">
+            <header className="bg-indigo-900 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
+              <h1 className="font-bold flex items-center gap-2"><Shield className="w-5 h-5" /> Admin Control Paner</h1>
+              <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-indigo-800 hover:bg-indigo-700 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
+            </header>
+            <AdminDashboard
+              users={curationData.users || []}
+              stages={data.stages}
+              onUpdateUserRole={handleUpdateUserRole}
+              onAddUser={handleAddUser}
+              onDeleteUser={handleDeleteUser}
+            />
+          </div>
+        )}
+      </div>
+
+      <div className="h-10 bg-slate-900 flex items-center justify-center gap-8 shrink-0 border-t border-slate-800">
+        <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-2 text-[10px] font-bold uppercase transition-all ${viewMode === 'PLANNER' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <Layout className="w-3.5 h-3.5" /> Planungs-Ansicht
+        </button>
+        <button onClick={() => setViewMode('CURATION')} className={`flex items-center gap-2 text-[10px] font-bold uppercase transition-all ${viewMode === 'CURATION' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <LayoutDashboard className="w-3.5 h-3.5" /> Kurations-Dashboard
+        </button>
+        <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-2 text-[10px] font-bold uppercase transition-all ${viewMode === 'ADMIN' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <Settings className="w-3.5 h-3.5" /> Admin-Bereich
+        </button>
+      </div>
 
       {/* Settings Modal */}
       {showSettings && (
@@ -1368,6 +1685,8 @@ function App({ authenticatedUser }) {
                   <div><label className="text-xs">Prog Sheet</label><input className="w-full border p-2 rounded" value={config.sheetNameProgram} onChange={e => setConfig({ ...config, sheetNameProgram: e.target.value })} /></div>
                   <div><label className="text-xs">Stages Sheet</label><input className="w-full border p-2 rounded" value={config.sheetNameStages} onChange={e => setConfig({ ...config, sheetNameStages: e.target.value })} /></div>
                 </div>
+                <label className="block text-xs">Curation API URL (optional)</label>
+                <input className="w-full border p-2 rounded text-xs font-mono" placeholder="https://script.google.com/macros/s/.../exec" value={config.curationApiUrl} onChange={e => setConfig({ ...config, curationApiUrl: e.target.value })} />
               </div>
               <div className="space-y-2 border-t pt-2">
                 <h3 className="text-xs font-bold uppercase text-slate-500">Auth</h3>
@@ -1419,6 +1738,16 @@ function App({ authenticatedUser }) {
                   <label className="text-xs font-bold block mb-1 text-yellow-800 flex items-center gap-1"><Key className="w-3 h-3" /> Access Token (Manuell / Notfall)</label>
                   <input className="w-full border p-2 rounded text-xs font-mono" placeholder="Nur als Notfall-Fallback..." value={config.manualToken} onChange={e => setConfig({ ...config, manualToken: e.target.value })} />
                   <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 underline block mt-1">Token via Playground generieren (Scope: https://www.googleapis.com/auth/spreadsheets)</a>
+                </div>
+
+                <div className="flex items-center gap-2 pt-4 border-t mt-4">
+                  <button
+                    onClick={generateMockCurationData}
+                    className="text-[10px] bg-slate-800 text-white px-3 py-2 rounded hover:bg-slate-700 flex items-center gap-2 transition-all font-bold uppercase tracking-wider shadow-sm"
+                  >
+                    <LayoutDashboard className="w-3.5 h-3.5" /> Mock-Daten laden (Test)
+                  </button>
+                  <p className="text-[9px] text-slate-400 italic flex-1">Fügt temporäre Sessions hinzu, um das Dashboard zu testen.</p>
                 </div>
               </div>
             </div>

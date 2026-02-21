@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kosmos Planer - Kurations-Prototyp</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --sidebar-width: 320px;
+        }
+
+        body {
+            background-color: #f0f2f5;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .navbar {
+            background-color: #1e293b;
+            color: white;
+            z-index: 1050;
+        }
+
+        .main-container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        .sheet-area {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: #fff;
+            border-right: 1px solid #dee2e6;
+        }
+
+        .sidebar-area {
+            width: var(--sidebar-width);
+            background: #f8f9fa;
+            border-left: 1px solid #dee2e6;
+            overflow-y: auto;
+        }
+
+        .sheet-table {
+            border-collapse: collapse;
+            width: 100%;
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 0.9rem;
+        }
+
+        .sheet-table th {
+            background: #f1f5f9;
+            border: 1px solid #cbd5e1;
+            padding: 8px;
+            position: sticky;
+            top: 0;
+            text-align: left;
+        }
+
+        .sheet-table td {
+            border: 1px solid #cbd5e1;
+            padding: 8px;
+            cursor: pointer;
+        }
+
+        .sheet-table tr.selected {
+            background-color: #e0e7ff !important;
+        }
+
+        .sheet-table tr:hover {
+            background-color: #f8fafc;
+        }
+
+        .badge-status {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+        }
+
+        .status-vorschlag {
+            background: #fef9c3;
+            color: #854d0e;
+        }
+
+        .status-akzeptiert {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        .status-abgelehnt {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        /* Iframe styling for the sidebar */
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+    </style>
+</head>
+
+<body>
+    <nav class="navbar px-4 py-2 shadow-sm">
+        <div class="d-flex align-items-center gap-3">
+            <h5 class="mb-0 fw-bold"><i class="bi bi-shield-lock-fill text-primary me-2"></i>Kurations-Interface
+                (Prototyp)</h5>
+            <span class="badge bg-primary">Shadow Database Mode</span>
+        </div>
+        <div class="ms-auto text-light small opacity-75">
+            Eingeloggt als: kurator@kosmos-festival.de
+        </div>
+    </nav>
+
+    <div class="main-container">
+        <!-- Mock Google Sheet -->
+        <div class="sheet-area">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h6 class="text-muted text-uppercase fw-bold m-0"><i class="bi bi-table me-2"></i>Review Sheet
+                    (Anonymisiert)</h6>
+                <div class="btn-group btn-group-sm">
+                    <button class="btn btn-outline-secondary" onclick="syncData()"><i
+                            class="bi bi-arrow-repeat me-1"></i> Sync from Master</button>
+                    <button class="btn btn-primary" onclick="window.open('/','_blank')"><i class="bi bi-eye me-1"></i>
+                        Open Planer</button>
+                </div>
+            </div>
+
+            <table class="sheet-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;"></th>
+                        <th>ID</th>
+                        <th>Timestamp</th>
+                        <th>Titel</th>
+                        <th>Beschreibung</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                        <th>Interne Notizen</th>
+                    </tr>
+                </thead>
+                <tbody id="sheet-body">
+                    <tr onclick="selectRow(this, 'ANTIGRAV-A1B2')">
+                        <td class="text-center text-muted">1</td>
+                        <td class="fw-mono">ANTIGRAV-A1B2</td>
+                        <td class="text-muted">16.02.2026 14:22</td>
+                        <td><strong>KI im Kosmos</strong></td>
+                        <td class="text-truncate" style="max-width: 200px;">Eine Diskussion über die Rolle der KI...
+                        </td>
+                        <td id="score-A1B2">-</td>
+                        <td id="status-A1B2"><span class="badge-status status-vorschlag">Vorschlag</span></td>
+                        <td id="comments-A1B2" class="text-muted small">-</td>
+                    </tr>
+                    <tr onclick="selectRow(this, 'ANTIGRAV-X9Z8')">
+                        <td class="text-center text-muted">2</td>
+                        <td class="fw-mono">ANTIGRAV-X9Z8</td>
+                        <td class="text-muted">16.02.2026 15:10</td>
+                        <td><strong>Nachhaltiges Programmieren</strong></td>
+                        <td class="text-truncate" style="max-width: 200px;">Wie man Software für Generationen baut...
+                        </td>
+                        <td id="score-X9Z8">-</td>
+                        <td id="status-X9Z8"><span class="badge-status status-vorschlag">Vorschlag</span></td>
+                        <td id="comments-X9Z8" class="text-muted small">-</td>
+                    </tr>
+                    <tr onclick="selectRow(this, 'ANTIGRAV-P5M3')">
+                        <td class="text-center text-muted">3</td>
+                        <td class="fw-mono">ANTIGRAV-P5M3</td>
+                        <td class="text-muted">17.02.2026 09:45</td>
+                        <td><strong>Workshop: Agentic Workflows</strong></td>
+                        <td class="text-truncate" style="max-width: 200px;">Hands-on mit modernen Agenten...</td>
+                        <td id="score-P5M3">5</td>
+                        <td id="status-P5M3"><span class="badge-status status-akzeptiert">Akzeptiert</span></td>
+                        <td id="comments-P5M3" class="text-muted small">Sehr vielversprechend!</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <div class="mt-4 p-3 bg-light border rounded small opacity-75">
+                <i class="bi bi-info-circle-fill me-2 text-info"></i>
+                Dies ist eine Demo der <strong>Review-Tabelle</strong>. Die Klarnamen der Speaker wurden bereits durch
+                Pseudonyme (z.B. ANTIGRAV-A1B2) ersetzt. Der Zugriff auf diese Tabelle erfolgt über das
+                Kurations-Backend.
+            </div>
+        </div>
+
+        <!-- Sidebar Area -->
+        <div class="sidebar-area">
+            <iframe id="sidebar-iframe" src="sidebar_mock.html"></iframe>
+        </div>
+    </div>
+
+    <script>
+        let selectedId = null;
+
+        function selectRow(row, id) {
+            // Remove selection from all rows
+            document.querySelectorAll('#sheet-body tr').forEach(r => r.classList.remove('selected'));
+            // Add selection to current row
+            row.classList.add('selected');
+            selectedId = id;
+            console.log("Selected ID:", selectedId);
+        }
+
+        function syncData() {
+            alert("Synchronisierung mit Master-Tabelle gestartet...\n(Vorgang dauert ca. 2 Sekunden)");
+        }
+
+        // Mock GAS backend - will be called by the iframe
+        window.google = {
+            script: {
+                run: {
+                    withSuccessHandler: function (successFn) {
+                        const chain = {
+                            withFailureHandler: function (failureFn) {
+                                return chain;
+                            },
+                            getSelectedSessionId: function () {
+                                setTimeout(() => successFn(selectedId), 10);
+                            },
+                            updateReview: function (data) {
+                                console.log("Saving data to mock sheet:", data);
+                                // Update the local table
+                                const idSuffix = data.id.split('-')[1];
+                                const scoreCell = document.getElementById('score-' + idSuffix);
+                                const statusCell = document.getElementById('status-' + idSuffix);
+                                const commentsCell = document.getElementById('comments-' + idSuffix);
+
+                                if (scoreCell) scoreCell.innerText = data.score;
+                                if (statusCell) {
+                                    const statusClass = 'status-' + data.status.toLowerCase();
+                                    statusCell.innerHTML = `<span class="badge-status ${statusClass}">${data.status}</span>`;
+                                }
+                                if (commentsCell) {
+                                    commentsCell.innerText = data.comments;
+                                    commentsCell.classList.remove('text-muted');
+                                }
+
+                                setTimeout(() => successFn("Erfolgreich gespeichert!"), 800);
+                            }
+                        };
+                        return chain;
+                    }
+                }
+            }
+        };
+
+        // Pass messages to iframe if needed
+        window.addEventListener('message', function (event) {
+            // Future interface expansion
+        });
+    </script>
+</body>
+
+</html>

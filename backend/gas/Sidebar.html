@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <base target="_top">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body { padding: 15px; background: #f8f9fa; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .card { border-radius: 12px; border: none; box-shadow: 0 4px 6px rgba(0,0,0,0.05); margin-bottom: 15px; }
+        .btn-primary { background: #6366f1; border: none; }
+        .btn-primary:hover { background: #4f46e5; }
+        .form-label { font-weight: 600; font-size: 0.9rem; color: #4b5563; }
+        #status-msg { margin-top: 10px; font-size: 0.85rem; }
+    </style>
+</head>
+<body>
+    <h5 class="mb-4">Session Kuratierung</h5>
+    
+    <div class="card p-3">
+        <div class="mb-3">
+            <label class="form-label">Aktuelle ID</label>
+            <input type="text" id="session-id" class="form-control" readonly>
+            <div class="form-text">ID der ausgewählten Zeile</div>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Score (1-5)</label>
+            <select id="score" class="form-select">
+                <option value="">Auswählen...</option>
+                <option value="1">1 - Schwach</option>
+                <option value="2">2 - Ausreichend</option>
+                <option value="3">3 - Gut</option>
+                <option value="4">4 - Sehr Gut</option>
+                <option value="5">5 - Top</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Status</label>
+            <select id="status" class="form-select">
+                <option value="Vorschlag">Vorschlag</option>
+                <option value="Review">In Review</option>
+                <option value="Akzeptiert">Akzeptiert</option>
+                <option value="Abgelehnt">Abgelehnt</option>
+            </select>
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Interne Notizen</label>
+            <textarea id="comments" class="form-control" rows="3"></textarea>
+        </div>
+
+        <button onclick="saveData()" id="save-btn" class="btn btn-primary w-100">
+            Änderungen speichern
+        </button>
+        
+        <div id="status-msg"></div>
+    </div>
+
+    <script>
+        // In GAS context, we can use google.script.run
+        // For local development, we'd need a mock
+        
+        function saveData() {
+            const btn = document.getElementById('save-btn');
+            const msg = document.getElementById('status-msg');
+            const data = {
+                id: document.getElementById('session-id').value,
+                score: document.getElementById('score').value,
+                status: document.getElementById('status').value,
+                comments: document.getElementById('comments').value
+            };
+
+            if (!data.id) {
+                msg.innerText = "Bitte wählen Sie zuerst eine Zeile in der Tabelle aus.";
+                msg.className = "text-danger";
+                return;
+            }
+
+            btn.disabled = true;
+            msg.innerText = "Speichert...";
+            msg.className = "text-muted";
+
+            google.script.run
+                .withSuccessHandler(function(response) {
+                    btn.disabled = false;
+                    msg.innerText = response;
+                    msg.className = "text-success";
+                    setTimeout(() => msg.innerText = "", 3000);
+                })
+                .withFailureHandler(function(err) {
+                    btn.disabled = false;
+                    msg.innerText = "Fehler: " + err;
+                    msg.className = "text-danger";
+                })
+                .updateReview(data);
+        }
+
+        // Periodically poll for the selected ID if possible (simplified for now)
+        // In a real implementation, we could use google.script.run to get the active cell value
+        setInterval(() => {
+            if (typeof google !== 'undefined') {
+                google.script.run.withSuccessHandler(id => {
+                    if (id) document.getElementById('session-id').value = id;
+                }).getSelectedSessionId();
+            }
+        }, 2000);
+
+    </script>
+</body>
+</html>

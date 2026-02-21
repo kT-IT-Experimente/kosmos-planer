@@ -164,6 +164,26 @@ function AuthGate({ onAuthSuccess }) {
         }
     };
 
+    const handleMockLogin = () => {
+        if (import.meta.env.DEV) {
+            const mockEmail = 'enrique.inofficial@gmail.com';
+            const mockToken = 'mock_dev_token_123';
+            localStorage.setItem('kosmos_user_session', JSON.stringify({
+                accessToken: mockToken,
+                email: mockEmail,
+                name: 'Dev User',
+                picture: '',
+                timestamp: Date.now()
+            }));
+            onAuthSuccess({
+                accessToken: mockToken,
+                email: mockEmail,
+                name: 'Dev User',
+                picture: ''
+            });
+        }
+    };
+
     const handleLogin = () => {
         if (!clientId) {
             setError('Client ID not available. Cannot proceed with login.');
@@ -227,6 +247,18 @@ function AuthGate({ onAuthSuccess }) {
                         <LogIn className="w-5 h-5" />
                         Sign in with Google
                     </button>
+                )}
+
+                {/* Dev Bypass Button */}
+                {import.meta.env.DEV && (
+                    <div className="mt-4">
+                        <button
+                            onClick={handleMockLogin}
+                            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg border border-slate-300 transition-colors"
+                        >
+                            Bypass Auth (Dev Mode)
+                        </button>
+                    </div>
                 )}
 
                 {/* Developer Info */}
