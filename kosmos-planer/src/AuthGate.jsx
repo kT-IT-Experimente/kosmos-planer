@@ -137,33 +137,27 @@ function AuthGate({ onAuthSuccess }) {
             let isAuthorized = false;
             let role = 'GUEST';
 
-            // Allow dev bypass email or check the GAS backend
-            if (import.meta.env.DEV && userEmail === 'enrique.inofficial@gmail.com') {
-                isAuthorized = true;
-                role = 'ADMIN';
-            } else {
-                try {
-                    const apiUrl = localStorage.getItem('kosmos_curation_api_url') || import.meta.env.VITE_CURATION_API_URL;
-                    if (apiUrl) {
-                        const checkRes = await fetch(`${apiUrl}?email=${encodeURIComponent(userEmail)}`);
-                        if (checkRes.ok) {
-                            const data = await checkRes.json();
-                            // If the backend returned a role other than GUEST, they are authorized
-                            if (data.userRole && data.userRole !== 'GUEST') {
-                                isAuthorized = true;
-                                role = data.userRole;
-                            }
+            try {
+                const apiUrl = localStorage.getItem('kosmos_curation_api_url') || import.meta.env.VITE_CURATION_API_URL;
+                if (apiUrl) {
+                    const checkRes = await fetch(`${apiUrl}?email=${encodeURIComponent(userEmail)}`);
+                    if (checkRes.ok) {
+                        const data = await checkRes.json();
+                        // If the backend returned a role other than GUEST, they are authorized
+                        if (data.userRole && data.userRole !== 'GUEST') {
+                            isAuthorized = true;
+                            role = data.userRole;
                         }
-                    } else {
-                        // If no API URL is set, we must allow them through so they can set it in settings
-                        console.warn('[AuthGate] No Curation API URL set. Allowing login to access settings.');
-                        isAuthorized = true;
                     }
-                } catch (apiErr) {
-                    console.error('[AuthGate] Failed to check authorization against backend:', apiErr);
-                    // Fall fail-open if the API is unreachable so they can fix configs
+                } else {
+                    // If no API URL is set, we must allow them through so they can set it in settings
+                    console.warn('[AuthGate] No Curation API URL set. Allowing login to access settings.');
                     isAuthorized = true;
                 }
+            } catch (apiErr) {
+                console.error('[AuthGate] Failed to check authorization against backend:', apiErr);
+                // Fall fail-open if the API is unreachable so they can fix configs
+                isAuthorized = true;
             }
 
             if (isAuthorized) {
@@ -189,26 +183,6 @@ function AuthGate({ onAuthSuccess }) {
         } catch (err) {
             setError('Failed to validate user. Please try again.');
             console.error('[AuthGate] Validation error:', err);
-        }
-    };
-
-    const handleMockLogin = () => {
-        if (import.meta.env.DEV) {
-            const mockEmail = 'enrique.inofficial@gmail.com';
-            const mockToken = 'mock_dev_token_123';
-            localStorage.setItem('kosmos_user_session', JSON.stringify({
-                accessToken: mockToken,
-                email: mockEmail,
-                name: 'Dev User',
-                picture: '',
-                timestamp: Date.now()
-            }));
-            onAuthSuccess({
-                accessToken: mockToken,
-                email: mockEmail,
-                name: 'Dev User',
-                picture: ''
-            });
         }
     };
 
@@ -275,18 +249,6 @@ function AuthGate({ onAuthSuccess }) {
                         <LogIn className="w-5 h-5" />
                         Sign in with Google
                     </button>
-                )}
-
-                {/* Dev Bypass Button */}
-                {import.meta.env.DEV && (
-                    <div className="mt-4">
-                        <button
-                            onClick={handleMockLogin}
-                            className="w-full bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium py-2 px-4 rounded-lg border border-slate-300 transition-colors"
-                        >
-                            Bypass Auth (Dev Mode)
-                        </button>
-                    </div>
                 )}
 
                 {/* Developer Info */}
