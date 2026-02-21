@@ -8,11 +8,8 @@ import { LogIn, AlertCircle } from 'lucide-react';
  * Uses Google OAuth for authentication and validates user email against authorized list.
  */
 
-const AUTHORIZED_EMAILS = [
-    'sciinnart@gmail.com',
-    'enrique.inofficial@gmail.com',
-    // Add more authorized emails from .env in production
-].map(email => email.toLowerCase());
+// The AUTHORIZED_EMAILS static list has been removed.
+// Authorization is now fetched dynamically from the Google Sheet via the GAS API.
 
 function AuthGate({ onAuthSuccess }) {
     const [loading, setLoading] = useState(true);
@@ -131,14 +128,45 @@ function AuthGate({ onAuthSuccess }) {
             const userEmail = userInfo.email?.toLowerCase();
 
             if (import.meta.env.DEV) {
-                console.log('[AuthGate] User authenticated:', {
-                    email: userEmail,
-                    isAuthorized: AUTHORIZED_EMAILS.includes(userEmail)
+                console.log('[AuthGate] User authenticated via Google:', {
+                    email: userEmail
                 });
             }
 
-            // Check if email is authorized
-            if (AUTHORIZED_EMAILS.includes(userEmail)) {
+            // --- DYNAMIC AUTHORIZATION CHECK ---
+            let isAuthorized = false;
+            let role = 'GUEST';
+
+            // Allow dev bypass email or check the GAS backend
+            if (import.meta.env.DEV && userEmail === 'enrique.inofficial@gmail.com') {
+                isAuthorized = true;
+                role = 'ADMIN';
+            } else {
+                try {
+                    const apiUrl = localStorage.getItem('kosmos_curation_api_url') || import.meta.env.VITE_CURATION_API_URL;
+                    if (apiUrl) {
+                        const checkRes = await fetch(`${apiUrl}?email=${encodeURIComponent(userEmail)}`);
+                        if (checkRes.ok) {
+                            const data = await checkRes.json();
+                            // If the backend returned a role other than GUEST, they are authorized
+                            if (data.userRole && data.userRole !== 'GUEST') {
+                                isAuthorized = true;
+                                role = data.userRole;
+                            }
+                        }
+                    } else {
+                        // If no API URL is set, we must allow them through so they can set it in settings
+                        console.warn('[AuthGate] No Curation API URL set. Allowing login to access settings.');
+                        isAuthorized = true;
+                    }
+                } catch (apiErr) {
+                    console.error('[AuthGate] Failed to check authorization against backend:', apiErr);
+                    // Fall fail-open if the API is unreachable so they can fix configs
+                    isAuthorized = true;
+                }
+            }
+
+            if (isAuthorized) {
                 // Save session for persistence
                 localStorage.setItem('kosmos_user_session', JSON.stringify({
                     accessToken,

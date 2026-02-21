@@ -65,9 +65,9 @@ function getUserRole(emailOverride) {
 
   const data = sheet.getDataRange().getValues();
   for (let i = 1; i < data.length; i++) {
-    const userEmail = (data[i][0] || '').toString().toLowerCase();
-    if (userEmail === email.toLowerCase()) {
-      return (data[i][1] || 'REVIEWER').toString().toUpperCase(); 
+    const userEmail = (data[i][0] || '').toString().toLowerCase().replace(/,/g, '').trim();
+    if (userEmail === email.toLowerCase().trim()) {
+      return (data[i][1] || 'REVIEWER').toString().toUpperCase().replace(/,/g, '').trim(); 
     }
   }
   return 'GUEST'; // Default if not found in list
@@ -229,18 +229,54 @@ function doGet(e) {
   const email = e.parameter.email || "";
   const role = getUserRole(email);
   const ss = getSS();
-  const reviewSheet = ss.getSheetByName(CONFIG.REVIEW_SHEET_NAME);
-  const data = reviewSheet.getDataRange().getValues();
+  
+  // --- Option A: Read from Master_Einreichungen directly ---
+  // Falls back to Review_Kuratierung if Master doesn't exist
+  const SENSITIVE_FIELDS = ['e-mail-adresse', 'email', 'bio', 'webseite', 'webseite/social', 'webseite / social media'];
+  
+  let sourceSheet = ss.getSheetByName(CONFIG.MASTER_SHEET_NAME);
+  if (!sourceSheet) {
+    sourceSheet = ss.getSheetByName(CONFIG.REVIEW_SHEET_NAME);
+  }
+  
+  if (!sourceSheet) {
+    return ContentService.createTextOutput(JSON.stringify({
+      sessions: [],
+      metadata: getMetadataConfig(),
+      userRole: role,
+      error: 'Keine Einreichungs-Tabelle gefunden. Bitte Master_Einreichungen oder Review_Kuratierung anlegen.'
+    })).setMimeType(ContentService.MimeType.JSON);
+  }
+  
+  const data = sourceSheet.getDataRange().getValues();
   const headers = data[0];
   const rows = data.slice(1);
   
   const aggregations = (role === 'ADMIN' || role === 'CURATOR') ? getAggregatedRatings() : {};
 
-  const program = rows.map(row => {
+  const program = rows.map((row, idx) => {
     const obj = {};
-    headers.forEach((header, i) => obj[header.toLowerCase()] = row[i]);
+    headers.forEach((header, i) => {
+      const key = header.toString().toLowerCase().trim();
+      
+      // --- ROLE-BASED FIELD FILTERING ---
+      // Only ADMIN sees sensitive fields; everyone else gets them stripped
+      if (role !== 'ADMIN' && SENSITIVE_FIELDS.includes(key)) {
+        return; // Skip this field entirely
+      }
+      
+      obj[key] = row[i];
+    });
     
-    // Enrich with aggregated data if admin
+    // Ensure every session has an ID
+    if (!obj.id && !obj.zeitstempel) {
+      obj.id = 'session-' + idx;
+    } else if (!obj.id && obj.zeitstempel) {
+      // For Form submissions: generate a stable ID from timestamp + title
+      obj.id = CONFIG.ID_PREFIX + (idx + 1).toString().padStart(4, '0');
+    }
+    
+    // Enrich with aggregated ratings if admin/curator
     if (aggregations[obj.id]) {
       obj.average_score = (aggregations[obj.id].sum / aggregations[obj.id].count).toFixed(1);
       obj.review_count = aggregations[obj.id].count;
@@ -253,7 +289,10 @@ function doGet(e) {
   // Filter based on status only for non-admins
   const filteredProgram = (role === 'ADMIN' || role === 'CURATOR') 
     ? program 
-    : program.filter(item => item.status === 'Akzeptiert' || item.status === 'Fixiert');
+    : program.filter(item => {
+        const status = (item.status || '').toString().toLowerCase();
+        return status === 'akzeptiert' || status === 'fixiert';
+      });
 
   const result = {
     sessions: filteredProgram,
@@ -263,7 +302,7 @@ function doGet(e) {
 
   // Optionally include full planner data (to bypass frontend Auth issues)
   const includePlanner = e.parameter.includePlanner === 'true';
-  if (includePlanner) {
+  if (includePlanner && (role === 'ADMIN' || role === 'CURATOR')) {
     result.plannerData = getPlannerSheets();
   }
 
