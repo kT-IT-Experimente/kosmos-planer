@@ -1429,6 +1429,14 @@ function App({ authenticatedUser }) {
                     <span>Create Session</span>
                   </button>
                 )}
+                <button
+                  onClick={() => loadData(true)}
+                  disabled={status.loading}
+                  className={`ml-2 flex items-center justify-center p-1.5 rounded transition-colors ${status.loading ? 'text-indigo-400' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'}`}
+                  title="Daten aktualisieren"
+                >
+                  <RefreshCw className={`w-5 h-5 ${status.loading ? 'animate-spin' : ''}`} />
+                </button>
               </div>
 
               <div className="flex items-center gap-3">
@@ -1693,15 +1701,24 @@ function App({ authenticatedUser }) {
         <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PLANNER' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
           <Layout className="w-3.5 h-3.5" /> Planer
         </button>
-        <button onClick={() => setViewMode('SUBMIT')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SUBMIT' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
-          <PlusCircle className="w-3.5 h-3.5" /> Einreichung
-        </button>
-        <button onClick={() => setViewMode('CURATION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'CURATION' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
-          <LayoutDashboard className="w-3.5 h-3.5" /> Kuration
-        </button>
-        <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ADMIN' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
-          <Shield className="w-3.5 h-3.5" /> Admin
-        </button>
+
+        {['ADMIN', 'REVIEWER'].includes(curationData.userRole) && (
+          <button onClick={() => setViewMode('SUBMIT')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SUBMIT' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+            <PlusCircle className="w-3.5 h-3.5" /> Einreichung
+          </button>
+        )}
+
+        {['ADMIN', 'CURATOR', 'REVIEWER'].includes(curationData.userRole) && (
+          <button onClick={() => setViewMode('CURATION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'CURATION' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+            <LayoutDashboard className="w-3.5 h-3.5" /> Kuration
+          </button>
+        )}
+
+        {curationData.userRole === 'ADMIN' && (
+          <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ADMIN' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+            <Shield className="w-3.5 h-3.5" /> Admin
+          </button>
+        )}
       </div>
 
       {/* Settings Modal */}
