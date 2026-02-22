@@ -149,9 +149,21 @@ function AuthGate({ onAuthSuccess }) {
             let role = 'GUEST';
 
             try {
-                const apiUrl = localStorage.getItem('kosmos_curation_api_url') || import.meta.env.VITE_CURATION_API_URL;
-                if (apiUrl) {
-                    const checkRes = await fetch(`${apiUrl}?email=${encodeURIComponent(userEmail)}&t=${Date.now()}`);
+                const baseUrl = localStorage.getItem('kosmos_curation_api_url') || import.meta.env.VITE_CURATION_API_URL;
+                if (baseUrl) {
+                    const cleanBaseUrl = baseUrl.replace(/\/$/, '').replace(/\/api$/, ''); // Ensure clean base
+                    const checkRes = await fetch(`${cleanBaseUrl}/auth/verify`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${accessToken}`
+                        },
+                        body: JSON.stringify({
+                            email: userEmail,
+                            token: accessToken
+                        })
+                    });
+
                     if (checkRes.ok) {
                         const data = await checkRes.json();
                         // If the backend returned a role other than GUEST, they are authorized
@@ -159,10 +171,12 @@ function AuthGate({ onAuthSuccess }) {
                             isAuthorized = true;
                             role = data.userRole;
                         }
+                    } else {
+                        console.warn('[AuthGate] /auth/verify returned non-OK status:', checkRes.status);
                     }
                 } else {
                     // If no API URL is set, we must allow them through so they can set it in settings
-                    console.warn('[AuthGate] No Curation API URL set. Allowing login to access settings.');
+                    console.warn('[AuthGate] No n8n API Base URL set. Allowing login to access settings.');
                     isAuthorized = true;
                 }
             } catch (apiErr) {

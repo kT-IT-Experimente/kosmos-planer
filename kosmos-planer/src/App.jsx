@@ -994,7 +994,7 @@ function App({ authenticatedUser }) {
   // --- CURATION ACTIONS ---
   const handleUpdateCurationStatus = async (sessionId, newStatus) => {
     if (!config.curationApiUrl) {
-      setToast({ msg: "Keine Curation API URL konfiguriert!", type: "error" });
+      setToast({ msg: "Keine n8n API URL konfiguriert!", type: "error" });
       return;
     }
 
@@ -1513,9 +1513,9 @@ function App({ authenticatedUser }) {
                               <p className="font-bold text-slate-800 truncate">{authenticatedUser.name || 'User'}</p>
                               <p className="text-xs text-slate-500 truncate">{authenticatedUser.email}</p>
                               <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${curationData.userRole === 'ADMIN' ? 'bg-red-100 text-red-700' :
-                                  curationData.userRole === 'CURATOR' ? 'bg-purple-100 text-purple-700' :
-                                    curationData.userRole === 'REVIEWER' ? 'bg-blue-100 text-blue-700' :
-                                      'bg-slate-100 text-slate-600'
+                                curationData.userRole === 'CURATOR' ? 'bg-purple-100 text-purple-700' :
+                                  curationData.userRole === 'REVIEWER' ? 'bg-blue-100 text-blue-700' :
+                                    'bg-slate-100 text-slate-600'
                                 }`}>{curationData.userRole}</span>
                             </div>
                           </div>
@@ -1806,14 +1806,18 @@ function App({ authenticatedUser }) {
               </div>
               <div className="space-y-2">
                 <h3 className="text-xs font-bold uppercase text-slate-500">Sheet Config</h3>
-                <label className="block text-xs">Spreadsheet ID</label>
-                <input className="w-full border p-2 rounded" value={config.spreadsheetId} onChange={e => setConfig({ ...config, spreadsheetId: e.target.value })} />
+                <label className="block text-xs">n8n API Base URL (z.B. https://n8n.domain.com/webhook)</label>
+                <input
+                  type="text"
+                  value={config.curationApiUrl}
+                  onChange={e => setConfig({ ...config, curationApiUrl: e.target.value })}
+                  placeholder="https://n8n.deine-domain.com/webhook"
+                  className="w-full border rounded p-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                />
                 <div className="grid grid-cols-2 gap-2">
                   <div><label className="text-xs">Prog Sheet</label><input className="w-full border p-2 rounded" value={config.sheetNameProgram} onChange={e => setConfig({ ...config, sheetNameProgram: e.target.value })} /></div>
                   <div><label className="text-xs">Stages Sheet</label><input className="w-full border p-2 rounded" value={config.sheetNameStages} onChange={e => setConfig({ ...config, sheetNameStages: e.target.value })} /></div>
                 </div>
-                <label className="block text-xs">Curation API URL (optional)</label>
-                <input className="w-full border p-2 rounded text-xs font-mono" placeholder="https://script.google.com/macros/s/.../exec" value={config.curationApiUrl} onChange={e => setConfig({ ...config, curationApiUrl: e.target.value })} />
                 <label className="block text-xs mt-2">n8n Webhook Base URL</label>
                 <input className="w-full border p-2 rounded text-xs font-mono" placeholder="https://n8n.deine-domain.de/webhook" value={config.n8nBaseUrl} onChange={e => setConfig({ ...config, n8nBaseUrl: e.target.value })} />
               </div>
