@@ -175,7 +175,8 @@ function AuthGate({ onAuthSuccess }) {
                     accessToken,
                     email: userEmail,
                     name: userInfo.name,
-                    picture: userInfo.picture
+                    picture: userInfo.picture,
+                    role: role
                 });
             } else {
                 setError(`Access denied. The email "${userEmail}" is not authorized for this application.`);

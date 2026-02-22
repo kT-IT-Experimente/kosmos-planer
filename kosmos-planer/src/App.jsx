@@ -556,7 +556,7 @@ function App({ authenticatedUser }) {
       { email: 'curator@kosmos-festival.de', role: 'CURATOR' }
     ],
     metadata: { bereiche: [], themen: [], tags: [], formate: [] },
-    userRole: 'GUEST'
+    userRole: authenticatedUser?.role || 'GUEST'
   });
 
   const [activeDragItem, setActiveDragItem] = useState(null);
@@ -911,7 +911,7 @@ function App({ authenticatedUser }) {
   // Auto-load data when app mounts
   useEffect(() => {
     if (config.spreadsheetId) {
-      loadData({ manual: false, importProgram: false }); // Only metadata on mount
+      loadData({ manual: false, importProgram: true }); // Load everything on mount
     }
   }, [config.spreadsheetId, loadData]);
 
@@ -1430,7 +1430,7 @@ function App({ authenticatedUser }) {
                   </button>
                 )}
                 <button
-                  onClick={() => loadData(true)}
+                  onClick={() => loadData({ manual: true, importProgram: true })}
                   disabled={status.loading}
                   className={`ml-2 flex items-center justify-center p-1.5 rounded transition-colors ${status.loading ? 'text-indigo-400' : 'text-slate-500 hover:text-indigo-600 hover:bg-indigo-50'}`}
                   title="Daten aktualisieren"
