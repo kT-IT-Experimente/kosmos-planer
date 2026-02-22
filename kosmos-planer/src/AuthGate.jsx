@@ -151,7 +151,7 @@ function AuthGate({ onAuthSuccess }) {
             try {
                 const apiUrl = localStorage.getItem('kosmos_curation_api_url') || import.meta.env.VITE_CURATION_API_URL;
                 if (apiUrl) {
-                    const checkRes = await fetch(`${apiUrl}?email=${encodeURIComponent(userEmail)}`);
+                    const checkRes = await fetch(`${apiUrl}?email=${encodeURIComponent(userEmail)}&t=${Date.now()}`);
                     if (checkRes.ok) {
                         const data = await checkRes.json();
                         // If the backend returned a role other than GUEST, they are authorized
@@ -216,7 +216,8 @@ function AuthGate({ onAuthSuccess }) {
             redirect_uri: redirectUri,
             response_type: 'token',
             scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
-            include_granted_scopes: 'true'
+            include_granted_scopes: 'true',
+            prompt: 'select_account'
         });
 
         window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
