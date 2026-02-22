@@ -119,13 +119,19 @@ async function getValidAccessToken() {
  * Robust fetch wrapper for Sheets API that falls back to direct Google API calls
  * if the local proxy is not available.
  */
-async function fetchSheets(body, token) {
-  const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+async function fetchSheets(body, token, n8nBaseUrl) {
+  if (!n8nBaseUrl) {
+    return { ok: false, error: "Keine n8n API Base URL konfiguriert." };
+  }
+
+  const cleanBaseUrl = n8nBaseUrl.replace(/\/$/, '').replace(/\/api$/, '');
+  const endpoint = body.action === 'batchGet' ? '/api/data' : '/api/save';
+  const reqUrl = `${cleanBaseUrl}${endpoint}`;
+
   let lastError = null;
 
-  // Try the internal proxy first
   try {
-    const res = await fetch('/api/sheets', {
+    const res = await fetch(reqUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -136,23 +142,16 @@ async function fetchSheets(body, token) {
 
     if (res.ok) {
       const text = await res.text();
-      if (!text) {
-        console.warn('[Direct Sheets Fallback] Empty response from proxy');
-        if (isLocal) throw new Error("EmptyProxyResponse"); // Trigger catch block to fallback
-        return { ok: true, data: {} };
-      }
+      if (!text) return { ok: true, data: {} };
       try {
         const data = JSON.parse(text);
         return { ok: true, data };
       } catch (e) {
-        console.warn('[Direct Sheets Fallback] Non-JSON response from proxy');
-        if (isLocal) throw new Error("NonJsonResponse"); // Trigger catch block to fallback
         return { ok: false, error: "Ungültige Server-Antwort", status: res.status };
       }
     }
 
-    // Capture error but maybe fallback
-    let lastError = `HTTP ${res.status}`;
+    lastError = `HTTP ${res.status}`;
     const contentType = res.headers.get("content-type");
     if (contentType && contentType.includes("application/json")) {
       try {
@@ -160,64 +159,11 @@ async function fetchSheets(body, token) {
         lastError = errorData.error || lastError;
       } catch (e) { }
     }
+    return { ok: false, error: lastError, status: res.status };
 
-    // Only fallback if it's a proxy connectivity issue or server error on localhost
-    if (isLocal && (res.status === 404 || res.status === 500 || res.status === 502 || res.status === 504)) {
-      console.warn(`[Direct Sheets Fallback] Proxy returned ${res.status}, attempting direct Google API call...`);
-    } else {
-      return { ok: false, error: lastError, status: res.status };
-    }
-  } catch (e) {
-    console.warn('[Direct Sheets Fallback] Fetch failed (network error), attempting direct Google API call:', e);
-    if (!isLocal) throw e;
-  }
-
-  // FALLBACK: Call Google Sheets API directly from the browser
-  const { action, spreadsheetId, ranges, range, values } = body;
-  const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
-
-  try {
-    let url = '';
-    let method = 'GET';
-    let fetchBody = null;
-
-    if (action === 'batchGet') {
-      const params = new URLSearchParams();
-      ranges.forEach(r => params.append('ranges', r));
-      if (apiKey) params.append('key', apiKey);
-      url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values:batchGet?${params.toString()}`;
-    } else if (action === 'update') {
-      const params = new URLSearchParams({ valueInputOption: 'USER_ENTERED' });
-      if (apiKey) params.append('key', apiKey);
-      url = `https://sheets.googleapis.com/v4/spreadsheets/${encodeURIComponent(spreadsheetId)}/values/${encodeURIComponent(range)}?${params.toString()}`;
-      method = 'PUT';
-      fetchBody = JSON.stringify({ values });
-    }
-
-    const res = await fetch(url, {
-      method,
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: fetchBody
-    });
-
-    const text = await res.text();
-    if (!text) return { ok: true, data: {} };
-
-    try {
-      const data = JSON.parse(text);
-      if (!res.ok) {
-        return { ok: false, error: data.error?.message || 'Sheets API Fehler', status: res.status };
-      }
-      return { ok: true, data };
-    } catch (e) {
-      if (!res.ok) return { ok: false, error: `HTTP ${res.status}`, status: res.status };
-      return { ok: true, data: {} };
-    }
-  } catch (e) {
-    return { ok: false, error: `Verbindung zu Google fehlgeschlagen: ${e.message}` };
+  } catch (err) {
+    console.error('n8n fetch error:', err);
+    return { ok: false, error: "Netzwerkfehler: " + err.message };
   }
 }
 
@@ -872,7 +818,7 @@ function App({ authenticatedUser }) {
         action: 'batchGet',
         spreadsheetId: config.spreadsheetId,
         ranges: ranges
-      }, token);
+      }, token, config.curationApiUrl);
 
       if (import.meta.env.DEV) console.log('[loadData] Result:', { ok, rangeCount: batch?.valueRanges?.length, error });
 
@@ -1153,7 +1099,7 @@ function App({ authenticatedUser }) {
         spreadsheetId: config.spreadsheetId,
         range: `'${config.sheetNameProgram}'!A2:P`,
         values: rows,
-      }, token);
+      }, token, n8nBaseUrl);
 
       if (!ok) {
         throw new Error(error || 'Sheets API Fehler');
@@ -1702,7 +1648,7 @@ function App({ authenticatedUser }) {
               sessions={[
                 ...curationData.sessions,
                 ...data.program
-                  .filter(p => (p.status || '').includes('Vorschlag') || (p.status || '').includes('Vorgeschlag'))
+                  .filter(p => (p.status || '').includes('Vorschlag') || (p.status || '').includes('Vorgeschlagen'))
                   .map(p => ({
                     id: p.id,
                     title: p.title,
