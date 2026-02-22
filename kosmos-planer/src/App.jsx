@@ -1099,7 +1099,7 @@ function App({ authenticatedUser }) {
         spreadsheetId: config.spreadsheetId,
         range: `'${config.sheetNameProgram}'!A2:P`,
         values: rows,
-      }, token, n8nBaseUrl);
+      }, token, config.curationApiUrl);
 
       if (!ok) {
         throw new Error(error || 'Sheets API Fehler');
