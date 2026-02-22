@@ -560,6 +560,14 @@ function App({ authenticatedUser }) {
   });
 
   const [activeDragItem, setActiveDragItem] = useState(null);
+
+  // Sync userRole from authenticatedUser whenever it changes
+  useEffect(() => {
+    if (authenticatedUser?.role && authenticatedUser.role !== curationData.userRole) {
+      setCurationData(prev => ({ ...prev, userRole: authenticatedUser.role }));
+      if (import.meta.env.DEV) console.log('[App] Role synced from auth:', authenticatedUser.role);
+    }
+  }, [authenticatedUser?.role]);
   const [ghostPosition, setGhostPosition] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -1448,13 +1456,15 @@ function App({ authenticatedUser }) {
                   <Download className="w-4 h-4" />
                   <span>Export CSV</span>
                 </button>
-                <button
-                  onClick={handleSync}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-all ${localChanges ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md animate-pulse' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
-                >
-                  <UploadCloud className="w-4 h-4" />
-                  <span>Speichern</span>
-                </button>
+                {curationData.userRole !== 'GUEST' && (
+                  <button
+                    onClick={handleSync}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-all ${localChanges ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md animate-pulse' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                  >
+                    <UploadCloud className="w-4 h-4" />
+                    <span>Speichern</span>
+                  </button>
+                )}
                 <button onClick={() => setShowSettings(!showSettings)} className="p-2 hover:bg-slate-100 rounded text-slate-500">
                   <Settings className="w-4 h-4" />
                 </button>

@@ -45,8 +45,19 @@ function AuthGate({ onAuthSuccess }) {
                 try {
                     const session = JSON.parse(savedSession);
                     if (session.accessToken) {
-                        if (import.meta.env.DEV) console.log('[AuthGate] Found saved session, validating...');
-                        validateAndGrantAccess(session.accessToken);
+                        if (import.meta.env.DEV) console.log('[AuthGate] Found saved session, validating...', { role: session.role });
+                        // If we have a saved role, try to fast-path
+                        if (session.role && session.role !== 'GUEST') {
+                            onAuthSuccess({
+                                accessToken: session.accessToken,
+                                email: session.email,
+                                name: session.name,
+                                picture: session.picture,
+                                role: session.role
+                            });
+                        } else {
+                            validateAndGrantAccess(session.accessToken);
+                        }
                     }
                 } catch (e) {
                     localStorage.removeItem('kosmos_user_session');
@@ -161,12 +172,13 @@ function AuthGate({ onAuthSuccess }) {
             }
 
             if (isAuthorized) {
-                // Save session for persistence
+                // Save session for persistence (including role!)
                 localStorage.setItem('kosmos_user_session', JSON.stringify({
                     accessToken,
                     email: userEmail,
                     name: userInfo.name,
                     picture: userInfo.picture,
+                    role: role,
                     timestamp: Date.now()
                 }));
 
