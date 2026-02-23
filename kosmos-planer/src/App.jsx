@@ -1599,14 +1599,14 @@ function App({ authenticatedUser }) {
 
                   {/* TIMELINE */}
                   <div className="flex-1 overflow-auto relative custom-scrollbar flex bg-slate-50">
-                    <div className="w-10 bg-white border-r shrink-0 sticky left-0 z-30 shadow-sm" style={{ minHeight: timelineHeight }}>
+                    <div className="w-10 bg-white border-r shrink-0 sticky left-0 z-30 shadow-sm" style={{ minHeight: timelineHeight + HEADER_HEIGHT }}>
                       {Array.from({ length: config.endHour - config.startHour }).map((_, i) => {
                         const hour = config.startHour + i;
                         return (
                           <div
                             key={hour}
                             className="absolute w-full border-t border-slate-200 text-[10px] font-bold text-slate-400 pl-1 pt-0.5"
-                            style={{ top: i * 60 * PIXELS_PER_MINUTE }}
+                            style={{ top: HEADER_HEIGHT + i * 60 * PIXELS_PER_MINUTE }}
                           >
                             {hour}:00
                           </div>
