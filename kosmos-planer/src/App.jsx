@@ -447,6 +447,21 @@ const parsePlannerBatch = (batch, config) => {
           }
         }
 
+        // Fix for mixed-up creation time and start time.
+        // If r[6] has a date format (longer than 5 chars, contains '.'), it is the creation time.
+        // The real start time might be in r[7].
+        let finalStart = start;
+        const possibleStart = safeString(r[7]);
+        if (finalStart.length > 5 && (finalStart.includes('.') || finalStart.includes(' '))) {
+          if (possibleStart.includes(':') && possibleStart.length <= 5) {
+            finalStart = possibleStart;
+          } else {
+            finalStart = '-';
+          }
+        } else if (finalStart && !finalStart.includes(':')) {
+          finalStart = '-';
+        }
+
         const rawId = safeString(r[0]);
         const id = (rawId && rawId.length > 1) ? rawId : generateId();
 
@@ -457,9 +472,9 @@ const parsePlannerBatch = (batch, config) => {
           partner: (safeString(r[3]) === 'TRUE' || safeString(r[3]) === 'P') ? 'TRUE' : 'FALSE',
           format: safeString(r[4]) || 'Talk',
           stage: stage,
-          start: start,
+          start: finalStart,
           duration: dur,
-          end: calculateEndTime(start, dur),
+          end: calculateEndTime(finalStart, dur),
           speakers: safeString(r[9]),
           moderators: safeString(r[10]),
           language: safeString(r[11]),
@@ -486,8 +501,8 @@ function App({ authenticatedUser }) {
     sheetNameSpeakers: localStorage.getItem('kosmos_sheet_speakers') || '26_Kosmos_SprecherInnen',
     sheetNameMods: localStorage.getItem('kosmos_sheet_mods') || '26_Kosmos_Moderation',
     sheetNameStages: localStorage.getItem('kosmos_sheet_stages') || 'Bühnen_Import',
-    curationApiUrl: localStorage.getItem('kosmos_curation_api_url') || '',
-    n8nBaseUrl: localStorage.getItem('kosmos_n8nBaseUrl') || '',
+    curationApiUrl: import.meta.env.VITE_CURATION_API_URL || (localStorage.getItem('kosmos_curation_api_url')?.includes('script.google.com') ? '' : localStorage.getItem('kosmos_curation_api_url')) || '',
+    n8nBaseUrl: import.meta.env.VITE_CURATION_API_URL || (localStorage.getItem('kosmos_n8nBaseUrl')?.includes('script.google.com') ? '' : localStorage.getItem('kosmos_n8nBaseUrl')) || '',
     startHour: parseInt(localStorage.getItem('kosmos_start_hour')) || 9,
     endHour: parseInt(localStorage.getItem('kosmos_end_hour')) || 22,
     bufferMin: parseInt(localStorage.getItem('kosmos_buffer_min')) || 5
@@ -1585,6 +1600,18 @@ function App({ authenticatedUser }) {
                   {/* TIMELINE */}
                   <div className="flex-1 overflow-auto relative custom-scrollbar flex bg-slate-50">
                     <div className="w-10 bg-white border-r shrink-0 sticky left-0 z-30 shadow-sm" style={{ minHeight: timelineHeight }}>
+                      {Array.from({ length: config.endHour - config.startHour }).map((_, i) => {
+                        const hour = config.startHour + i;
+                        return (
+                          <div
+                            key={hour}
+                            className="absolute w-full border-t border-slate-200 text-[10px] font-bold text-slate-400 pl-1 pt-0.5"
+                            style={{ top: i * 60 * PIXELS_PER_MINUTE }}
+                          >
+                            {hour}:00
+                          </div>
+                        );
+                      })}
                     </div>
                     <div className="flex min-w-full">
                       {data.stages.map(stage => {
@@ -1833,7 +1860,13 @@ function App({ authenticatedUser }) {
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setShowSettings(false)} className="px-4 py-2 border rounded">Abbrechen</button>
               <button onClick={() => {
-                Object.keys(config).forEach(k => localStorage.setItem(`kosmos_${k}`, config[k]));
+                Object.keys(config).forEach(k => {
+                  if (config[k]) {
+                    localStorage.setItem(`kosmos_${k}`, config[k]);
+                  } else {
+                    localStorage.removeItem(`kosmos_${k}`);
+                  }
+                });
                 window.location.reload();
               }} className="px-4 py-2 bg-blue-600 text-white rounded">Speichern & Reload</button>
             </div>

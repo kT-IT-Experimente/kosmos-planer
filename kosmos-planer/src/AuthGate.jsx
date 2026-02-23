@@ -219,11 +219,11 @@ function AuthGate({ onAuthSuccess }) {
             return;
         }
 
-        // Ensure redirect_uri exactly matches what's in Google Console
-        // We use window.location.origin + window.location.pathname
-        // But we must ensure it ends with a slash if testing on root domain
-        let redirectUri = window.location.origin + window.location.pathname;
-        if (!redirectUri.endsWith('/')) redirectUri += '/';
+        // Use exact origin, avoiding trailing slashes on the root domain
+        let redirectUri = window.location.origin;
+        if (window.location.pathname && window.location.pathname !== '/') {
+            redirectUri += window.location.pathname;
+        }
 
         const params = new URLSearchParams({
             client_id: clientId,
