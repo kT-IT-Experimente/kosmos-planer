@@ -431,7 +431,8 @@ const parsePlannerBatch = (batch, config) => {
   }).forEach(r => {
     const fullName = `${safeString(r[3])} ${safeString(r[4])}`.trim();
     const email = safeString(r[10]);
-    const key = email || fullName;
+    // Use fullName as primary key — emails can be shared placeholders (e.g. Dummy@gmx.de)
+    const key = fullName || email;
     if (key && !speakerMap.has(key)) {
       speakerMap.set(key, {
         id: safeString(r[2]) || `SPK-${String(speakerMap.size + 1).padStart(4, '0')}`,
@@ -465,8 +466,8 @@ const parsePlannerBatch = (batch, config) => {
         const coSpeaker = safeString(r[12]);
         const speakerDisplay = coSpeaker ? `${fullName}, ${coSpeaker}` : fullName;
 
-        // Enrich speaker list from submissions
-        const speakerKey = email || fullName;
+        // Enrich speaker list from submissions (use fullName as primary key)
+        const speakerKey = fullName || email;
         if (speakerKey && !speakerMap.has(speakerKey)) {
           speakerMap.set(speakerKey, {
             id: `SPK-${String(speakerMap.size + 1).padStart(4, '0')}`,
@@ -500,6 +501,10 @@ const parsePlannerBatch = (batch, config) => {
   }
 
   const sp = Array.from(speakerMap.values());
+  if (import.meta.env.DEV) {
+    console.log(`[parsePlannerBatch] Final speaker count: ${sp.length} (from sheet: ${(valRanges[0].values || []).length} rows, submissions: ${valRanges[4]?.values?.length || 0} rows)`);
+    sp.forEach(s => console.log(`  Speaker: "${s.fullName}" status="${s.status}" id="${s.id}"`));
+  }
 
   const mo = (valRanges[1].values || []).filter(r => r[0]).map((r, i) => ({ id: `mod-${i}`, fullName: safeString(r[1]), status: safeString(r[0]) }));
 
@@ -508,7 +513,8 @@ const parsePlannerBatch = (batch, config) => {
       id: safeString(r[0]) || `st-${i}`,
       name: safeString(r[1]),
       capacity: safeString(r[2]),
-      maxMics: parseInt(r[4]) || 4
+      maxMics: parseInt(r[4]) || 4,
+      hidden: safeString(r[5]).toUpperCase() === 'TRUE'
     }))
     .filter(s => s.name && s.name.toLowerCase() !== 'inbox');
 
@@ -895,8 +901,19 @@ function App({ authenticatedUser }) {
       // If curationApiUrl is set, we fetch from there first for the program data
       if (config.curationApiUrl) {
         try {
-          const emailParam = authenticatedUser.email ? `&email=${encodeURIComponent(authenticatedUser.email)}` : '';
-          const res = await fetch(`${config.curationApiUrl}${config.curationApiUrl.includes('?') ? '&' : '?'}includePlanner=true${emailParam}`);
+          // Privacy fix: send email in POST body (not query string) + Bearer auth
+          const res = await fetch(config.curationApiUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              action: 'getCurationData',
+              includePlanner: true,
+              email: authenticatedUser.email || ''
+            })
+          });
           if (res.ok) {
             const result = await res.json();
             // Deep merge to ensure all metadata keys exist
@@ -947,6 +964,7 @@ function App({ authenticatedUser }) {
       ranges.push(`'Config_Themen'!A2:D`);                 // index 5: Bereiche/Themen/Tags/Formate
       ranges.push(`'Master_Ratings'!A2:F`);                 // index 6: Ratings
       ranges.push(`'Config_Users'!A2:C`);                   // index 7: Users (email, role, name)
+      ranges.push(`'Config_Users'!D1:D1`);                   // index 8: Open Call status
 
       if (import.meta.env.DEV) console.log('[loadData] Final ranges to fetch:', ranges);
 
@@ -983,6 +1001,9 @@ function App({ authenticatedUser }) {
         setCurationData(prev => ({ ...prev, users: parsedUsers, userRole: sheetRole }));
         if (import.meta.env.DEV) console.log('[loadData] userRole from Config_Users:', sheetRole);
       }
+      // Read Open Call status from Config_Users D1 (index 8)
+      const openCallVal = safeString(batch.valueRanges?.[8]?.values?.[0]?.[0]).toUpperCase();
+      setOpenCallClosed(openCallVal === 'CLOSED');
       setData(prev => {
         const newData = { ...prev, ...parsed };
         // Only overwrite program if it was actually imported
@@ -1172,6 +1193,107 @@ function App({ authenticatedUser }) {
     setTimeout(() => setToast(null), 3000);
   };
 
+  // --- STAGE MANAGEMENT ---
+  const handleSaveStages = async (updatedStages) => {
+    if (effectiveRole !== 'ADMIN') {
+      setToast({ msg: 'Nur Admins können Bühnen bearbeiten.', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    const prevStages = data.stages;
+    setData(prev => ({ ...prev, stages: updatedStages }));
+    try {
+      const token = authenticatedUser.accessToken;
+      const rows = updatedStages.map(s => [
+        s.id, s.name, s.capacity || '', '', String(s.maxMics || 4), s.hidden ? 'TRUE' : ''
+      ]);
+      const { ok, error } = await fetchSheets({
+        action: 'update',
+        spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameStages}'!A2:F`,
+        values: rows,
+      }, token, config.curationApiUrl);
+      if (!ok) throw new Error(error || 'Fehler beim Speichern der Bühnen');
+      setToast({ msg: 'Bühnen gespeichert!', type: 'success' });
+    } catch (e) {
+      console.error(e);
+      setToast({ msg: 'Fehler beim Speichern der Bühnen', type: 'error' });
+      setData(prev => ({ ...prev, stages: prevStages }));
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // --- CONFIG_THEMEN MANAGEMENT ---
+  const handleSaveConfigThemen = async (updatedConfig) => {
+    if (effectiveRole !== 'ADMIN') {
+      setToast({ msg: 'Nur Admins können Themen bearbeiten.', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    const prevConfig = data.configThemen;
+    setData(prev => ({ ...prev, configThemen: updatedConfig }));
+    try {
+      const token = authenticatedUser.accessToken;
+      // Build rows: each row has [Bereich, Thema, Tag, Format]
+      const maxLen = Math.max(
+        updatedConfig.bereiche.length, updatedConfig.themen.length,
+        updatedConfig.tags.length, updatedConfig.formate.length
+      );
+      const rows = [];
+      for (let i = 0; i < maxLen; i++) {
+        rows.push([
+          updatedConfig.bereiche[i] || '',
+          updatedConfig.themen[i] || '',
+          updatedConfig.tags[i] || '',
+          updatedConfig.formate[i] || ''
+        ]);
+      }
+      const { ok, error } = await fetchSheets({
+        action: 'update',
+        spreadsheetId: config.spreadsheetId,
+        range: `'Config_Themen'!A2:D`,
+        values: rows,
+      }, token, config.curationApiUrl);
+      if (!ok) throw new Error(error || 'Fehler beim Speichern der Themen');
+      setToast({ msg: 'Themen-Konfiguration gespeichert!', type: 'success' });
+    } catch (e) {
+      console.error(e);
+      setToast({ msg: 'Fehler beim Speichern der Themen', type: 'error' });
+      setData(prev => ({ ...prev, configThemen: prevConfig }));
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // --- OPEN CALL TOGGLE ---
+  const [openCallClosed, setOpenCallClosed] = useState(false);
+
+  const handleToggleOpenCall = async () => {
+    if (effectiveRole !== 'ADMIN') {
+      setToast({ msg: 'Nur Admins können den Open Call steuern.', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    const newValue = !openCallClosed;
+    if (!window.confirm(newValue ? 'Open Call wirklich schließen? Keine neuen Einreichungen mehr möglich.' : 'Open Call wieder öffnen?')) return;
+    setOpenCallClosed(newValue);
+    try {
+      const token = authenticatedUser.accessToken;
+      const { ok, error } = await fetchSheets({
+        action: 'update',
+        spreadsheetId: config.spreadsheetId,
+        range: `'Config_Users'!D1:D1`,
+        values: [[newValue ? 'CLOSED' : 'OPEN']],
+      }, token, config.curationApiUrl);
+      if (!ok) throw new Error(error);
+      setToast({ msg: newValue ? 'Open Call geschlossen.' : 'Open Call geöffnet.', type: 'success' });
+    } catch (e) {
+      console.error(e);
+      setOpenCallClosed(!newValue); // revert
+      setToast({ msg: 'Fehler beim Speichern', type: 'error' });
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
+
   // --- CURATION ACTIONS ---
   const handleUpdateCurationStatus = async (sessionId, newStatus) => {
     if (!config.curationApiUrl) {
@@ -1185,7 +1307,10 @@ function App({ authenticatedUser }) {
 
       const res = await fetch(config.curationApiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authenticatedUser.accessToken}`,
+        },
         body: JSON.stringify({
           action: 'updateStatus',
           id: sessionId,
@@ -1217,7 +1342,10 @@ function App({ authenticatedUser }) {
 
       const res = await fetch(config.curationApiUrl, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${authenticatedUser.accessToken}`,
+        },
         body: JSON.stringify({
           action: 'updateMetadata',
           id: sessionId,
@@ -1833,7 +1961,7 @@ function App({ authenticatedUser }) {
                       })}
                     </div>
                     <div className="flex min-w-full">
-                      {data.stages.map(stage => {
+                      {data.stages.filter(s => effectiveRole === 'ADMIN' || !s.hidden).map(stage => {
                         const stageSessions = data.program.filter(p => p.stage === stage.id);
                         return (
                           <StageColumn key={stage.id} stage={stage} height={timelineHeight}>
@@ -1958,9 +2086,16 @@ function App({ authenticatedUser }) {
               users={curationData.users || []}
               stages={data.stages}
               config={config}
+              configThemen={data.configThemen}
+              curationApiUrl={config.curationApiUrl}
+              userEmail={authenticatedUser.email || ''}
               onUpdateUserRole={handleUpdateUserRole}
               onAddUser={handleAddUser}
               onDeleteUser={handleDeleteUser}
+              onSaveStages={handleSaveStages}
+              onSaveConfigThemen={handleSaveConfigThemen}
+              openCallClosed={openCallClosed}
+              onToggleOpenCall={handleToggleOpenCall}
               onUpdateConfig={(newSettings) => {
                 setConfig(prev => ({ ...prev, ...newSettings }));
                 if (newSettings.startHour !== undefined) localStorage.setItem('kosmos_start_hour', String(newSettings.startHour));
@@ -1976,13 +2111,23 @@ function App({ authenticatedUser }) {
         {/* Submit View */}
         {viewMode === 'SUBMIT' && (
           <div className="flex-1 overflow-y-auto bg-slate-50 p-6 space-y-6">
-            <SessionSubmission
-              n8nBaseUrl={config.n8nBaseUrl}
-              metadata={curationData.metadata}
-              submitterEmail={authenticatedUser.email}
-              onSuccess={() => setToast({ msg: 'Session erfolgreich eingereicht!', type: 'success' })}
-              onRegisterSpeaker={() => setViewMode('REGISTER')}
-            />
+            {openCallClosed && effectiveRole !== 'ADMIN' ? (
+              <div className="max-w-2xl mx-auto mt-20 text-center">
+                <div className="bg-red-50 border border-red-200 rounded-xl p-8">
+                  <h2 className="text-xl font-bold text-red-700 mb-2">Open Call geschlossen</h2>
+                  <p className="text-sm text-red-600">Der Open Call für Einreichungen ist derzeit geschlossen. Bitte wende dich an das Admin-Team, wenn du eine Session einreichen möchtest.</p>
+                </div>
+              </div>
+            ) : (
+              <SessionSubmission
+                n8nBaseUrl={config.n8nBaseUrl}
+                accessToken={authenticatedUser.accessToken}
+                metadata={curationData.metadata}
+                submitterEmail={authenticatedUser.email}
+                onSuccess={() => setToast({ msg: 'Session erfolgreich eingereicht!', type: 'success' })}
+                onRegisterSpeaker={() => setViewMode('REGISTER')}
+              />
+            )}
           </div>
         )}
 
@@ -1991,6 +2136,7 @@ function App({ authenticatedUser }) {
           <div className="flex-1 overflow-y-auto bg-slate-50 p-6 space-y-6">
             <SpeakerRegistration
               n8nBaseUrl={config.n8nBaseUrl}
+              accessToken={authenticatedUser.accessToken}
               registeredBy={authenticatedUser.email}
               onSuccess={() => setToast({ msg: 'Speaker registriert!', type: 'success' })}
             />
