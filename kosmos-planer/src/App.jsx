@@ -400,17 +400,91 @@ const parsePlannerBatch = (batch, config) => {
   const valRanges = batch.valueRanges;
   if (!valRanges || valRanges.length < 3) return { speakers: [], moderators: [], stages: [], program: [] };
 
-  const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag'];
-  const sp = (valRanges[0].values || []).filter(r => {
+  const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag', 'cfp', 'cfp_dummy'];
+  // 26_Kosmos_SprecherInnen columns (A-Z, 26 cols):
+  // A=Status_Einladung(0), B=Status_Backend(1), C=ID(2), D=Vorname(3), E=Nachname(4),
+  // F=Pronomen(5), G=Organisation(6), H=Bio(7), I=Webseite(8), J=Update(9),
+  // K=E-Mail(10), L=Telefon(11), M=Herkunft(12), N=Sprache(13),
+  // O=Registriert_am(14), P=Registriert_von(15), Q-Z=Financial/Travel
+  const speakerMap = new Map();
+  (valRanges[0].values || []).filter(r => {
+    // Must have at least a name (Vorname or Nachname)
+    if (!safeString(r[3]) && !safeString(r[4])) return false;
+    // Only include speakers with allowed statuses
     const s = safeString(r[0]).toLowerCase();
     return allowedSpeakerStatus.some(k => s.includes(k));
-  }).map((r, i) => ({
-    id: `sp-${i}`,
-    fullName: `${safeString(r[2])} ${safeString(r[3])}`.trim(),
-    status: safeString(r[0]),
-    pronoun: safeString(r[4]),
-    email: safeString(r[8])
-  }));
+  }).forEach(r => {
+    const fullName = `${safeString(r[3])} ${safeString(r[4])}`.trim();
+    const email = safeString(r[10]);
+    const key = email || fullName;
+    if (key && !speakerMap.has(key)) {
+      speakerMap.set(key, {
+        id: safeString(r[2]) || `SPK-${String(speakerMap.size + 1).padStart(4, '0')}`,
+        fullName,
+        status: safeString(r[0]),
+        statusBackend: safeString(r[1]),
+        pronoun: safeString(r[5]),
+        organisation: safeString(r[6]),
+        bio: safeString(r[7]),
+        webseite: safeString(r[8]),
+        email,
+        herkunft: safeString(r[12]),
+        sprache: safeString(r[13])
+      });
+    }
+  });
+
+  // --- Parse Master_Einreichungen (valRanges[4]) ---
+  // Columns: A=Zeitstempel, B=E-Mail, C=Vorname, D=Nachname, E=Session-Titel,
+  //          F=Kurzbeschreibung, G=Beschreibung, H=Format, I=Thema, J=Bereich,
+  //          K=Sprache, L=Dauer, M=Co-Speaker, N=Bio, O=Webseite
+  let submissions = [];
+  if (valRanges[4] && valRanges[4].values) {
+    submissions = valRanges[4].values
+      .filter(r => safeString(r[4])) // Must have a title
+      .map((r, i) => {
+        const vorname = safeString(r[2]);
+        const nachname = safeString(r[3]);
+        const email = safeString(r[1]);
+        const fullName = `${vorname} ${nachname}`.trim();
+        const coSpeaker = safeString(r[12]);
+        const speakerDisplay = coSpeaker ? `${fullName}, ${coSpeaker}` : fullName;
+
+        // Enrich speaker list from submissions
+        const speakerKey = email || fullName;
+        if (speakerKey && !speakerMap.has(speakerKey)) {
+          speakerMap.set(speakerKey, {
+            id: `SPK-${String(speakerMap.size + 1).padStart(4, '0')}`,
+            fullName,
+            status: 'Einreichung',
+            pronoun: '',
+            email
+          });
+        }
+
+        return {
+          id: `EINR-${String(i + 1).padStart(4, '0')}`,
+          timestamp: safeString(r[0]),
+          email,
+          title: safeString(r[4]),
+          shortDescription: safeString(r[5]),
+          description: safeString(r[6]),
+          format: safeString(r[7]) || 'Talk',
+          thema: safeString(r[8]),
+          bereich: safeString(r[9]),
+          language: safeString(r[10]),
+          duration: parseInt(r[11]) || 60,
+          speakers: speakerDisplay,
+          coSpeaker,
+          bio: safeString(r[13]),
+          webseite: safeString(r[14]),
+          status: 'Vorschlag',
+          source: 'Einreichung'
+        };
+      });
+  }
+
+  const sp = Array.from(speakerMap.values());
 
   const mo = (valRanges[1].values || []).filter(r => r[0]).map((r, i) => ({ id: `mod-${i}`, fullName: safeString(r[1]), status: safeString(r[0]) }));
 
@@ -480,16 +554,45 @@ const parsePlannerBatch = (batch, config) => {
           language: safeString(r[11]),
           notes: safeString(r[12]), // Internal curation notes
           stageDispo: safeString(r[13]),
-          shortDescription: safeString(r[14]), // New: Kurzbeschreibung
-          description: safeString(r[15])        // New: Beschreibung
+          shortDescription: safeString(r[14]),
+          description: safeString(r[15]),
+          bereich: safeString(r[16]),  // Col Q
+          thema: safeString(r[17])     // Col R
         };
       });
   }
 
-  return { speakers: sp, moderators: mo, stages: st, program: pr };
+  // --- Parse Config_Themen (valRanges[5]) ---
+  // Columns: A=Bereiche, B=Themen, C=Tags, D=Formate
+  const configRows = (valRanges[5] && valRanges[5].values) ? valRanges[5].values : [];
+  const configThemen = {
+    bereiche: [...new Set(configRows.map(r => safeString(r[0])).filter(Boolean))],
+    themen: [...new Set(configRows.map(r => safeString(r[1])).filter(Boolean))],
+    tags: [...new Set(configRows.map(r => safeString(r[2])).filter(Boolean))],
+    formate: [...new Set(configRows.map(r => safeString(r[3])).filter(Boolean))],
+  };
+
+  // --- Parse Master_Ratings (valRanges[6]) ---
+  // Columns: A=Zeitstempel, B=Session_ID, C=Reviewer_Email, D=Score, E=Kommentar, F=Kategorie
+  const rawRatings = (valRanges[6] && valRanges[6].values) ? valRanges[6].values : [];
+  const ratingsMap = {};
+  rawRatings.forEach(r => {
+    const sessionId = safeString(r[1]);
+    if (!sessionId) return;
+    if (!ratingsMap[sessionId]) ratingsMap[sessionId] = [];
+    ratingsMap[sessionId].push({
+      timestamp: safeString(r[0]),
+      reviewer: safeString(r[2]),
+      score: parseInt(r[3]) || 0,
+      kommentar: safeString(r[4]),
+      kategorie: safeString(r[5])
+    });
+  });
+
+  return { speakers: sp, moderators: mo, stages: st, program: pr, submissions, configThemen, ratings: ratingsMap };
 };
 function App({ authenticatedUser }) {
-  const [data, setData] = useState({ speakers: [], moderators: [], program: [], stages: [] });
+  const [data, setData] = useState({ speakers: [], moderators: [], program: [], stages: [], submissions: [], configThemen: { bereiche: [], themen: [], tags: [], formate: [] }, ratings: {} });
   const [status, setStatus] = useState({ loading: false, error: null });
 
   // Simplified config - no more complex auth initialization
@@ -818,14 +921,20 @@ function App({ authenticatedUser }) {
       }
 
       const ranges = [
-        `'${config.sheetNameSpeakers}'!A2:I`,
-        `'${config.sheetNameMods}'!A2:C`,
-        `'${config.sheetNameStages}'!A2:H`
+        `'${config.sheetNameSpeakers}'!A2:Z`,       // index 0: Speakers (26 cols)
+        `'${config.sheetNameMods}'!A2:C`,            // index 1: Moderators
+        `'${config.sheetNameStages}'!A2:H`,          // index 2: Stages
       ];
 
       if (importProgram) {
-        ranges.push(`'${config.sheetNameProgram}'!A2:P`);
+        ranges.push(`'${config.sheetNameProgram}'!A2:P`);  // index 3: Program
+      } else {
+        ranges.push(`'${config.sheetNameStages}'!A1:A1`);  // index 3: placeholder (1 cell)
       }
+
+      ranges.push(`'Master_Einreichungen'!A2:O`);          // index 4: Submissions (always)
+      ranges.push(`'Config_Themen'!A2:D`);                 // index 5: Bereiche/Themen/Tags/Formate
+      ranges.push(`'Master_Ratings'!A2:F`);                 // index 6: Ratings
 
       if (import.meta.env.DEV) console.log('[loadData] Final ranges to fetch:', ranges);
 
@@ -1105,14 +1214,16 @@ function App({ authenticatedUser }) {
           safeString(p.notes),
           safeString(p.stageDispo),
           safeString(p.shortDescription),
-          safeString(p.description)
+          safeString(p.description),
+          safeString(p.bereich),  // Col Q
+          safeString(p.thema)     // Col R
         ];
       });
 
       const { ok, data: result, error } = await fetchSheets({
         action: 'update',
         spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameProgram}'!A2:P`,
+        range: `'${config.sheetNameProgram}'!A2:R`,
         values: rows,
       }, token, config.curationApiUrl);
 
@@ -1674,21 +1785,50 @@ function App({ authenticatedUser }) {
             <CurationDashboard
               sessions={[
                 ...curationData.sessions,
+                ...data.submissions,
                 ...data.program
                   .filter(p => (p.status || '').includes('Vorschlag') || (p.status || '').includes('Vorgeschlagen'))
+                  .filter(p => !data.submissions.some(s => s.title === p.title))
                   .map(p => ({
                     id: p.id,
                     title: p.title,
                     speakers: p.speakers,
-                    status: 'Vorschlag', // Unified status for curation
+                    status: 'Vorschlag',
                     format: p.format,
+                    description: p.description,
+                    shortDescription: p.shortDescription,
+                    notes: p.notes,
+                    language: p.language,
+                    duration: p.duration,
+                    bereich: p.bereich || '',
+                    thema: p.thema || '',
                     source: 'Planner'
                   }))
               ]}
               metadata={curationData.metadata}
               userRole={curationData.userRole}
+              ratings={data.ratings}
               onUpdateStatus={handleUpdateCurationStatus}
               onUpdateMetadata={handleUpdateCurationMetadata}
+              onSaveRating={async (sessionId, score, kommentar) => {
+                if (!config.curationApiUrl) return;
+                try {
+                  const token = authenticatedUser.accessToken;
+                  await fetch(`${config.curationApiUrl.replace('/api/data', '/api/rating')}`, {
+                    method: 'POST',
+                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ sessionId, score, kommentar, kategorie: 'relevanz' })
+                  });
+                  setToast({ msg: `Bewertung gespeichert (${score}★)`, type: 'success' });
+                  setTimeout(() => setToast(null), 3000);
+                  // Reload to get updated ratings
+                  loadData({ manual: true });
+                } catch (e) {
+                  console.error('Rating save failed:', e);
+                  setToast({ msg: 'Bewertung fehlgeschlagen', type: 'error' });
+                  setTimeout(() => setToast(null), 3000);
+                }
+              }}
             />
           </div>
         )}
@@ -1696,15 +1836,24 @@ function App({ authenticatedUser }) {
         {viewMode === 'ADMIN' && (
           <div className="flex flex-col h-full overflow-hidden">
             <header className="bg-indigo-900 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
-              <h1 className="font-bold flex items-center gap-2"><Shield className="w-5 h-5" /> Admin Control Paner</h1>
+              <h1 className="font-bold flex items-center gap-2"><Shield className="w-5 h-5" /> Admin Control Panel</h1>
               <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-indigo-800 hover:bg-indigo-700 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
             </header>
             <AdminDashboard
               users={curationData.users || []}
               stages={data.stages}
+              config={config}
               onUpdateUserRole={handleUpdateUserRole}
               onAddUser={handleAddUser}
               onDeleteUser={handleDeleteUser}
+              onUpdateConfig={(newSettings) => {
+                setConfig(prev => ({ ...prev, ...newSettings }));
+                if (newSettings.startHour !== undefined) localStorage.setItem('kosmos_start_hour', String(newSettings.startHour));
+                if (newSettings.endHour !== undefined) localStorage.setItem('kosmos_end_hour', String(newSettings.endHour));
+                if (newSettings.bufferMin !== undefined) localStorage.setItem('kosmos_buffer_min', String(newSettings.bufferMin));
+                setToast({ msg: 'Programmeinstellungen gespeichert!', type: 'success' });
+                setTimeout(() => setToast(null), 3000);
+              }}
             />
           </div>
         )}
@@ -1879,6 +2028,7 @@ function App({ authenticatedUser }) {
         onSave={handleSaveSession} onDelete={handleDeleteSession}
         initialData={editingSession} definedStages={data.stages}
         speakersList={data.speakers} moderatorsList={data.moderators}
+        configThemen={data.configThemen}
       />
     </div>
   );

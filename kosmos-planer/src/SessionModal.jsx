@@ -2,36 +2,71 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, CheckCircle2, AlertTriangle, Trash2, Search } from 'lucide-react';
 import { INBOX_ID, generateId, timeToMinutes } from './utils';
 
-function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList }) {
-    // Initialize with INBOX as default for NEW sessions
+// Fallback lists in case Config_Themen has not yet loaded
+const FALLBACK_FORMATE = ['Talk', 'Panel', 'Workshop', 'Vortrag', 'Keynote', 'Lightning Talk'];
+
+function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList, configThemen = { bereiche: [], themen: [], tags: [], formate: [] } }) {
     const [formData, setFormData] = useState({
         id: '', title: '', start: '10:00', duration: 60, stage: INBOX_ID,
-        status: '5_Vorschlag', format: 'Vortrag', speakers: [], moderators: [], day: '20.09.',
-        partner: 'FALSE', language: 'de', notes: '', stageDispo: ''
+        status: '5_Vorschlag', format: '', bereich: '', thema: '',
+        speakers: [], moderators: [], day: '20.09.',
+        partner: 'FALSE', language: 'de', notes: '', stageDispo: '',
+        shortDescription: '', description: ''
     });
     const [searchTermSp, setSearchTermSp] = useState('');
     const [searchTermMod, setSearchTermMod] = useState('');
 
+    // Effective lists: prefer configThemen if loaded, else use fallbacks
+    const effectiveFormate = configThemen.formate.length > 0 ? configThemen.formate : FALLBACK_FORMATE;
+    const effectiveBereiche = configThemen.bereiche;
+    const effectiveThemen = configThemen.themen;
+
     useEffect(() => {
         if (initialData) {
             const duration = initialData.duration || (initialData.end && initialData.start !== '-' ? timeToMinutes(initialData.end) - timeToMinutes(initialData.start) : 60);
+
+            // Reset unknown values to '' to avoid silent stale data
+            const safeFormat = effectiveFormate.includes(initialData.format) ? initialData.format : (initialData.format ? initialData.format : '');
+            const safeBereich = (effectiveBereiche.length === 0 || effectiveBereiche.includes(initialData.bereich)) ? (initialData.bereich || '') : '';
+            const safeThema = (effectiveThemen.length === 0 || effectiveThemen.includes(initialData.thema)) ? (initialData.thema || '') : '';
+
             setFormData({
                 ...initialData,
                 duration: duration > 0 ? duration : 60,
+                format: safeFormat,
+                bereich: safeBereich,
+                thema: safeThema,
                 speakers: Array.isArray(initialData.speakers) ? initialData.speakers : (initialData.speakers ? initialData.speakers.split(',').map(s => s.trim()).filter(Boolean) : []),
                 moderators: Array.isArray(initialData.moderators) ? initialData.moderators : (initialData.moderators ? initialData.moderators.split(',').map(s => s.trim()).filter(Boolean) : [])
             });
         } else {
-            // DEFAULT FOR NEW: INBOX
             setFormData({
                 id: generateId(), title: '', start: '10:00', duration: 60, stage: INBOX_ID,
-                status: '5_Vorschlag', format: 'Vortrag', speakers: [], moderators: [], day: '20.09.',
-                partner: 'FALSE', language: 'de', notes: '', stageDispo: ''
+                status: '5_Vorschlag', format: '', bereich: '', thema: '',
+                speakers: [], moderators: [], day: '20.09.',
+                partner: 'FALSE', language: 'de', notes: '', stageDispo: '',
+                shortDescription: '', description: ''
             });
         }
         setSearchTermSp('');
         setSearchTermMod('');
-    }, [initialData, definedStages, isOpen]);
+    }, [initialData, definedStages, isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Validation warnings for stale values
+    const formatWarning = useMemo(() => {
+        if (!formData.format || effectiveFormate.includes(formData.format)) return null;
+        return `Format "${formData.format}" ist nicht mehr in Config_Themen vorhanden.`;
+    }, [formData.format, effectiveFormate]);
+
+    const bereichWarning = useMemo(() => {
+        if (!formData.bereich || effectiveBereiche.length === 0 || effectiveBereiche.includes(formData.bereich)) return null;
+        return `Bereich "${formData.bereich}" ist nicht mehr in Config_Themen vorhanden.`;
+    }, [formData.bereich, effectiveBereiche]);
+
+    const themaWarning = useMemo(() => {
+        if (!formData.thema || effectiveThemen.length === 0 || effectiveThemen.includes(formData.thema)) return null;
+        return `Thema "${formData.thema}" ist nicht mehr in Config_Themen vorhanden.`;
+    }, [formData.thema, effectiveThemen]);
 
     function toggleListSelection(field, name) {
         if (field === 'speakers') {
@@ -49,7 +84,7 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
 
     const micWarning = useMemo(() => {
         if (formData.stage === INBOX_ID) return null;
-        const stage = definedStages.find(s => s.id === formData.stage); // MATCH BY ID
+        const stage = definedStages.find(s => s.id === formData.stage);
         if (!stage || !stage.maxMics) return null;
         if (formData.speakers.length > stage.maxMics) {
             return `⚠️ Zu viele Sprecher: ${formData.speakers.length} (Max: ${stage.maxMics})`;
@@ -58,6 +93,7 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
     }, [formData.stage, formData.speakers, definedStages]);
 
     const inputStd = "w-full p-2.5 bg-white border border-slate-300 rounded-lg text-sm focus:border-blue-500 focus:ring-2 focus:ring-blue-200 outline-none transition-all placeholder:text-slate-300";
+    const inputWarn = "w-full p-2.5 bg-amber-50 border border-amber-400 rounded-lg text-sm focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none transition-all";
     const labelStd = "block text-[11px] font-bold text-slate-500 uppercase mb-1.5 tracking-wide";
 
     const filteredSpeakers = speakersList.filter(s => s.fullName.toLowerCase().includes(searchTermSp.toLowerCase()));
@@ -73,6 +109,7 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
                     <button onClick={onClose} className="p-2 hover:bg-slate-200 rounded-full transition-colors"><X className="w-5 h-5 text-slate-500" /></button>
                 </div>
                 <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
+                    {/* BASIS */}
                     <div className="space-y-4">
                         <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Basis Informationen</h4>
                         <div className="grid grid-cols-12 gap-4">
@@ -90,32 +127,66 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
                                 </select>
                             </div>
                         </div>
+
+                        {/* Format / Sprache / Partner */}
                         <div className="grid grid-cols-3 gap-4">
                             <div>
-                                <label className={labelStd}>Format</label>
-                                <select className={inputStd} value={formData.format} onChange={e => setFormData({ ...formData, format: e.target.value })}>
-                                    <option value="Vortrag">Vortrag</option>
-                                    <option value="Panel">Panel</option>
-                                    <option value="Workshop">Workshop</option>
+                                <label className={labelStd}>Format {formatWarning && <span className="text-amber-500 ml-1">⚠</span>}</label>
+                                <select className={formatWarning ? inputWarn : inputStd} value={formData.format} onChange={e => setFormData({ ...formData, format: e.target.value })}>
+                                    <option value="">— Format wählen —</option>
+                                    {/* Show stale value with warning if not in list */}
+                                    {formatWarning && <option value={formData.format}>{formData.format} ⚠️</option>}
+                                    {effectiveFormate.map(f => <option key={f} value={f}>{f}</option>)}
+                                </select>
+                                {formatWarning && <p className="text-amber-600 text-[10px] mt-1">{formatWarning}</p>}
+                            </div>
+                            <div>
+                                <label className={labelStd}>Sprache</label>
+                                <select className={inputStd} value={formData.language} onChange={e => setFormData({ ...formData, language: e.target.value })}>
+                                    <option value="de">DE</option>
+                                    <option value="en">EN</option>
+                                    <option value="de/en">DE/EN</option>
                                 </select>
                             </div>
-                            <div><label className={labelStd}>Sprache</label><select className={inputStd} value={formData.language} onChange={e => setFormData({ ...formData, language: e.target.value })}><option value="de">DE</option><option value="en">EN</option></select></div>
                             <div className="flex flex-col justify-end pb-2">
                                 <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-50 p-2 rounded border border-slate-200 hover:border-blue-300 transition-colors">
                                     <div className={`w-10 h-5 rounded-full relative transition-colors ${formData.partner === 'TRUE' ? 'bg-blue-600' : 'bg-slate-300'}`}>
                                         <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${formData.partner === 'TRUE' ? 'translate-x-5' : ''}`}></div>
                                     </div>
                                     <input type="checkbox" className="hidden" checked={formData.partner === 'TRUE'} onChange={e => setFormData({ ...formData, partner: e.target.checked ? 'TRUE' : 'FALSE' })} />
-                                    <span className="text-sm font-medium text-slate-700">Ist Partner-Session</span>
+                                    <span className="text-sm font-medium text-slate-700">Partner-Session</span>
                                 </label>
                             </div>
                         </div>
+
+                        {/* Bereich / Thema */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <label className={labelStd}>Bereich {bereichWarning && <span className="text-amber-500 ml-1">⚠</span>}</label>
+                                <select className={bereichWarning ? inputWarn : inputStd} value={formData.bereich} onChange={e => setFormData({ ...formData, bereich: e.target.value })}>
+                                    <option value="">— Bereich wählen —</option>
+                                    {bereichWarning && <option value={formData.bereich}>{formData.bereich} ⚠️</option>}
+                                    {effectiveBereiche.map(b => <option key={b} value={b}>{b}</option>)}
+                                </select>
+                                {bereichWarning && <p className="text-amber-600 text-[10px] mt-1">{bereichWarning}</p>}
+                            </div>
+                            <div>
+                                <label className={labelStd}>Thema {themaWarning && <span className="text-amber-500 ml-1">⚠</span>}</label>
+                                <select className={themaWarning ? inputWarn : inputStd} value={formData.thema} onChange={e => setFormData({ ...formData, thema: e.target.value })}>
+                                    <option value="">— Thema wählen —</option>
+                                    {themaWarning && <option value={formData.thema}>{formData.thema} ⚠️</option>}
+                                    {effectiveThemen.map(t => <option key={t} value={t}>{t}</option>)}
+                                </select>
+                                {themaWarning && <p className="text-amber-600 text-[10px] mt-1">{themaWarning}</p>}
+                            </div>
+                        </div>
                     </div>
+
+                    {/* PLANUNG */}
                     <div className="space-y-4 bg-slate-50 p-4 rounded border">
                         <div className="grid grid-cols-4 gap-4">
                             <div className="col-span-2"><label className={labelStd}>Bühne</label><select className={inputStd} value={formData.stage} onChange={e => setFormData({ ...formData, stage: e.target.value })}>
                                 <option value={INBOX_ID}>📥 Inbox (Parkplatz)</option>
-                                {/* Using ID for value, Name for display */}
                                 {definedStages.map(s => <option key={s.id} value={s.id}>{s.name} ({s.maxMics} Mics)</option>)}
                             </select></div>
                             <div><label className={labelStd}>Start</label><input type="time" className={inputStd} value={formData.start} onChange={e => setFormData({ ...formData, start: e.target.value })} /></div>
@@ -123,6 +194,7 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
                         </div>
                     </div>
 
+                    {/* SPRECHER / MODERATION */}
                     <div className="grid grid-cols-2 gap-4">
                         <div>
                             <label className={labelStd}>Sprecher (Suche)</label>
@@ -146,6 +218,8 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
                             </div>
                         </div>
                     </div>
+
+                    {/* NOTIZEN */}
                     <div className="space-y-2">
                         <h4 className="text-xs font-bold text-slate-400 uppercase border-b pb-1">Notizen & Technik</h4>
                         <textarea className={`${inputStd} h-16 bg-yellow-50/50 border-yellow-200`} value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} placeholder="Notizen..." />
