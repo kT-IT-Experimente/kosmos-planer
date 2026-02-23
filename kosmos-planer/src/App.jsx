@@ -407,12 +407,27 @@ const parsePlannerBatch = (batch, config) => {
   // K=E-Mail(10), L=Telefon(11), M=Herkunft(12), N=Sprache(13),
   // O=Registriert_am(14), P=Registriert_von(15), Q-Z=Financial/Travel
   const speakerMap = new Map();
+  // Debug: log all status values to see what's in the sheet
+  if (import.meta.env.DEV) {
+    const allRows = valRanges[0].values || [];
+    console.log(`[Speaker Debug] Total rows: ${allRows.length}`);
+    allRows.forEach((r, i) => {
+      const status = safeString(r[0]);
+      const name = `${safeString(r[3])} ${safeString(r[4])}`.trim();
+      if (name) console.log(`  Row ${i + 1}: status="${status}" name="${name}"`);
+    });
+  }
   (valRanges[0].values || []).filter(r => {
     // Must have at least a name (Vorname or Nachname)
     if (!safeString(r[3]) && !safeString(r[4])) return false;
     // Only include speakers with allowed statuses
     const s = safeString(r[0]).toLowerCase();
-    return allowedSpeakerStatus.some(k => s.includes(k));
+    const passes = allowedSpeakerStatus.some(k => s.includes(k));
+    if (import.meta.env.DEV && !passes) {
+      const name = `${safeString(r[3])} ${safeString(r[4])}`.trim();
+      console.log(`  [FILTERED OUT] status="${safeString(r[0])}" name="${name}"`);
+    }
+    return passes;
   }).forEach(r => {
     const fullName = `${safeString(r[3])} ${safeString(r[4])}`.trim();
     const email = safeString(r[10]);
@@ -614,11 +629,7 @@ function App({ authenticatedUser }) {
   const [viewMode, setViewMode] = useState('PLANNER'); // 'PLANNER' or 'CURATION'
   const [curationData, setCurationData] = useState({
     sessions: [],
-    users: [
-      { email: 'viva@kosmos-festival.de', role: 'ADMIN' },
-      { email: 'enrique@kosmos-festival.de', role: 'ADMIN' },
-      { email: 'curator@kosmos-festival.de', role: 'CURATOR' }
-    ],
+    users: [],
     metadata: { bereiche: [], themen: [], tags: [], formate: [] },
     userRole: authenticatedUser?.role || 'GUEST'
   });
@@ -935,6 +946,7 @@ function App({ authenticatedUser }) {
       ranges.push(`'Master_Einreichungen'!A2:O`);          // index 4: Submissions (always)
       ranges.push(`'Config_Themen'!A2:D`);                 // index 5: Bereiche/Themen/Tags/Formate
       ranges.push(`'Master_Ratings'!A2:F`);                 // index 6: Ratings
+      ranges.push(`'Config_Users'!A2:C`);                   // index 7: Users (email, role, name)
 
       if (import.meta.env.DEV) console.log('[loadData] Final ranges to fetch:', ranges);
 
@@ -959,6 +971,14 @@ function App({ authenticatedUser }) {
 
       const parsed = parsePlannerBatch(batch, config);
 
+      // Parse users from Config_Users (index 7): A=Email, B=Role, C=Name
+      const usersRows = (batch.valueRanges?.[7]?.values || []);
+      const parsedUsers = usersRows
+        .filter(r => r[0] && r[1]) // must have email and role
+        .map(r => ({ email: safeString(r[0]).trim(), role: safeString(r[1]).trim().toUpperCase(), name: safeString(r[2]) }));
+      if (parsedUsers.length > 0) {
+        setCurationData(prev => ({ ...prev, users: parsedUsers }));
+      }
       setData(prev => {
         const newData = { ...prev, ...parsed };
         // Only overwrite program if it was actually imported
@@ -1058,6 +1078,73 @@ function App({ authenticatedUser }) {
     }));
 
     setToast({ msg: "Mock-Daten geladen!", type: "success" });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // --- USER MANAGEMENT (Config_Users sheet: A=Email, B=Role, C=Name) ---
+  const saveUsersToSheet = async (updatedUsers) => {
+    const token = authenticatedUser.accessToken;
+    const rows = updatedUsers.map(u => [u.email, u.role, u.name || '']);
+    const { ok, error } = await fetchSheets({
+      action: 'update',
+      spreadsheetId: config.spreadsheetId,
+      range: `'Config_Users'!A2:C`,
+      values: rows,
+    }, token, config.curationApiUrl);
+    if (!ok) throw new Error(error || 'Fehler beim Speichern der Nutzerliste');
+  };
+
+  const handleUpdateUserRole = async (email, newRole) => {
+    if (curationData.userRole !== 'ADMIN') return;
+    const updated = curationData.users.map(u => u.email === email ? { ...u, role: newRole } : u);
+    setCurationData(prev => ({ ...prev, users: updated }));
+    try {
+      await saveUsersToSheet(updated);
+      setToast({ msg: `Rolle für ${email} auf ${newRole} gesetzt.`, type: 'success' });
+    } catch (e) {
+      setToast({ msg: 'Fehler beim Speichern der Rolle', type: 'error' });
+      // Revert
+      setCurationData(prev => ({ ...prev, users: curationData.users }));
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleAddUser = async (email, role) => {
+    if (curationData.userRole !== 'ADMIN') return;
+    if (curationData.users.some(u => u.email === email)) {
+      setToast({ msg: `${email} ist bereits eingetragen.`, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    const updated = [...curationData.users, { email, role, name: '' }];
+    setCurationData(prev => ({ ...prev, users: updated }));
+    try {
+      await saveUsersToSheet(updated);
+      setToast({ msg: `${email} hinzugefügt (${role}).`, type: 'success' });
+    } catch (e) {
+      setToast({ msg: 'Fehler beim Hinzufügen', type: 'error' });
+      setCurationData(prev => ({ ...prev, users: curationData.users }));
+    }
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleDeleteUser = async (email) => {
+    if (curationData.userRole !== 'ADMIN') return;
+    if (email === authenticatedUser.email) {
+      setToast({ msg: 'Du kannst dich nicht selbst entfernen.', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
+    if (!window.confirm(`Nutzer ${email} wirklich entfernen?`)) return;
+    const updated = curationData.users.filter(u => u.email !== email);
+    setCurationData(prev => ({ ...prev, users: updated }));
+    try {
+      await saveUsersToSheet(updated);
+      setToast({ msg: `${email} entfernt.`, type: 'success' });
+    } catch (e) {
+      setToast({ msg: 'Fehler beim Löschen', type: 'error' });
+      setCurationData(prev => ({ ...prev, users: curationData.users }));
+    }
     setTimeout(() => setToast(null), 3000);
   };
 
@@ -1390,52 +1477,6 @@ function App({ authenticatedUser }) {
     return { top: `${Math.max(0, top)}px`, height: `${Math.max(20, height)}px` };
   };
 
-  // --- ADMIN ACTIONS ---
-  const handleUpdateUserRole = async (email, newRole) => {
-    if (!config.curationApiUrl) return;
-    try {
-      const res = await fetch(config.curationApiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'updateUserRole', email, role: newRole })
-      });
-      if (res.ok) {
-        setToast({ msg: `Rolle für ${email} auf ${newRole} gesetzt.`, type: 'success' });
-        loadData({ manual: true }); // Refresh to get updated user list
-      }
-    } catch (e) { console.error(e); }
-  };
-
-  const handleAddUser = async (email, role) => {
-    if (!config.curationApiUrl) return;
-    try {
-      const res = await fetch(config.curationApiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'addUser', email, role })
-      });
-      if (res.ok) {
-        setToast({ msg: `${email} als ${role} hinzugefügt.`, type: 'success' });
-        loadData({ manual: true });
-      }
-    } catch (e) { console.error(e); }
-  };
-
-  const handleDeleteUser = async (email) => {
-    if (!window.confirm(`Benutzer ${email} wirklich löschen?`)) return;
-    if (!config.curationApiUrl) return;
-    try {
-      const res = await fetch(config.curationApiUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'deleteUser', email })
-      });
-      if (res.ok) {
-        setToast({ msg: `${email} gelöscht.`, type: 'success' });
-        loadData({ manual: true });
-      }
-    } catch (e) { console.error(e); }
-  };
 
   const handleSaveSession = (session, micWarning = '') => {
     const cleanWarning = micWarning ? micWarning.replace(/,/g, ' ') : '';
@@ -1814,14 +1855,21 @@ function App({ authenticatedUser }) {
                 if (!config.curationApiUrl) return;
                 try {
                   const token = authenticatedUser.accessToken;
-                  await fetch(`${config.curationApiUrl.replace('/api/data', '/api/rating')}`, {
+                  const baseUrl = config.curationApiUrl.replace(/\/$/, '').replace(/\/api$/, '');
+                  const ratingUrl = `${baseUrl}/api/rating`;
+                  if (import.meta.env.DEV) console.log('[onSaveRating] URL:', ratingUrl, { sessionId, score });
+                  const res = await fetch(ratingUrl, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
                     body: JSON.stringify({ sessionId, score, kommentar, kategorie: 'relevanz' })
                   });
+                  if (!res.ok) {
+                    const errText = await res.text().catch(() => '');
+                    console.error('Rating API error:', res.status, errText);
+                    throw new Error(`HTTP ${res.status}`);
+                  }
                   setToast({ msg: `Bewertung gespeichert (${score}★)`, type: 'success' });
                   setTimeout(() => setToast(null), 3000);
-                  // Reload to get updated ratings
                   loadData({ manual: true });
                 } catch (e) {
                   console.error('Rating save failed:', e);
