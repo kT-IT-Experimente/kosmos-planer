@@ -1089,22 +1089,13 @@ function App({ authenticatedUser }) {
   const saveUsersToSheet = async (updatedUsers) => {
     const token = authenticatedUser.accessToken;
     const rows = updatedUsers.map(u => [u.email, u.role, u.name || '']);
-    // Use direct Google Sheets API to avoid n8n CORS issues
-    const range = encodeURIComponent("'Config_Users'!A2:C");
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${range}?valueInputOption=RAW`;
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ range: "'Config_Users'!A2:C", majorDimension: 'ROWS', values: rows }),
-    });
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '');
-      console.error('Sheets API error:', res.status, errText);
-      throw new Error(`HTTP ${res.status}: ${errText}`);
-    }
+    const { ok, error } = await fetchSheets({
+      action: 'update',
+      spreadsheetId: config.spreadsheetId,
+      range: `'Config_Users'!A2:C`,
+      values: rows,
+    }, token, config.curationApiUrl);
+    if (!ok) throw new Error(error || 'Fehler beim Speichern der Nutzerliste');
   };
 
   // Effective role: derived from Config_Users list (sheet source of truth)
@@ -1530,6 +1521,49 @@ function App({ authenticatedUser }) {
     setLocalChanges(true);
     setIsModalOpen(false);
     setEditingSession(null);
+
+    // --- SESSION FIXATION WEBHOOK ---
+    // Fire webhook when status is "Fixiert" and n8n is configured
+    if (finalSession.status === 'Fixiert' && config.n8nBaseUrl) {
+      const stageName = data.stages.find(st => st.id === finalSession.stage)?.name || finalSession.stage || '';
+      const endTime = calculateEndTime(finalSession.start, finalSession.duration);
+
+      // Resolve speaker emails from data.speakers
+      const speakerNames = safeString(typeof finalSession.speakers === 'string' ? finalSession.speakers : (finalSession.speakers || []).join(', '))
+        .split(',').map(n => n.trim()).filter(Boolean);
+      const speakerEmails = speakerNames
+        .map(name => data.speakers.find(sp => sp.fullName.toLowerCase() === name.toLowerCase())?.email)
+        .filter(Boolean);
+
+      const webhookPayload = {
+        Session_Title: finalSession.title || '',
+        Description_Full: finalSession.description || finalSession.shortDescription || '',
+        Start_Time: finalSession.start || '',
+        End_Time: endTime || '',
+        Stage_Name: stageName,
+        Speaker_Email: speakerEmails
+      };
+
+      // Fire-and-forget: don't block the save
+      fetch(`${config.n8nBaseUrl}/session-fixation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(webhookPayload)
+      })
+        .then(res => {
+          if (res.ok) {
+            setToast({ msg: `📧 Fixierungs-Mail an ${speakerEmails.length} Speaker gesendet!`, type: 'success' });
+          } else {
+            setToast({ msg: `⚠️ Webhook-Fehler: HTTP ${res.status}`, type: 'error' });
+          }
+          setTimeout(() => setToast(null), 4000);
+        })
+        .catch(err => {
+          console.warn('Session fixation webhook failed:', err);
+          setToast({ msg: '⚠️ Fixierungs-Mail konnte nicht gesendet werden.', type: 'error' });
+          setTimeout(() => setToast(null), 4000);
+        });
+    }
   };
 
   const handleDeleteSession = (id) => {
