@@ -977,7 +977,11 @@ function App({ authenticatedUser }) {
         .filter(r => r[0] && r[1]) // must have email and role
         .map(r => ({ email: safeString(r[0]).trim(), role: safeString(r[1]).trim().toUpperCase(), name: safeString(r[2]) }));
       if (parsedUsers.length > 0) {
-        setCurationData(prev => ({ ...prev, users: parsedUsers }));
+        // Derive the current user's role from Config_Users (overrides n8n GUEST fallback)
+        const currentUserEntry = parsedUsers.find(u => u.email.toLowerCase() === authenticatedUser.email?.toLowerCase());
+        const sheetRole = currentUserEntry?.role || curationData.userRole || 'GUEST';
+        setCurationData(prev => ({ ...prev, users: parsedUsers, userRole: sheetRole }));
+        if (import.meta.env.DEV) console.log('[loadData] userRole from Config_Users:', sheetRole);
       }
       setData(prev => {
         const newData = { ...prev, ...parsed };
@@ -1085,17 +1089,38 @@ function App({ authenticatedUser }) {
   const saveUsersToSheet = async (updatedUsers) => {
     const token = authenticatedUser.accessToken;
     const rows = updatedUsers.map(u => [u.email, u.role, u.name || '']);
-    const { ok, error } = await fetchSheets({
-      action: 'update',
-      spreadsheetId: config.spreadsheetId,
-      range: `'Config_Users'!A2:C`,
-      values: rows,
-    }, token, config.curationApiUrl);
-    if (!ok) throw new Error(error || 'Fehler beim Speichern der Nutzerliste');
+    // Use direct Google Sheets API to avoid n8n CORS issues
+    const range = encodeURIComponent("'Config_Users'!A2:C");
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${config.spreadsheetId}/values/${range}?valueInputOption=RAW`;
+    const res = await fetch(url, {
+      method: 'PUT',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ range: "'Config_Users'!A2:C", majorDimension: 'ROWS', values: rows }),
+    });
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '');
+      console.error('Sheets API error:', res.status, errText);
+      throw new Error(`HTTP ${res.status}: ${errText}`);
+    }
   };
 
+  // Effective role: derived from Config_Users list (sheet source of truth)
+  // Falls back to curationData.userRole (from n8n auth) if not found in users list
+  const effectiveRole = (() => {
+    const fromUsers = curationData.users.find(u => u.email.toLowerCase() === authenticatedUser.email?.toLowerCase());
+    if (fromUsers) return fromUsers.role;
+    return curationData.userRole || 'GUEST';
+  })();
+
   const handleUpdateUserRole = async (email, newRole) => {
-    if (curationData.userRole !== 'ADMIN') return;
+    if (effectiveRole !== 'ADMIN') {
+      setToast({ msg: 'Nur Admins können Rollen ändern.', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
     const updated = curationData.users.map(u => u.email === email ? { ...u, role: newRole } : u);
     setCurationData(prev => ({ ...prev, users: updated }));
     try {
@@ -1110,7 +1135,11 @@ function App({ authenticatedUser }) {
   };
 
   const handleAddUser = async (email, role) => {
-    if (curationData.userRole !== 'ADMIN') return;
+    if (effectiveRole !== 'ADMIN') {
+      setToast({ msg: 'Nur Admins können Nutzer hinzufügen.', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
     if (curationData.users.some(u => u.email === email)) {
       setToast({ msg: `${email} ist bereits eingetragen.`, type: 'error' });
       setTimeout(() => setToast(null), 3000);
@@ -1129,7 +1158,11 @@ function App({ authenticatedUser }) {
   };
 
   const handleDeleteUser = async (email) => {
-    if (curationData.userRole !== 'ADMIN') return;
+    if (effectiveRole !== 'ADMIN') {
+      setToast({ msg: 'Nur Admins können Nutzer entfernen.', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+      return;
+    }
     if (email === authenticatedUser.email) {
       setToast({ msg: 'Du kannst dich nicht selbst entfernen.', type: 'error' });
       setTimeout(() => setToast(null), 3000);
