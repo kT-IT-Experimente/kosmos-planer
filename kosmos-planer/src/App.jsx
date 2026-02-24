@@ -2045,22 +2045,19 @@ function App({ authenticatedUser }) {
                 if (!config.curationApiUrl) return;
                 try {
                   const token = authenticatedUser.accessToken;
-                  const baseUrl = config.curationApiUrl.replace(/\/$/, '').replace(/\/api$/, '');
-                  const ratingUrl = `${baseUrl}/api/rating`;
-                  if (import.meta.env.DEV) console.log('[onSaveRating] URL:', ratingUrl, { sessionId, score });
-                  const res = await fetch(ratingUrl, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId, score, kommentar, kategorie: 'relevanz', email: authenticatedUser.email })
-                  });
-                  if (!res.ok) {
-                    const errText = await res.text().catch(() => '');
-                    console.error('Rating API error:', res.status, errText);
-                    throw new Error(`HTTP ${res.status}`);
-                  }
+                  const timestamp = new Date().toISOString();
+                  const reviewerEmail = authenticatedUser.email || '';
+                  if (import.meta.env.DEV) console.log('[onSaveRating]', { sessionId, score, reviewerEmail });
+                  const { ok, error } = await fetchSheets({
+                    action: 'append',
+                    spreadsheetId: config.spreadsheetId,
+                    range: `'Master_Ratings'!A:F`,
+                    values: [[timestamp, sessionId, reviewerEmail, String(score), kommentar || '', 'relevanz']],
+                  }, token, config.curationApiUrl);
+                  if (!ok) throw new Error(error || 'Rating save failed');
                   setToast({ msg: `Bewertung gespeichert (${score}★)`, type: 'success' });
                   setTimeout(() => setToast(null), 3000);
-                  loadData({ manual: true });
+                  loadData({ manual: false }); // quietly reload to show updated ratings
                 } catch (e) {
                   console.error('Rating save failed:', e);
                   setToast({ msg: 'Bewertung fehlgeschlagen', type: 'error' });
