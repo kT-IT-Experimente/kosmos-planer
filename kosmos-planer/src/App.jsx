@@ -20,7 +20,7 @@ import {
   Trash2, PlusCircle, UploadCloud, LogIn, X,
   Lock, Unlock, MessageSquare, Globe, Flag, Layout,
   AlertTriangle, Mic2, PieChart, Search, CheckCircle2, Languages,
-  Download, DownloadCloud, Loader2, Key, LogOut, Mail, LayoutDashboard, Shield
+  Download, DownloadCloud, Loader2, Key, LogOut, Mail, LayoutDashboard, Shield, User
 } from 'lucide-react';
 import {
   INBOX_ID, HEADER_HEIGHT, PIXELS_PER_MINUTE, SNAP_MINUTES,
@@ -33,6 +33,7 @@ import CurationDashboard from './CurationDashboard';
 import AdminDashboard from './AdminDashboard';
 import SpeakerRegistration from './SpeakerRegistration';
 import SessionSubmission from './SessionSubmission';
+import SpeakerProfile from './SpeakerProfile';
 
 // --- HELPERS IMPORTED FROM utils.js ---
 
@@ -454,37 +455,27 @@ const parsePlannerBatch = (batch, config) => {
   });
 
   // --- Parse Master_Einreichungen (valRanges[4]) ---
-  // Columns: A=Zeitstempel, B=E-Mail, C=Vorname, D=Nachname, E=Session-Titel,
-  //          F=Kurzbeschreibung, G=Beschreibung, H=Format, I=Thema, J=Bereich,
-  //          K=Sprache, L=Dauer, M=Co-Speaker, N=Bio, O=Webseite
+  // NEW columns: A=Zeitstempel, B=Submitter_Email, C=Submitter_Name, D=Status,
+  //   E=Session_Titel, F=Kurzbeschreibung, G=Beschreibung, H=Format, I=Thema,
+  //   J=Bereich, K=Sprache, L=Dauer, M=Speaker_IDs, N=Speaker_Names, O=Notizen
   let submissions = [];
   if (valRanges[4] && valRanges[4].values) {
     submissions = valRanges[4].values
-      .filter(r => safeString(r[4])) // Must have a title
+      .filter(r => safeString(r[4])) // Must have a title (col E)
       .map((r, i) => {
-        const vorname = safeString(r[2]);
-        const nachname = safeString(r[3]);
-        const email = safeString(r[1]);
-        const fullName = `${vorname} ${nachname}`.trim();
-        const coSpeaker = safeString(r[12]);
-        const speakerDisplay = coSpeaker ? `${fullName}, ${coSpeaker}` : fullName;
-
-        // Enrich speaker list from submissions (use fullName as primary key)
-        const speakerKey = fullName || email;
-        if (speakerKey && !speakerMap.has(speakerKey)) {
-          speakerMap.set(speakerKey, {
-            id: `SPK-${String(speakerMap.size + 1).padStart(4, '0')}`,
-            fullName,
-            status: 'Einreichung',
-            pronoun: '',
-            email
-          });
-        }
+        const submitterEmail = safeString(r[1]);
+        const submitterName = safeString(r[2]);
+        const speakerIds = safeString(r[12]);
+        const speakerNames = safeString(r[13]);
+        // Resolve display names from speaker IDs or fallback to speaker names column
+        const speakerDisplay = speakerNames || speakerIds || submitterName;
 
         return {
           id: `EINR-${String(i + 1).padStart(4, '0')}`,
+          rowIndex: i + 2, // sheet row (1-indexed header + 1-indexed data)
           timestamp: safeString(r[0]),
-          email,
+          submitterEmail,
+          submitterName,
           title: safeString(r[4]),
           shortDescription: safeString(r[5]),
           description: safeString(r[6]),
@@ -493,11 +484,10 @@ const parsePlannerBatch = (batch, config) => {
           bereich: safeString(r[9]),
           language: safeString(r[10]),
           duration: parseInt(r[11]) || 60,
+          speakerIds,
           speakers: speakerDisplay,
-          coSpeaker,
-          bio: safeString(r[13]),
-          webseite: safeString(r[14]),
-          status: 'Vorschlag',
+          notes: safeString(r[14]),
+          status: safeString(r[3]) || 'Vorschlag',
           source: 'Einreichung'
         };
       });
@@ -1125,10 +1115,41 @@ function App({ authenticatedUser }) {
   // Effective role: derived from Config_Users list (sheet source of truth)
   // Falls back to curationData.userRole (from n8n auth) if not found in users list
   const effectiveRole = (() => {
-    const fromUsers = curationData.users.find(u => u.email.toLowerCase() === authenticatedUser.email?.toLowerCase());
+    const email = authenticatedUser.email?.toLowerCase() || '';
+    // 1. Check Config_Users for explicit role assignment
+    const fromUsers = curationData.users.find(u => u.email.toLowerCase() === email);
     if (fromUsers) return fromUsers.role;
-    return curationData.userRole || 'GUEST';
+    // 2. Check n8n-assigned role
+    if (curationData.userRole && curationData.userRole !== 'GUEST') return curationData.userRole;
+    // 3. Auto-detect: is user a registered speaker?
+    const isSpeaker = data.speakers.some(s => s.email?.toLowerCase() === email);
+    // 4. Auto-detect: has user submitted sessions?
+    const hasSubmissions = data.submissions.some(s => s.submitterEmail?.toLowerCase() === email);
+    if (hasSubmissions) return 'TEILNEHMENDE';
+    if (isSpeaker) return 'SPEAKER';
+    return 'GUEST';
   })();
+
+  // Find current user's speaker record (for profile)
+  const mySpeakerRecord = useMemo(() => {
+    const email = authenticatedUser.email?.toLowerCase() || '';
+    return data.speakers.find(s => s.email?.toLowerCase() === email) || null;
+  }, [data.speakers, authenticatedUser.email]);
+
+  // My submissions (for Einreichung dashboard)
+  const mySubmissions = useMemo(() => {
+    const email = authenticatedUser.email?.toLowerCase() || '';
+    return data.submissions.filter(s => s.submitterEmail?.toLowerCase() === email);
+  }, [data.submissions, authenticatedUser.email]);
+
+  // Set default view based on role (once data loaded)
+  const [initialRedirectDone, setInitialRedirectDone] = useState(false);
+  useEffect(() => {
+    if (initialRedirectDone || !data.speakers.length) return;
+    if (effectiveRole === 'SPEAKER') { setViewMode('PROFILE'); setInitialRedirectDone(true); }
+    else if (effectiveRole === 'TEILNEHMENDE') { setViewMode('SUBMIT'); setInitialRedirectDone(true); }
+    else { setInitialRedirectDone(true); }
+  }, [effectiveRole, data.speakers, initialRedirectDone]);
 
   const handleUpdateUserRole = async (email, newRole) => {
     if (effectiveRole !== 'ADMIN') {
@@ -1295,6 +1316,46 @@ function App({ authenticatedUser }) {
       setToast({ msg: 'Fehler beim Speichern', type: 'error' });
     }
     setTimeout(() => setToast(null), 3000);
+  };
+
+  // --- SPEAKER PROFILE SAVE ---
+  const handleSaveSpeakerProfile = async (updatedSpeaker) => {
+    if (!config.curationApiUrl || !updatedSpeaker) return;
+    try {
+      const token = authenticatedUser.accessToken;
+      // Find the speaker's row index in the sheet
+      const allSpeakers = data.speakers;
+      const idx = allSpeakers.findIndex(s => s.id === updatedSpeaker.id);
+      if (idx < 0) throw new Error('Speaker nicht gefunden');
+      const rowNum = idx + 2; // 1-indexed + header row
+      // Update columns: D=Vorname(3), E=Nachname(4), F=Pronomen(5), G=Organisation(6), H=Bio(7), I=Webseite(8), N=Sprache(13), M=Herkunft(12)
+      const nameParts = (updatedSpeaker.fullName || '').split(' ');
+      const vorname = nameParts[0] || '';
+      const nachname = nameParts.slice(1).join(' ') || '';
+      // Update name columns D-I
+      const { ok: ok1, error: err1 } = await fetchSheets({
+        action: 'update',
+        spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!D${rowNum}:I${rowNum}`,
+        values: [[vorname, nachname, updatedSpeaker.pronoun || '', updatedSpeaker.organisation || '', updatedSpeaker.bio || '', updatedSpeaker.webseite || '']],
+      }, token, config.curationApiUrl);
+      if (!ok1) throw new Error(err1);
+      // Update herkunft (M) and sprache (N)
+      const { ok: ok2, error: err2 } = await fetchSheets({
+        action: 'update',
+        spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!M${rowNum}:N${rowNum}`,
+        values: [[updatedSpeaker.herkunft || '', updatedSpeaker.sprache || '']],
+      }, token, config.curationApiUrl);
+      if (!ok2) throw new Error(err2);
+      setToast({ msg: 'Profil gespeichert!', type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+      loadData({ manual: false });
+    } catch (e) {
+      console.error('Profile save error:', e);
+      setToast({ msg: 'Fehler beim Speichern des Profils', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    }
   };
 
   // --- CURATION ACTIONS ---
@@ -2113,11 +2174,16 @@ function App({ authenticatedUser }) {
               </div>
             ) : (
               <SessionSubmission
-                n8nBaseUrl={config.n8nBaseUrl}
-                accessToken={authenticatedUser.accessToken}
+                speakers={data.speakers}
                 metadata={curationData.metadata}
                 submitterEmail={authenticatedUser.email}
-                onSuccess={() => setToast({ msg: 'Session erfolgreich eingereicht!', type: 'success' })}
+                submitterName={mySpeakerRecord?.fullName || authenticatedUser.name || ''}
+                mySubmissions={mySubmissions}
+                fetchSheets={fetchSheets}
+                spreadsheetId={config.spreadsheetId}
+                apiUrl={config.curationApiUrl}
+                accessToken={authenticatedUser.accessToken}
+                onSuccess={() => { setToast({ msg: 'Session erfolgreich eingereicht!', type: 'success' }); setTimeout(() => setToast(null), 3000); loadData({ manual: false }); }}
                 onRegisterSpeaker={() => setViewMode('REGISTER')}
               />
             )}
@@ -2143,26 +2209,47 @@ function App({ authenticatedUser }) {
             </div>
           </div>
         )}
+
+        {/* Speaker Profile View */}
+        {viewMode === 'PROFILE' && (
+          <SpeakerProfile
+            speaker={mySpeakerRecord}
+            onSave={handleSaveSpeakerProfile}
+          />
+        )}
       </div>
 
       <div className="h-10 bg-slate-900 flex items-center justify-center gap-4 sm:gap-8 shrink-0 border-t border-slate-800 overflow-x-auto">
-        <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PLANNER' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
-          <Layout className="w-3.5 h-3.5" /> Planer
-        </button>
+        {/* Planer: ADMIN, CURATOR */}
+        {['ADMIN', 'CURATOR'].includes(effectiveRole) && (
+          <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PLANNER' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+            <Layout className="w-3.5 h-3.5" /> Planer
+          </button>
+        )}
 
-        {['ADMIN', 'REVIEWER'].includes(curationData.userRole) && (
+        {/* Einreichung: ADMIN, TEILNEHMENDE */}
+        {['ADMIN', 'TEILNEHMENDE'].includes(effectiveRole) && (
           <button onClick={() => setViewMode('SUBMIT')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SUBMIT' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <PlusCircle className="w-3.5 h-3.5" /> Einreichung
           </button>
         )}
 
-        {['ADMIN', 'CURATOR', 'REVIEWER'].includes(curationData.userRole) && (
+        {/* Kuration: ADMIN, CURATOR, REVIEWER */}
+        {['ADMIN', 'CURATOR', 'REVIEWER'].includes(effectiveRole) && (
           <button onClick={() => setViewMode('CURATION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'CURATION' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <LayoutDashboard className="w-3.5 h-3.5" /> Kuration
           </button>
         )}
 
-        {curationData.userRole === 'ADMIN' && (
+        {/* Profil: SPEAKER, TEILNEHMENDE (+ ADMIN for own) */}
+        {['ADMIN', 'SPEAKER', 'TEILNEHMENDE'].includes(effectiveRole) && (
+          <button onClick={() => setViewMode('PROFILE')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PROFILE' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+            <User className="w-3.5 h-3.5" /> Profil
+          </button>
+        )}
+
+        {/* Admin: ADMIN only */}
+        {effectiveRole === 'ADMIN' && (
           <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ADMIN' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <Shield className="w-3.5 h-3.5" /> Admin
           </button>
