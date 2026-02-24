@@ -220,13 +220,112 @@ function createMappingSheet(ss) {
 }
 
 /**
- * JSON API Endpoint
+ * Sanitize a cell value for CSV: replace commas, newlines, quotes
  */
+function sanitizeCSV(val) {
+  if (val === null || val === undefined) return '';
+  return String(val)
+    .replace(/,/g, ' -')
+    .replace(/\n/g, ' ')
+    .replace(/\r/g, '')
+    .replace(/"/g, '""')
+    .trim();
+}
+
+/**
+ * Export a comma-safe CSV of all program data with speaker emails.
+ * Admin-only. Returns plain-text CSV.
+ */
+function exportCleanCSV(email) {
+  // Privacy: validate email parameter
+  if (!email || !email.includes('@')) {
+    return ContentService.createTextOutput(JSON.stringify({ error: 'Ungültige E-Mail-Adresse.' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const role = getUserRole(email);
+  if (role !== 'ADMIN') {
+    return ContentService.createTextOutput(JSON.stringify({ error: 'Keine Berechtigung. Nur Admins können exportieren.' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  // Audit: Log the export event for DSGVO compliance
+  Logger.log('[AUDIT] CSV Export by: ' + email + ' at ' + new Date().toISOString());
+
+  const ss = getSS();
+
+  // --- Read Speakers (for email lookup) ---
+  const speakersSheet = ss.getSheetByName(CONFIG.SPEAKERS_SHEET_NAME);
+  const speakerEmailMap = {}; // fullName -> email
+  if (speakersSheet) {
+    const spData = speakersSheet.getDataRange().getValues();
+    // Cols: A=Status(0), B=StatusBackend(1), C=ID(2), D=Vorname(3), E=Nachname(4), ... K=Email(10)
+    for (let i = 1; i < spData.length; i++) {
+      const vorname = (spData[i][3] || '').toString().trim();
+      const nachname = (spData[i][4] || '').toString().trim();
+      const fullName = (vorname + ' ' + nachname).trim();
+      const spEmail = (spData[i][10] || '').toString().trim();
+      if (fullName) speakerEmailMap[fullName.toLowerCase()] = spEmail;
+    }
+  }
+
+  // --- Read Program ---
+  const programSheet = ss.getSheetByName(CONFIG.PROGRAM_SHEET_NAME);
+  if (!programSheet) {
+    return ContentService.createTextOutput(JSON.stringify({ error: 'Programm_Export Sheet nicht gefunden.' }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const progData = programSheet.getDataRange().getValues();
+  // Cols: A=ID(0), B=Titel(1), C=Status(2), D=Partner(3), E=Format(4), F=Bühne(5),
+  //       G=Start(6), H=Ende(7), I=Dauer(8), J=Sprecher(9), K=Moderation(10),
+  //       L=Sprache(11), M=Notizen(12), N=StageDispo(13), O=Kurzbeschreibung(14), P=Beschreibung(15)
+
+  const csvHeaders = 'ID,Titel,Status,Format,Buehne,Start,Ende,Dauer,Sprecher,Moderation,Sprache,Sprecher_Email';
+  const csvRows = [csvHeaders];
+
+  for (let i = 1; i < progData.length; i++) {
+    const row = progData[i];
+    const id = sanitizeCSV(row[0]);
+    const titel = sanitizeCSV(row[1]);
+    const status = sanitizeCSV(row[2]);
+    const format = sanitizeCSV(row[4]);
+    const buehne = sanitizeCSV(row[5]);
+    const start = sanitizeCSV(row[6]);
+    const ende = sanitizeCSV(row[7]);
+    const dauer = sanitizeCSV(row[8]);
+    const sprecher = sanitizeCSV(row[9]);
+    const moderation = sanitizeCSV(row[10]);
+    const sprache = sanitizeCSV(row[11]);
+
+    // Resolve speaker emails
+    const speakerNames = (row[9] || '').toString().split(',').map(function(n) { return n.trim(); }).filter(Boolean);
+    const emails = speakerNames.map(function(name) {
+      return speakerEmailMap[name.toLowerCase()] || '';
+    }).filter(Boolean);
+    const spEmailStr = sanitizeCSV(emails.join('; '));
+
+    if (!id && !titel) continue; // skip empty rows
+
+    csvRows.push([id, titel, status, format, buehne, start, ende, dauer, sprecher, moderation, sprache, spEmailStr].join(','));
+  }
+
+  const csvContent = csvRows.join('\n');
+  return ContentService.createTextOutput(csvContent)
+    .setMimeType(ContentService.MimeType.TEXT);
+}
+
 /**
  * JSON API Endpoint
  */
 function doGet(e) {
   const email = e.parameter.email || "";
+
+  // --- CSV EXPORT ACTION ---
+  if (e.parameter.action === 'exportCSV') {
+    return exportCleanCSV(email);
+  }
+
   const role = getUserRole(email);
   const ss = getSS();
   

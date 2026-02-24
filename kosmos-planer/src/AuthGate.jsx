@@ -149,7 +149,7 @@ function AuthGate({ onAuthSuccess }) {
             let role = 'GUEST';
 
             try {
-                const baseUrl = localStorage.getItem('kosmos_curation_api_url') || import.meta.env.VITE_CURATION_API_URL;
+                const baseUrl = import.meta.env.VITE_CURATION_API_URL || (localStorage.getItem('kosmos_curation_api_url')?.includes('script.google.com') ? '' : localStorage.getItem('kosmos_curation_api_url'));
                 if (baseUrl) {
                     const cleanBaseUrl = baseUrl.replace(/\/$/, '').replace(/\/api$/, ''); // Ensure clean base
                     const checkRes = await fetch(`${cleanBaseUrl}/auth/verify`, {
@@ -166,13 +166,17 @@ function AuthGate({ onAuthSuccess }) {
 
                     if (checkRes.ok) {
                         const data = await checkRes.json();
-                        // If the backend returned a role other than GUEST, they are authorized
-                        if (data.userRole && data.userRole !== 'GUEST') {
-                            isAuthorized = true;
-                            role = data.userRole;
+                        // All authenticated users are allowed in — their role controls
+                        // what they can do inside the app (GUEST = read-only)
+                        role = data.userRole || 'GUEST';
+                        isAuthorized = true;
+                        if (import.meta.env.DEV) {
+                            console.log('[AuthGate] Role from backend:', role);
                         }
                     } else {
                         console.warn('[AuthGate] /auth/verify returned non-OK status:', checkRes.status);
+                        // Still allow login so user can access settings — role stays GUEST
+                        isAuthorized = true;
                     }
                 } else {
                     // If no API URL is set, we must allow them through so they can set it in settings

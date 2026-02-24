@@ -5,7 +5,7 @@ import { UserPlus, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
  * SpeakerRegistration - Allows registering new speakers via n8n webhook.
  * Supports both real speakers and "dummy" placeholders.
  */
-const SpeakerRegistration = ({ n8nBaseUrl, onSuccess, registeredBy = '' }) => {
+const SpeakerRegistration = ({ n8nBaseUrl, accessToken, onSuccess, registeredBy = '' }) => {
     const [form, setForm] = useState({
         vorname: '',
         nachname: '',
@@ -45,7 +45,10 @@ const SpeakerRegistration = ({ n8nBaseUrl, onSuccess, registeredBy = '' }) => {
         try {
             const res = await fetch(`${n8nBaseUrl}/register`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+                },
                 body: JSON.stringify({
                     ...form,
                     registeredBy: registeredBy

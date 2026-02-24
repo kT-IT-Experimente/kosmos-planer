@@ -5,7 +5,7 @@ import { Send, AlertCircle, CheckCircle2, Loader2, UserPlus, Search, X } from 'l
  * SessionSubmission - Form for submitting new sessions via n8n webhook.
  * Loads speakers from the Speaker_DB and allows selection.
  */
-const SessionSubmission = ({ n8nBaseUrl, metadata = {}, submitterEmail = '', onSuccess, onRegisterSpeaker }) => {
+const SessionSubmission = ({ n8nBaseUrl, accessToken, metadata = {}, submitterEmail = '', onSuccess, onRegisterSpeaker }) => {
     const [form, setForm] = useState({
         titel: '',
         kurzbeschreibung: '',
@@ -33,7 +33,9 @@ const SessionSubmission = ({ n8nBaseUrl, metadata = {}, submitterEmail = '', onS
         if (!n8nBaseUrl) return;
         setLoadingSpeakers(true);
         try {
-            const res = await fetch(`${n8nBaseUrl}/speakers?role=CURATOR`);
+            const headers = {};
+            if (accessToken) headers['Authorization'] = `Bearer ${accessToken}`;
+            const res = await fetch(`${n8nBaseUrl}/speakers?role=CURATOR`, { headers });
             if (!res.ok) throw new Error(`Speaker-API Fehler: ${res.status}`);
             const data = await res.json();
             setSpeakers(data.speakers || []);
@@ -93,7 +95,10 @@ const SessionSubmission = ({ n8nBaseUrl, metadata = {}, submitterEmail = '', onS
         try {
             const res = await fetch(`${n8nBaseUrl}/submit`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...(accessToken ? { 'Authorization': `Bearer ${accessToken}` } : {}),
+                },
                 body: JSON.stringify({
                     ...form,
                     submitterEmail,
@@ -268,8 +273,8 @@ const SessionSubmission = ({ n8nBaseUrl, metadata = {}, submitterEmail = '', onS
                                 <span
                                     key={s.ID}
                                     className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${s.Status === 'dummy'
-                                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                                            : 'bg-indigo-100 text-indigo-800 border border-indigo-300'
+                                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                        : 'bg-indigo-100 text-indigo-800 border border-indigo-300'
                                         }`}
                                 >
                                     {s.Vorname} {s.Nachname}

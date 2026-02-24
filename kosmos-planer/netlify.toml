@@ -2,6 +2,9 @@
   command = "npm run build"
   publish = "dist"
 
+[build.environment]
+  VITE_CURATION_API_URL = "https://kt-automatisierung.cloud/webhook"
+
 [functions]
   directory = "netlify/functions"
 

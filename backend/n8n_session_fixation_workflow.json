@@ -1,0 +1,149 @@
+{
+    "name": "Kosmos - Session Fixation (ICS + Email)",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "session-fixation",
+                "responseMode": "responseNode",
+                "options": {}
+            },
+            "id": "webhook-node",
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// --- ICS Generator for Session Fixation ---\n// Input: Session_Title, Description_Full, Start_Time, End_Time, Stage_Name, Speaker_Email\n\nconst items = $input.all();\nconst results = [];\n\nfor (const item of items) {\n  const d = item.json;\n\n  // Festival date: 20.09.2026 (adjust if needed)\n  const FESTIVAL_DATE = '20260920';\n\n  // Convert HH:MM to HHMMSS\n  function timeToICS(timeStr) {\n    const parts = (timeStr || '10:00').split(':');\n    const h = (parts[0] || '10').padStart(2, '0');\n    const m = (parts[1] || '00').padStart(2, '0');\n    return h + m + '00';\n  }\n\n  const dtStart = FESTIVAL_DATE + 'T' + timeToICS(d.Start_Time);\n  const dtEnd = FESTIVAL_DATE + 'T' + timeToICS(d.End_Time);\n\n  const disclaimer = 'WICHTIG: Bitte sei spätestens 15 Minuten vor Beginn der Session vor Ort, um offene Fragen mit dem Tontechniker und dem Stage Manager zu klären. Bitte prüfe regelmäßig deine Mailings für kurzfristige Updates.';\n\n  // Escape for ICS DESCRIPTION (fold long lines, escape commas/semicolons/newlines)\n  const descriptionRaw = (d.Description_Full || '') + '\\n\\n' + disclaimer;\n  const descriptionICS = descriptionRaw\n    .replace(/\\\\/g, '\\\\\\\\')\n    .replace(/;/g, '\\\\;')\n    .replace(/,/g, '\\\\,')\n    .replace(/\\n/g, '\\\\n');\n\n  const uid = 'kosmos-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9) + '@kosmos2026';\n  const now = new Date().toISOString().replace(/[-:]/g, '').replace(/\\.\\d{3}/, '');\n\n  const icsContent = [\n    'BEGIN:VCALENDAR',\n    'VERSION:2.0',\n    'PRODID:-//Kosmos Festival//Planer//DE',\n    'CALSCALE:GREGORIAN',\n    'METHOD:REQUEST',\n    'BEGIN:VEVENT',\n    'UID:' + uid,\n    'DTSTAMP:' + now,\n    'DTSTART:' + dtStart,\n    'DTEND:' + dtEnd,\n    'SUMMARY:' + (d.Session_Title || 'Kosmos Session'),\n    'LOCATION:' + (d.Stage_Name || ''),\n    'DESCRIPTION:' + descriptionICS,\n    'STATUS:CONFIRMED',\n    'END:VEVENT',\n    'END:VCALENDAR'\n  ].join('\\r\\n');\n\n  // Resolve emails - can be a string or array\n  let emails = d.Speaker_Email || [];\n  if (typeof emails === 'string') {\n    emails = emails.split(',').map(e => e.trim()).filter(Boolean);\n  }\n\n  results.push({\n    json: {\n      icsContent: icsContent,\n      emails: emails,\n      sessionTitle: d.Session_Title || 'Kosmos Session',\n      stageName: d.Stage_Name || '',\n      startTime: d.Start_Time,\n      endTime: d.End_Time\n    }\n  });\n}\n\nreturn results;"
+            },
+            "id": "ics-generator-node",
+            "name": "ICS Generator",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                500,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "sendTo": "={{ $json.emails.join(', ') }}",
+                "subject": "=📅 Session fixiert: {{ $json.sessionTitle }} ({{ $json.startTime }} - {{ $json.endTime }})",
+                "emailType": "text",
+                "message": "=Hallo,\n\ndeine Session \"{{ $json.sessionTitle }}\" wurde fixiert.\n\n📍 Bühne: {{ $json.stageName }}\n🕐 Zeit: {{ $json.startTime }} – {{ $json.endTime }}\n\nIm Anhang findest du eine Kalendereinladung (.ics) mit allen Details.\n\nWICHTIG: Bitte sei spätestens 15 Minuten vor Beginn der Session vor Ort, um offene Fragen mit dem Tontechniker und dem Stage Manager zu klären. Bitte prüfe regelmäßig deine Mailings für kurzfristige Updates.\n\nBis bald!\nDein Kosmos-Team",
+                "options": {
+                    "attachmentsUi": {
+                        "attachmentsBinary": [
+                            {
+                                "property": "icsFile"
+                            }
+                        ]
+                    }
+                }
+            },
+            "id": "gmail-send-node",
+            "name": "Send Email",
+            "type": "n8n-nodes-base.gmail",
+            "typeVersion": 2.1,
+            "position": [
+                900,
+                300
+            ],
+            "credentials": {
+                "gmailOAuth2": {
+                    "id": "REPLACE_WITH_YOUR_GMAIL_CREDENTIAL_ID",
+                    "name": "Gmail Account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "fileName": "=session_{{ $json.sessionTitle.replace(/[^a-zA-Z0-9]/g, '_') }}.ics",
+                "mimeType": "text/calendar",
+                "data": "={{ $json.icsContent }}"
+            },
+            "id": "convert-to-binary-node",
+            "name": "Convert to File",
+            "type": "n8n-nodes-base.convertToFile",
+            "typeVersion": 1.1,
+            "position": [
+                700,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={\"success\": true, \"message\": \"ICS generated and email sent\", \"recipients\": {{ $json.emails.length }} }"
+            },
+            "id": "respond-node",
+            "name": "Respond to Webhook",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                1100,
+                300
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "ICS Generator",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "ICS Generator": {
+            "main": [
+                [
+                    {
+                        "node": "Convert to File",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Convert to File": {
+            "main": [
+                [
+                    {
+                        "node": "Send Email",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send Email": {
+            "main": [
+                [
+                    {
+                        "node": "Respond to Webhook",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "tags": [
+        {
+            "name": "Kosmos",
+            "id": "kosmos-tag"
+        }
+    ]
+}

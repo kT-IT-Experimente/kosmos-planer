@@ -4,7 +4,7 @@ import {
     Users, CheckCircle2, XCircle, AlertCircle, LayoutDashboard
 } from 'lucide-react';
 
-const CurationDashboard = ({ sessions = [], metadata = {}, userRole = 'GUEST', onUpdateStatus, onUpdateMetadata }) => {
+const CurationDashboard = ({ sessions = [], metadata = {}, userRole = 'GUEST', ratings = {}, onUpdateStatus, onUpdateMetadata, onSaveRating }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [filters, setFilters] = useState({ bereich: '', thema: '', status: '', format: '', tag: '' });
     const [sortConfig, setSortConfig] = useState({ key: 'average_score', direction: 'desc' });
@@ -33,8 +33,23 @@ const CurationDashboard = ({ sessions = [], metadata = {}, userRole = 'GUEST', o
 
     const canEdit = userRole === 'ADMIN' || userRole === 'CURATOR';
 
+    // Merge ratings data into sessions
+    const sessionsWithRatings = useMemo(() => {
+        return sessions.map(s => {
+            const sessionRatings = ratings[s.id] || [];
+            const scores = sessionRatings.map(r => r.score).filter(s => s > 0);
+            const avg = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : null;
+            return {
+                ...s,
+                average_score: avg || s.average_score || null,
+                review_count: sessionRatings.length || s.review_count || 0,
+                _ratings: sessionRatings
+            };
+        });
+    }, [sessions, ratings]);
+
     const processedSessions = useMemo(() => {
-        return sessions
+        return sessionsWithRatings
             .filter(s => {
                 const matchesSearch =
                     (s.title || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -65,7 +80,7 @@ const CurationDashboard = ({ sessions = [], metadata = {}, userRole = 'GUEST', o
                 if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
                 return 0;
             });
-    }, [sessions, searchQuery, filters, sortConfig]);
+    }, [sessionsWithRatings, searchQuery, filters, sortConfig]);
 
     const handleSort = (key) => {
         setSortConfig(prev => ({
@@ -273,7 +288,7 @@ const CurationDashboard = ({ sessions = [], metadata = {}, userRole = 'GUEST', o
                                                                                 key={star}
                                                                                 onClick={(e) => {
                                                                                     e.stopPropagation();
-                                                                                    onUpdateMetadata(session.id, 'score', star);
+                                                                                    if (onSaveRating) onSaveRating(session.id, star, '');
                                                                                 }}
                                                                                 className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border ${Math.round(session.average_score || 0) >= star
                                                                                     ? 'bg-amber-50 border-amber-200 text-amber-600'
@@ -292,7 +307,7 @@ const CurationDashboard = ({ sessions = [], metadata = {}, userRole = 'GUEST', o
                                                                             onClick={(e) => e.stopPropagation()}
                                                                             onKeyDown={(e) => {
                                                                                 if (e.key === 'Enter') {
-                                                                                    onUpdateMetadata(session.id, 'comment', e.target.value);
+                                                                                    if (onSaveRating) onSaveRating(session.id, 0, e.target.value);
                                                                                     e.target.value = '';
                                                                                     e.target.blur();
                                                                                 }
