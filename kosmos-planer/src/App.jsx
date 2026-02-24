@@ -2038,6 +2038,7 @@ function App({ authenticatedUser }) {
               ]}
               metadata={curationData.metadata}
               userRole={curationData.userRole}
+              userEmail={authenticatedUser.email || ''}
               ratings={data.ratings}
               onUpdateStatus={handleUpdateCurationStatus}
               onUpdateMetadata={handleUpdateCurationMetadata}
