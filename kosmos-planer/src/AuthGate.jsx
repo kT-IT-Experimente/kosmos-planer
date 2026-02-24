@@ -345,7 +345,7 @@ function AuthGate({ onAuthSuccess }) {
                                 placeholder="name@beispiel.de"
                                 onKeyDown={e => e.key === 'Enter' && handleRequestMagicLink()}
                                 autoFocus
-                                className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
+                                className="w-full px-4 py-3 border border-slate-300 rounded-lg text-sm text-slate-800 bg-white focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
                         </div>
 
                         <button onClick={handleRequestMagicLink} disabled={emailSending || !emailInput}
