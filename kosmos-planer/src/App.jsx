@@ -377,9 +377,12 @@ function StageColumn({ stage, children, height }) {
   });
 
   return (
-    <div ref={setNodeRef} style={{ height: height + HEADER_HEIGHT }} className={`min-w-[280px] w-full max-w-[320px] border-r border-slate-200 relative transition-colors ${isOver ? 'bg-blue-50/30' : 'bg-white/30 odd:bg-slate-50/50'}`}>
-      <div className="bg-white/95 backdrop-blur border-b border-slate-200 p-2 text-center z-20 shadow-sm flex flex-col justify-center" style={{ height: HEADER_HEIGHT }}>
-        <div className="font-bold text-slate-700 text-sm truncate">{stage.name}</div>
+    <div ref={setNodeRef} style={{ height: height + HEADER_HEIGHT }} className={`min-w-[280px] w-full max-w-[320px] border-r relative transition-colors ${stage.hidden ? 'border-dashed border-slate-300 opacity-50' : 'border-slate-200'} ${isOver ? 'bg-blue-50/30' : 'bg-white/30 odd:bg-slate-50/50'}`}>
+      <div className={`backdrop-blur border-b p-2 text-center z-20 shadow-sm flex flex-col justify-center ${stage.hidden ? 'bg-slate-100/95 border-dashed border-slate-300' : 'bg-white/95 border-slate-200'}`} style={{ height: HEADER_HEIGHT }}>
+        <div className="font-bold text-slate-700 text-sm truncate flex items-center justify-center gap-1.5">
+          {stage.hidden && <span title="Versteckte Bühne (nur Admin)" className="text-slate-400">👻</span>}
+          {stage.name}
+        </div>
         <div className="flex justify-center gap-3 text-[10px] text-slate-400 font-mono mt-0.5">
           <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {stage.capacity}</span>
           <span className="flex items-center gap-1"><Mic2 className="w-3 h-3" /> {stage.maxMics || '?'}</span>
@@ -1767,14 +1770,6 @@ function App({ authenticatedUser }) {
               </div>
 
               <div className="flex items-center gap-3">
-                <button
-                  onClick={handleExportMailMerge}
-                  className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded text-sm font-medium transition-all"
-                  title="CSV Export für MailMerge"
-                >
-                  <Download className="w-4 h-4" />
-                  <span>Export CSV</span>
-                </button>
                 {curationData.userRole !== 'GUEST' && (
                   <button
                     onClick={handleSync}
@@ -2056,7 +2051,7 @@ function App({ authenticatedUser }) {
                   const res = await fetch(ratingUrl, {
                     method: 'POST',
                     headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ sessionId, score, kommentar, kategorie: 'relevanz' })
+                    body: JSON.stringify({ sessionId, score, kommentar, kategorie: 'relevanz', email: authenticatedUser.email })
                   });
                   if (!res.ok) {
                     const errText = await res.text().catch(() => '');
