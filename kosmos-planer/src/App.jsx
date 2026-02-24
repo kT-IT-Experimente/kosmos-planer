@@ -2040,7 +2040,7 @@ function App({ authenticatedUser }) {
               userRole={curationData.userRole}
               userEmail={authenticatedUser.email || ''}
               ratings={data.ratings}
-              onUpdateStatus={handleUpdateCurationStatus}
+              speakers={data.speakers}
               onUpdateMetadata={handleUpdateCurationMetadata}
               onSaveRating={async (sessionId, score, kommentar) => {
                 if (!config.curationApiUrl) return;
