@@ -1358,6 +1358,54 @@ function App({ authenticatedUser }) {
     }
   };
 
+  // --- SPEAKER SELF-REGISTRATION ---
+  const handleRegisterSpeakerProfile = async (newSpeaker) => {
+    if (!config.curationApiUrl || !newSpeaker) return;
+    try {
+      const token = authenticatedUser.accessToken;
+      const id = `SPK-${Date.now()}`;
+      const registeredAm = new Date().toISOString();
+      // Append to Kosmos_SprecherInnen: A=Status, B=StatusBackend, C=ID, D=Vorname, E=Nachname,
+      //   F=Pronomen, G=Organisation, H=Bio, I=Webseite, J=Update, K=Email, L=Telefon,
+      //   M=Herkunft, N=Sprache, O=Registriert_am, P=Registriert_von
+      const nameParts = (newSpeaker.fullName || '').split(' ');
+      const vorname = nameParts[0] || '';
+      const nachname = nameParts.slice(1).join(' ') || '';
+      const row = [
+        newSpeaker.status || 'CFP',  // A
+        '',                           // B
+        id,                           // C
+        vorname,                      // D
+        nachname,                     // E
+        newSpeaker.pronoun || '',     // F
+        newSpeaker.organisation || '',// G
+        newSpeaker.bio || '',         // H
+        newSpeaker.webseite || '',    // I
+        '',                           // J
+        newSpeaker.email || '',       // K
+        '',                           // L
+        newSpeaker.herkunft || '',    // M
+        newSpeaker.sprache || '',     // N
+        registeredAm,                 // O
+        authenticatedUser.email || '' // P
+      ];
+      const { ok, error } = await fetchSheets({
+        action: 'append',
+        spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!A:P`,
+        values: [row],
+      }, token, config.curationApiUrl);
+      if (!ok) throw new Error(error || 'Registrierung fehlgeschlagen');
+      setToast({ msg: 'Profil angelegt!', type: 'success' });
+      setTimeout(() => setToast(null), 3000);
+      loadData({ manual: false });
+    } catch (e) {
+      console.error('Speaker registration error:', e);
+      setToast({ msg: 'Fehler bei der Registrierung', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
   // --- CURATION ACTIONS ---
   const handleUpdateCurationStatus = async (sessionId, newStatus) => {
     if (!config.curationApiUrl) {
@@ -2098,7 +2146,7 @@ function App({ authenticatedUser }) {
                   }))
               ]}
               metadata={curationData.metadata}
-              userRole={curationData.userRole}
+              userRole={effectiveRole}
               userEmail={authenticatedUser.email || ''}
               ratings={data.ratings}
               speakers={data.speakers}
@@ -2214,7 +2262,9 @@ function App({ authenticatedUser }) {
         {viewMode === 'PROFILE' && (
           <SpeakerProfile
             speaker={mySpeakerRecord}
+            userEmail={authenticatedUser.email || ''}
             onSave={handleSaveSpeakerProfile}
+            onRegister={handleRegisterSpeakerProfile}
           />
         )}
       </div>

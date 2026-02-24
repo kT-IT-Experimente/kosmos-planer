@@ -243,8 +243,8 @@ const CurationDashboard = ({
                                     <div className="text-center">
                                         {session.average_score ? (
                                             <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg border-2 shadow-sm ${Number(session.average_score) >= 4 ? 'bg-green-50 border-green-200 text-green-700' :
-                                                    Number(session.average_score) >= 3 ? 'bg-yellow-50 border-yellow-200 text-yellow-700' :
-                                                        'bg-red-50 border-red-200 text-red-700'}`}>
+                                                Number(session.average_score) >= 3 ? 'bg-yellow-50 border-yellow-200 text-yellow-700' :
+                                                    'bg-red-50 border-red-200 text-red-700'}`}>
                                                 {session.average_score}
                                             </div>
                                         ) : <div className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-200 border-2 border-slate-100 text-sm">—</div>}
@@ -259,8 +259,8 @@ const CurationDashboard = ({
                                     </div>
 
                                     <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter border ${session.status === 'Akzeptiert' ? 'bg-green-100 text-green-700 border-green-200' :
-                                            session.status === 'Abgelehnt' ? 'bg-red-100 text-red-700 border-red-200' :
-                                                'bg-amber-100 text-amber-700 border-amber-200'}`}>
+                                        session.status === 'Abgelehnt' ? 'bg-red-100 text-red-700 border-red-200' :
+                                            'bg-amber-100 text-amber-700 border-amber-200'}`}>
                                         {session.status}
                                     </span>
 
@@ -278,6 +278,27 @@ const CurationDashboard = ({
                                                 <AlertCircle className="w-3 h-3" /> Interne Notiz
                                             </div>
                                             <p className="text-xs text-amber-800 italic">{session.notes}</p>
+                                        </div>
+                                    )}
+
+                                    {/* Submitter info */}
+                                    {(session.submitterName || session.submitterEmail) && (
+                                        <div className="mx-5 mt-3 flex items-center gap-2 text-xs text-slate-500">
+                                            <Send className="w-3 h-3 shrink-0" />
+                                            <span>Eingereicht von: </span>
+                                            <button
+                                                onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    const sp = findSpeaker(session.submitterName) || findSpeaker(session.submitterEmail);
+                                                    setSpeakerPopup(sp || {
+                                                        fullName: session.submitterName || '',
+                                                        email: session.submitterEmail || ''
+                                                    });
+                                                }}
+                                                className="font-bold text-indigo-600 hover:underline"
+                                            >
+                                                {session.submitterName || session.submitterEmail}
+                                            </button>
                                         </div>
                                     )}
 

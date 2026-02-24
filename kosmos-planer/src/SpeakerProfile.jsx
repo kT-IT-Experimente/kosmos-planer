@@ -1,12 +1,13 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { User, Save, Globe, Mail, MapPin, Languages, Building2, FileText, Camera, Loader2, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { User, Save, Globe, MapPin, Languages, Building2, FileText, Camera, Loader2, CheckCircle2, UserPlus, Eye, EyeOff } from 'lucide-react';
 
 /**
- * SpeakerProfile — Allows speakers/participants to edit their own profile data.
- * Editable: Vorname, Nachname, Pronomen, Organisation, Bio, Webseite, Sprache, Herkunft, Bild-URL
- * Read-only: ID, Status, Registriert_am
+ * SpeakerProfile — Allows any authenticated user to create/edit their speaker profile.
+ * If no speaker record exists, shows a registration form.
+ * Toggle: "Als SprecherIn auswählbar" controls visibility in speaker picker.
  */
-const SpeakerProfile = ({ speaker, onSave }) => {
+const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister }) => {
+    const isNew = !speaker;
     const [form, setForm] = useState({
         vorname: '',
         nachname: '',
@@ -16,16 +17,21 @@ const SpeakerProfile = ({ speaker, onSave }) => {
         webseite: '',
         sprache: '',
         herkunft: '',
-        bildUrl: ''
+        bildUrl: '',
+        auswaehlbar: true // toggle: visible as speaker in picker
     });
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
 
-    // Sync from speaker prop
     useEffect(() => {
-        if (!speaker) return;
+        if (!speaker) {
+            setForm(prev => ({ ...prev, vorname: '', nachname: '' }));
+            setHasChanges(false);
+            return;
+        }
         const nameParts = (speaker.fullName || '').split(' ');
+        const statusLower = (speaker.status || '').toLowerCase();
         setForm({
             vorname: nameParts[0] || '',
             nachname: nameParts.slice(1).join(' ') || '',
@@ -35,7 +41,8 @@ const SpeakerProfile = ({ speaker, onSave }) => {
             webseite: speaker.webseite || '',
             sprache: speaker.sprache || '',
             herkunft: speaker.herkunft || '',
-            bildUrl: speaker.bildUrl || ''
+            bildUrl: speaker.bildUrl || '',
+            auswaehlbar: !statusLower.includes('teilnehm') // CFP_Teilnehmerin = not selectable as speaker
         });
         setHasChanges(false);
     }, [speaker]);
@@ -47,20 +54,39 @@ const SpeakerProfile = ({ speaker, onSave }) => {
     };
 
     const handleSave = async () => {
-        if (!onSave || !speaker) return;
+        if (!form.vorname && !form.nachname) return;
         setSaving(true);
         try {
-            await onSave({
-                ...speaker,
-                fullName: `${form.vorname} ${form.nachname}`.trim(),
-                pronoun: form.pronomen,
-                organisation: form.organisation,
-                bio: form.bio,
-                webseite: form.webseite,
-                sprache: form.sprache,
-                herkunft: form.herkunft,
-                bildUrl: form.bildUrl
-            });
+            if (isNew && onRegister) {
+                // Register as new speaker
+                await onRegister({
+                    fullName: `${form.vorname} ${form.nachname}`.trim(),
+                    email: userEmail,
+                    pronoun: form.pronomen,
+                    organisation: form.organisation,
+                    bio: form.bio,
+                    webseite: form.webseite,
+                    sprache: form.sprache,
+                    herkunft: form.herkunft,
+                    bildUrl: form.bildUrl,
+                    status: form.auswaehlbar ? 'CFP' : 'CFP_Teilnehmerin'
+                });
+            } else if (onSave && speaker) {
+                await onSave({
+                    ...speaker,
+                    fullName: `${form.vorname} ${form.nachname}`.trim(),
+                    pronoun: form.pronomen,
+                    organisation: form.organisation,
+                    bio: form.bio,
+                    webseite: form.webseite,
+                    sprache: form.sprache,
+                    herkunft: form.herkunft,
+                    bildUrl: form.bildUrl,
+                    status: form.auswaehlbar
+                        ? ((speaker.status || '').toLowerCase().includes('teilnehm') ? 'CFP' : speaker.status)
+                        : 'CFP_Teilnehmerin'
+                });
+            }
             setSaved(true);
             setHasChanges(false);
             setTimeout(() => setSaved(false), 3000);
@@ -70,38 +96,44 @@ const SpeakerProfile = ({ speaker, onSave }) => {
         setSaving(false);
     };
 
-    if (!speaker) {
-        return (
-            <div className="flex-1 flex items-center justify-center bg-slate-50 p-8">
-                <div className="text-center max-w-md">
-                    <User className="w-16 h-16 text-slate-200 mx-auto mb-4" />
-                    <h2 className="text-xl font-bold text-slate-700 mb-2">Kein Profil gefunden</h2>
-                    <p className="text-sm text-slate-400">Deine E-Mail-Adresse ist noch nicht in der SprecherInnen-Datenbank hinterlegt. Bitte wende dich an das Admin-Team.</p>
-                </div>
-            </div>
-        );
-    }
+    const Field = ({ label, icon: Icon, children }) => (
+        <div>
+            <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">
+                {Icon && <Icon className="w-3 h-3" />} {label}
+            </label>
+            {children}
+        </div>
+    );
+
+    const inputCls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500";
 
     return (
         <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
             <div className="max-w-2xl mx-auto">
                 <div className="flex items-center gap-3 mb-6">
-                    <User className="w-8 h-8 text-indigo-600" />
+                    {isNew ? <UserPlus className="w-8 h-8 text-indigo-600" /> : <User className="w-8 h-8 text-indigo-600" />}
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800">Mein Profil</h2>
-                        <p className="text-xs text-slate-400">Bearbeite deine SprecherInnen-Daten</p>
+                        <h2 className="text-xl font-bold text-slate-800">{isNew ? 'Profil anlegen' : 'Mein Profil'}</h2>
+                        <p className="text-xs text-slate-400">{userEmail}</p>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-6">
-                    {/* Read-only info */}
-                    <div className="flex gap-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-500">
-                        <span><strong>ID:</strong> {speaker.id}</span>
-                        <span><strong>Status:</strong> {speaker.status}</span>
-                        <span><strong>E-Mail:</strong> {speaker.email}</span>
-                    </div>
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
+                    {/* Read-only info for existing speakers */}
+                    {!isNew && (
+                        <div className="flex gap-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-500">
+                            <span><strong>ID:</strong> {speaker.id}</span>
+                            <span><strong>Status:</strong> {speaker.status}</span>
+                        </div>
+                    )}
 
-                    {/* Avatar / Image URL */}
+                    {isNew && (
+                        <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg text-sm text-indigo-700">
+                            <strong>Willkommen!</strong> Erstelle dein Profil, um Sessions einzureichen oder als SprecherIn sichtbar zu werden.
+                        </div>
+                    )}
+
+                    {/* Avatar */}
                     <div className="flex items-center gap-4">
                         <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
                             {form.bildUrl ? (
@@ -110,95 +142,81 @@ const SpeakerProfile = ({ speaker, onSave }) => {
                                 <User className="w-10 h-10 text-indigo-400" />
                             )}
                         </div>
-                        <div className="flex-1">
-                            <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">
-                                <Camera className="w-3 h-3" /> Profilbild-URL
-                            </label>
+                        <Field label="Profilbild-URL" icon={Camera}>
                             <input type="url" value={form.bildUrl} onChange={e => handleChange('bildUrl', e.target.value)}
-                                placeholder="https://example.com/bild.jpg"
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" />
-                        </div>
+                                placeholder="https://example.com/bild.jpg" className={inputCls} />
+                        </Field>
                     </div>
 
                     {/* Name */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-medium text-slate-500 mb-1">Vorname</label>
-                            <input type="text" value={form.vorname} onChange={e => handleChange('vorname', e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-slate-500 mb-1">Nachname</label>
-                            <input type="text" value={form.nachname} onChange={e => handleChange('nachname', e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
-                        </div>
+                        <Field label="Vorname">
+                            <input type="text" value={form.vorname} onChange={e => handleChange('vorname', e.target.value)} className={inputCls} required />
+                        </Field>
+                        <Field label="Nachname">
+                            <input type="text" value={form.nachname} onChange={e => handleChange('nachname', e.target.value)} className={inputCls} />
+                        </Field>
                     </div>
 
                     {/* Pronomen + Organisation */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-medium text-slate-500 mb-1">Pronomen</label>
+                        <Field label="Pronomen">
                             <input type="text" value={form.pronomen} onChange={e => handleChange('pronomen', e.target.value)}
-                                placeholder="z.B. sie/ihr, er/ihm, they/them"
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">
-                                <Building2 className="w-3 h-3" /> Organisation
-                            </label>
-                            <input type="text" value={form.organisation} onChange={e => handleChange('organisation', e.target.value)}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
-                        </div>
+                                placeholder="z.B. sie/ihr, er/ihm" className={inputCls} />
+                        </Field>
+                        <Field label="Organisation" icon={Building2}>
+                            <input type="text" value={form.organisation} onChange={e => handleChange('organisation', e.target.value)} className={inputCls} />
+                        </Field>
                     </div>
 
                     {/* Bio */}
-                    <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">
-                            <FileText className="w-3 h-3" /> Bio
-                        </label>
+                    <Field label="Bio" icon={FileText}>
                         <textarea value={form.bio} onChange={e => handleChange('bio', e.target.value)}
-                            placeholder="Erzähle etwas über dich..."
-                            rows={5} maxLength={2000}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 resize-none" />
+                            placeholder="Erzähle etwas über dich..." rows={5} maxLength={2000} className={inputCls + ' resize-none'} />
                         <span className="text-xs text-slate-400">{form.bio.length}/2000</span>
-                    </div>
+                    </Field>
 
                     {/* Webseite */}
-                    <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">
-                            <Globe className="w-3 h-3" /> Webseite
-                        </label>
+                    <Field label="Webseite" icon={Globe}>
                         <input type="url" value={form.webseite} onChange={e => handleChange('webseite', e.target.value)}
-                            placeholder="https://..."
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
-                    </div>
+                            placeholder="https://..." className={inputCls} />
+                    </Field>
 
                     {/* Sprache + Herkunft */}
                     <div className="grid grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">
-                                <Languages className="w-3 h-3" /> Sprache(n)
-                            </label>
+                        <Field label="Sprache(n)" icon={Languages}>
                             <input type="text" value={form.sprache} onChange={e => handleChange('sprache', e.target.value)}
-                                placeholder="z.B. Deutsch, Englisch"
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
-                        </div>
-                        <div>
-                            <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">
-                                <MapPin className="w-3 h-3" /> Herkunft
-                            </label>
+                                placeholder="z.B. Deutsch, Englisch" className={inputCls} />
+                        </Field>
+                        <Field label="Herkunft" icon={MapPin}>
                             <input type="text" value={form.herkunft} onChange={e => handleChange('herkunft', e.target.value)}
-                                placeholder="Stadt, Land"
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
+                                placeholder="Stadt, Land" className={inputCls} />
+                        </Field>
+                    </div>
+
+                    {/* Speaker visibility toggle */}
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                        <button onClick={() => handleChange('auswaehlbar', !form.auswaehlbar)}
+                            className={`relative w-11 h-6 rounded-full transition-colors ${form.auswaehlbar ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                            <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.auswaehlbar ? 'translate-x-5' : ''}`} />
+                        </button>
+                        <div className="flex-1">
+                            <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
+                                {form.auswaehlbar ? <Eye className="w-4 h-4 text-indigo-600" /> : <EyeOff className="w-4 h-4 text-slate-400" />}
+                                Als SprecherIn auswählbar
+                            </span>
+                            <p className="text-xs text-slate-400 mt-0.5">
+                                {form.auswaehlbar ? 'Du bist als SprecherIn in der Suche sichtbar.' : 'Du bist nur als TeilnehmerIn registriert (nicht als SprecherIn auswählbar).'}
+                            </p>
                         </div>
                     </div>
 
-                    {/* Save button */}
+                    {/* Save */}
                     <div className="pt-2 flex items-center gap-3">
-                        <button onClick={handleSave} disabled={saving || !hasChanges}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-sm active:scale-95 ${hasChanges ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
-                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
-                            {saving ? 'Wird gespeichert...' : 'Profil speichern'}
+                        <button onClick={handleSave} disabled={saving || (!hasChanges && !isNew) || (!form.vorname && !form.nachname)}
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-sm active:scale-95 ${(hasChanges || isNew) && (form.vorname || form.nachname) ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
+                            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : isNew ? <UserPlus className="w-4 h-4" /> : <Save className="w-4 h-4" />}
+                            {saving ? 'Wird gespeichert...' : isNew ? 'Profil anlegen' : 'Profil speichern'}
                         </button>
                         {saved && (
                             <span className="flex items-center gap-1 text-green-600 text-sm font-bold">
