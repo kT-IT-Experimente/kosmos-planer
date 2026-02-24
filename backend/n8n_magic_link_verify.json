@@ -1,0 +1,301 @@
+{
+    "name": "Kosmos - Magic Link Verify",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "auth/verify-magic",
+                "responseMode": "responseNode",
+                "options": {
+                    "responseHeaders": {
+                        "entries": [
+                            {
+                                "name": "Access-Control-Allow-Origin",
+                                "value": "*"
+                            },
+                            {
+                                "name": "Access-Control-Allow-Headers",
+                                "value": "Content-Type, Authorization"
+                            }
+                        ]
+                    }
+                }
+            },
+            "id": "webhook-verify-magic",
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Verify JWT Magic Link token\nconst jwt = require('jsonwebtoken');\n\nconst SECRET = $env.MAGIC_LINK_SECRET;\nif (!SECRET) {\n  return [{ json: { ok: false, error: 'Server-Konfigurationsfehler (MAGIC_LINK_SECRET fehlt).' } }];\n}\n\nconst token = $input.first().json.body?.token || '';\n\nif (!token) {\n  return [{ json: { ok: false, error: 'Kein Token angegeben.' } }];\n}\n\ntry {\n  const decoded = jwt.verify(token, SECRET);\n  // decoded: { email, role, iat, exp }\n  return [{ json: {\n    valid: true,\n    email: decoded.email,\n    role: decoded.role || 'TEILNEHMENDE'\n  }}];\n} catch (err) {\n  if (err.name === 'TokenExpiredError') {\n    return [{ json: { ok: false, error: 'Der Magic Link ist abgelaufen. Bitte fordere einen neuen an.' } }];\n  }\n  return [{ json: { ok: false, error: 'Der Magic Link ist ungültig. Bitte fordere einen neuen an.' } }];\n}"
+            },
+            "id": "verify-jwt",
+            "name": "Verify JWT",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                470,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "boolean": [
+                        {
+                            "value1": "={{ $json.valid }}",
+                            "value2": true
+                        }
+                    ]
+                }
+            },
+            "id": "if-valid",
+            "name": "If Valid",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                690,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "read",
+                "documentId": {
+                    "__rl": true,
+                    "mode": "id",
+                    "value": "REPLACE_WITH_YOUR_SPREADSHEET_ID"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "mode": "name",
+                    "value": "Config_Users"
+                },
+                "options": {
+                    "range": "A:D"
+                }
+            },
+            "id": "read-config-users-verify",
+            "name": "Read Config_Users",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.5,
+            "position": [
+                910,
+                200
+            ],
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "REPLACE_WITH_YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+                    "name": "Google Sheets Account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "// Check if user exists in Config_Users\nconst verifyData = $('Verify JWT').first().json;\nconst email = verifyData.email;\nconst tokenRole = verifyData.role;\n\n// Config_Users rows\nconst rows = $input.all().map(item => item.json);\n\n// Find user by email\nconst existingUser = rows.find(r => {\n  const rowEmail = (r['A'] || r['Email'] || r['email'] || '').toLowerCase().trim();\n  return rowEmail === email;\n});\n\nif (existingUser) {\n  // User exists — use their current role (may have been updated by admin)\n  const currentRole = existingUser['B'] || existingUser['Role'] || existingUser['role'] || tokenRole;\n  return [{ json: {\n    email,\n    role: currentRole,\n    isNewUser: false,\n    needsCreation: false\n  }}];\n} else {\n  // New user — will be created\n  return [{ json: {\n    email,\n    role: 'TEILNEHMENDE',\n    isNewUser: true,\n    needsCreation: true\n  }}];\n}"
+            },
+            "id": "check-user-exists",
+            "name": "Check User Exists",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1130,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "boolean": [
+                        {
+                            "value1": "={{ $json.needsCreation }}",
+                            "value2": true
+                        }
+                    ]
+                }
+            },
+            "id": "if-needs-creation",
+            "name": "If New User",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                1350,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "append",
+                "documentId": {
+                    "__rl": true,
+                    "mode": "id",
+                    "value": "REPLACE_WITH_YOUR_SPREADSHEET_ID"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "mode": "name",
+                    "value": "Config_Users"
+                },
+                "columns": {
+                    "mappingMode": "defineBelow",
+                    "value": {
+                        "A": "={{ $json.email }}",
+                        "B": "=TEILNEHMENDE",
+                        "C": "",
+                        "D": "={{ new Date().toISOString() }}"
+                    }
+                },
+                "options": {}
+            },
+            "id": "create-user-row",
+            "name": "Create User in Config_Users",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.5,
+            "position": [
+                1570,
+                100
+            ],
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "REPLACE_WITH_YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+                    "name": "Google Sheets Account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"ok\": true, \"email\": \"{{ $('Check User Exists').first().json.email }}\", \"role\": \"{{ $('Check User Exists').first().json.role }}\", \"name\": \"\", \"isNewUser\": {{ $('Check User Exists').first().json.isNewUser }} }"
+            },
+            "id": "respond-verified",
+            "name": "Respond Verified",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                1790,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify($('Verify JWT').first().json) }}"
+            },
+            "id": "respond-invalid",
+            "name": "Respond Invalid",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                910,
+                450
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Verify JWT",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Verify JWT": {
+            "main": [
+                [
+                    {
+                        "node": "If Valid",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "If Valid": {
+            "main": [
+                [
+                    {
+                        "node": "Read Config_Users",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Respond Invalid",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Read Config_Users": {
+            "main": [
+                [
+                    {
+                        "node": "Check User Exists",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check User Exists": {
+            "main": [
+                [
+                    {
+                        "node": "If New User",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "If New User": {
+            "main": [
+                [
+                    {
+                        "node": "Create User in Config_Users",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Respond Verified",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Create User in Config_Users": {
+            "main": [
+                [
+                    {
+                        "node": "Respond Verified",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "tags": [
+        {
+            "name": "Kosmos",
+            "id": "kosmos-tag"
+        }
+    ]
+}

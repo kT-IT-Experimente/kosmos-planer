@@ -1,0 +1,271 @@
+{
+    "name": "Kosmos - Magic Link Request",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "auth/request-magic-link",
+                "responseMode": "responseNode",
+                "options": {
+                    "responseHeaders": {
+                        "entries": [
+                            {
+                                "name": "Access-Control-Allow-Origin",
+                                "value": "*"
+                            },
+                            {
+                                "name": "Access-Control-Allow-Headers",
+                                "value": "Content-Type, Authorization"
+                            }
+                        ]
+                    }
+                }
+            },
+            "id": "webhook-request-magic",
+            "name": "Webhook",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                250,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Extract input\nconst email = ($input.first().json.body?.email || '').toLowerCase().trim();\nconst adminInvite = $input.first().json.body?.adminInvite === true;\n\nif (!email || !email.includes('@')) {\n  return [{ json: { ok: false, error: 'Bitte gib eine gültige Email-Adresse ein.' } }];\n}\n\nreturn [{ json: { email, adminInvite } }];"
+            },
+            "id": "parse-input",
+            "name": "Parse Input",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                470,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "read",
+                "documentId": {
+                    "__rl": true,
+                    "mode": "id",
+                    "value": "REPLACE_WITH_YOUR_SPREADSHEET_ID"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "mode": "name",
+                    "value": "Config_Users"
+                },
+                "options": {
+                    "range": "A:D"
+                }
+            },
+            "id": "read-config-users",
+            "name": "Read Config_Users",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.5,
+            "position": [
+                690,
+                300
+            ],
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "REPLACE_WITH_YOUR_GOOGLE_SHEETS_CREDENTIAL_ID",
+                    "name": "Google Sheets Account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "jsCode": "// Check open call status and user existence\nconst inputData = $('Parse Input').first().json;\nconst email = inputData.email;\nconst adminInvite = inputData.adminInvite;\n\n// Config_Users rows from Google Sheets\nconst rows = $input.all().map(item => item.json);\n\n// Open Call status is in D1 header area\n// Find the first row — column D might contain OPEN/CLOSED\nlet openCallStatus = 'OPEN';\nif (rows.length > 0) {\n  // Look for OPEN/CLOSED in the data\n  const firstRow = rows[0];\n  const dValue = firstRow['D'] || firstRow['Status'] || firstRow['OpenCall'] || '';\n  if (dValue.toUpperCase() === 'CLOSED') {\n    openCallStatus = 'CLOSED';\n  }\n}\n\n// Find user by email (column A = email)\nconst existingUser = rows.find(r => {\n  const rowEmail = (r['A'] || r['Email'] || r['email'] || '').toLowerCase().trim();\n  return rowEmail === email;\n});\n\nconst existingRole = existingUser ? (existingUser['B'] || existingUser['Role'] || existingUser['role'] || 'TEILNEHMENDE') : null;\n\n// Decision logic\nif (!adminInvite && openCallStatus === 'CLOSED' && !existingUser) {\n  return [{ json: {\n    allowed: false,\n    error: 'Der Open Call ist derzeit geschlossen. Nur eingeladene Personen können sich anmelden. Bitte wende dich an das Admin-Team.'\n  }}];\n}\n\nreturn [{ json: {\n  allowed: true,\n  email: email,\n  role: existingRole || 'TEILNEHMENDE',\n  isExistingUser: !!existingUser,\n  adminInvite: adminInvite\n}}];"
+            },
+            "id": "check-eligibility",
+            "name": "Check Eligibility",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                910,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "boolean": [
+                        {
+                            "value1": "={{ $json.allowed }}",
+                            "value2": true
+                        }
+                    ]
+                }
+            },
+            "id": "if-allowed",
+            "name": "If Allowed",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                1130,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "// Generate JWT Magic Link token\nconst jwt = require('jsonwebtoken');\n\nconst SECRET = $env.MAGIC_LINK_SECRET;\nif (!SECRET) {\n  throw new Error('MAGIC_LINK_SECRET environment variable not set in n8n!');\n}\n\nconst email = $json.email;\nconst role = $json.role;\n\nconst token = jwt.sign(\n  { email, role },\n  SECRET,\n  { expiresIn: '7d' }\n);\n\n// IMPORTANT: Replace with your actual site URL\nconst SITE_URL = 'https://tourmaline-taffy-61d3c1.netlify.app';\nconst magicLink = `${SITE_URL}/?magic=${token}`;\n\nreturn [{ json: {\n  email,\n  role,\n  token,\n  magicLink,\n  isExistingUser: $json.isExistingUser\n}}];"
+            },
+            "id": "generate-jwt",
+            "name": "Generate JWT",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                1350,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "sendTo": "={{ $json.email }}",
+                "subject": "🔑 Dein Login-Link für Kosmos Planner",
+                "emailType": "html",
+                "message": "=<div style=\"font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 500px; margin: 0 auto; padding: 20px;\">\n<h2 style=\"color: #1e293b;\">Hallo!</h2>\n<p style=\"color: #475569; font-size: 14px;\">Hier ist dein persönlicher Login-Link für den <strong>Kosmos Planner</strong>:</p>\n<div style=\"margin: 24px 0; text-align: center;\">\n<a href=\"{{ $json.magicLink }}\" style=\"display: inline-block; background: #4f46e5; color: white; font-weight: bold; padding: 14px 28px; border-radius: 8px; text-decoration: none; font-size: 16px;\">Jetzt einloggen →</a>\n</div>\n<p style=\"color: #94a3b8; font-size: 12px;\">Der Link ist <strong>7 Tage</strong> gültig.</p>\n<hr style=\"border: none; border-top: 1px solid #e2e8f0; margin: 20px 0;\">\n<p style=\"color: #94a3b8; font-size: 11px;\">Falls du diesen Link nicht angefordert hast, kannst du diese Email ignorieren.</p>\n<p style=\"color: #94a3b8; font-size: 11px;\">— Kosmos Festival Team</p>\n</div>",
+                "options": {}
+            },
+            "id": "send-magic-email",
+            "name": "Send Magic Link Email",
+            "type": "n8n-nodes-base.gmail",
+            "typeVersion": 2.1,
+            "position": [
+                1570,
+                200
+            ],
+            "credentials": {
+                "gmailOAuth2": {
+                    "id": "REPLACE_WITH_YOUR_GMAIL_CREDENTIAL_ID",
+                    "name": "Gmail Account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"ok\": true, \"message\": \"Magic Link wurde an {{ $('Generate JWT').first().json.email }} gesendet.\" }"
+            },
+            "id": "respond-success",
+            "name": "Respond Success",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                1790,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={ \"ok\": false, \"error\": \"{{ $('Check Eligibility').first().json.error }}\" }"
+            },
+            "id": "respond-rejected",
+            "name": "Respond Rejected",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                1350,
+                450
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook": {
+            "main": [
+                [
+                    {
+                        "node": "Parse Input",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Parse Input": {
+            "main": [
+                [
+                    {
+                        "node": "Read Config_Users",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Read Config_Users": {
+            "main": [
+                [
+                    {
+                        "node": "Check Eligibility",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Check Eligibility": {
+            "main": [
+                [
+                    {
+                        "node": "If Allowed",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "If Allowed": {
+            "main": [
+                [
+                    {
+                        "node": "Generate JWT",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "Respond Rejected",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate JWT": {
+            "main": [
+                [
+                    {
+                        "node": "Send Magic Link Email",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Send Magic Link Email": {
+            "main": [
+                [
+                    {
+                        "node": "Respond Success",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "tags": [
+        {
+            "name": "Kosmos",
+            "id": "kosmos-tag"
+        }
+    ]
+}
