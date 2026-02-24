@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { UserCog, Shield, Lock, Users, ChevronRight, Save, Trash2, Plus, Clock, Settings, Download, Eye, EyeOff, Tag, Mic, MapPin, ToggleLeft, ToggleRight } from 'lucide-react';
+import { UserCog, Shield, Lock, Users, ChevronRight, Save, Trash2, Plus, Clock, Settings, Download, Eye, EyeOff, Tag, Mic, MapPin, ToggleLeft, ToggleRight, Send, Loader2 } from 'lucide-react';
 
 export default function AdminDashboard({
     users = [], stages = [], config = {}, configThemen = {},
     onUpdateUserRole, onDeleteUser, onAddUser, onUpdateConfig,
     onSaveStages, onSaveConfigThemen,
-    openCallClosed = false, onToggleOpenCall,
+    openCallClosed = false, onToggleOpenCall, onInviteUser,
     curationApiUrl = '', userEmail = ''
 }) {
     const [newUserEmail, setNewUserEmail] = useState('');
@@ -96,8 +96,8 @@ export default function AdminDashboard({
                     <button
                         onClick={onToggleOpenCall}
                         className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md active:scale-95 ${openCallClosed
-                                ? 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-200'
-                                : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200'
+                            ? 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-200'
+                            : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200'
                             }`}
                     >
                         {openCallClosed ? <ToggleLeft className="w-5 h-5" /> : <ToggleRight className="w-5 h-5" />}
@@ -205,7 +205,13 @@ export default function AdminDashboard({
                                                 <option value="GUEST">GUEST</option>
                                             </select>
                                         </td>
-                                        <td className="py-4 px-2 text-right">
+                                        <td className="py-4 px-2 text-right flex items-center gap-1 justify-end">
+                                            {onInviteUser && (
+                                                <button onClick={() => onInviteUser(user.email)}
+                                                    className="p-2 text-slate-300 hover:text-indigo-600 transition-colors" title="Magic Link senden">
+                                                    <Send className="w-4 h-4" />
+                                                </button>
+                                            )}
                                             <button onClick={() => onDeleteUser(user.email)}
                                                 className="p-2 text-slate-300 hover:text-red-500 transition-colors" title="Delete User">
                                                 <Trash2 className="w-4 h-4" />
@@ -225,6 +231,8 @@ export default function AdminDashboard({
                                             <option value="ADMIN">ADMIN</option>
                                             <option value="CURATOR">CURATOR</option>
                                             <option value="REVIEWER">REVIEWER</option>
+                                            <option value="TEILNEHMENDE">TEILNEHMENDE</option>
+                                            <option value="SPEAKER">SPEAKER</option>
                                             <option value="GUEST">GUEST</option>
                                         </select>
                                     </td>

@@ -1145,11 +1145,19 @@ function App({ authenticatedUser }) {
   // Set default view based on role (once data loaded)
   const [initialRedirectDone, setInitialRedirectDone] = useState(false);
   useEffect(() => {
-    if (initialRedirectDone || !data.speakers.length) return;
+    if (initialRedirectDone) return;
+    // Force new users to profile page immediately (don't wait for data)
+    if (authenticatedUser.isNewUser) {
+      setViewMode('PROFILE');
+      setInitialRedirectDone(true);
+      return;
+    }
+    // Wait for data to determine role-based default
+    if (!data.speakers.length) return;
     if (effectiveRole === 'SPEAKER') { setViewMode('PROFILE'); setInitialRedirectDone(true); }
     else if (effectiveRole === 'TEILNEHMENDE') { setViewMode('SUBMIT'); setInitialRedirectDone(true); }
     else { setInitialRedirectDone(true); }
-  }, [effectiveRole, data.speakers, initialRedirectDone]);
+  }, [effectiveRole, data.speakers, initialRedirectDone, authenticatedUser.isNewUser]);
 
   const handleUpdateUserRole = async (email, newRole) => {
     if (effectiveRole !== 'ADMIN') {
@@ -2198,6 +2206,27 @@ function App({ authenticatedUser }) {
               onSaveConfigThemen={handleSaveConfigThemen}
               openCallClosed={openCallClosed}
               onToggleOpenCall={handleToggleOpenCall}
+              onInviteUser={async (email) => {
+                if (!config.curationApiUrl) { setToast({ msg: 'API nicht konfiguriert', type: 'error' }); return; }
+                try {
+                  const baseUrl = config.curationApiUrl.replace(/\/$/, '').replace(/\/api$/, '');
+                  const res = await fetch(`${baseUrl}/auth/request-magic-link`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authenticatedUser.accessToken || authenticatedUser.magicToken}` },
+                    body: JSON.stringify({ email: email.toLowerCase().trim(), adminInvite: true })
+                  });
+                  const data = await res.json();
+                  if (data.ok) {
+                    setToast({ msg: `Magic Link an ${email} gesendet!`, type: 'success' });
+                  } else {
+                    setToast({ msg: data.error || 'Fehler beim Senden', type: 'error' });
+                  }
+                } catch (e) {
+                  console.error('Invite error:', e);
+                  setToast({ msg: 'Verbindungsfehler', type: 'error' });
+                }
+                setTimeout(() => setToast(null), 3000);
+              }}
               onUpdateConfig={(newSettings) => {
                 setConfig(prev => ({ ...prev, ...newSettings }));
                 if (newSettings.startHour !== undefined) localStorage.setItem('kosmos_start_hour', String(newSettings.startHour));
