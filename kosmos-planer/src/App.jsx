@@ -1439,51 +1439,141 @@ function App({ authenticatedUser }) {
     setTimeout(() => setToast(null), 3000);
   };
 
+  // --- Helper: Remove a speaker from all linked sessions ---
+  const removeSpeakerFromSessions = async (speakerId, speakerName, token) => {
+    const affectedSubs = data.submissions.filter(s => {
+      const ids = (s.speakerIds || '').split(',').map(x => x.trim());
+      return ids.includes(speakerId);
+    });
+    for (const sub of affectedSubs) {
+      const oldIds = (sub.speakerIds || '').split(',').map(x => x.trim()).filter(Boolean);
+      const oldNames = (sub.speakers || '').split(',').map(x => x.trim()).filter(Boolean);
+      const newIds = oldIds.filter(id => id !== speakerId).join(', ');
+      const newNames = oldNames.filter(n => n.toLowerCase() !== speakerName.toLowerCase()).join(', ');
+      // Update columns M (Speaker_IDs) and N (Speaker_Names) in Master_Einreichungen
+      await fetchSheets({
+        action: 'update', spreadsheetId: config.spreadsheetId,
+        range: `'Master_Einreichungen'!M${sub.rowIndex}:N${sub.rowIndex}`,
+        values: [[newIds, newNames]],
+      }, token, config.curationApiUrl).catch(e => console.warn('Session update failed:', e));
+      // Notify session creator
+      if (sub.submitterEmail) {
+        const n8nBase = (config.curationApiUrl || '').replace(/\/$/, '').replace(/\/api$/, '');
+        fetch(`${n8nBase}/api/notify-speaker-removed`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ speakerName, sessionTitle: sub.title, submitterEmail: sub.submitterEmail }),
+        }).catch(() => { });
+      }
+    }
+    return affectedSubs.length;
+  };
+
   // --- SPEAKER PROFILE SAVE ---
   const handleSaveSpeakerProfile = async (updatedSpeaker) => {
     if (!config.curationApiUrl || !updatedSpeaker) return;
     try {
       const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
-      // Find the speaker's row index in the sheet
       const allSpeakers = data.speakers;
       const idx = allSpeakers.findIndex(s => s.id === updatedSpeaker.id);
       if (idx < 0) throw new Error('Speaker nicht gefunden');
-      const rowNum = idx + 2; // 1-indexed + header row
-      // Update columns: D=Vorname(3), E=Nachname(4), F=Pronomen(5), G=Organisation(6), H=Bio(7), I=Webseite(8)
+      const rowNum = idx + 2;
       const nameParts = (updatedSpeaker.fullName || '').split(' ');
       const vorname = nameParts[0] || '';
       const nachname = nameParts.slice(1).join(' ') || '';
+      // Update status (A column) if changed
+      const oldStatus = (allSpeakers[idx]?.status || '').toLowerCase();
+      const newStatus = (updatedSpeaker.status || '').toLowerCase();
+      const becameInvisible = !oldStatus.includes('teilnehm') && newStatus.includes('teilnehm');
+      if (becameInvisible || oldStatus !== newStatus) {
+        await fetchSheets({
+          action: 'update', spreadsheetId: config.spreadsheetId,
+          range: `'${config.sheetNameSpeakers}'!A${rowNum}`,
+          values: [[updatedSpeaker.status || 'CFP']],
+        }, token, config.curationApiUrl);
+      }
       // Update name columns D-I
       const { ok: ok1, error: err1 } = await fetchSheets({
-        action: 'update',
-        spreadsheetId: config.spreadsheetId,
+        action: 'update', spreadsheetId: config.spreadsheetId,
         range: `'${config.sheetNameSpeakers}'!D${rowNum}:I${rowNum}`,
         values: [[vorname, nachname, updatedSpeaker.pronoun || '', updatedSpeaker.organisation || '', updatedSpeaker.bio || '', updatedSpeaker.webseite || '']],
       }, token, config.curationApiUrl);
       if (!ok1) throw new Error(err1);
       // Update herkunft (M) and sprache (N)
       const { ok: ok2, error: err2 } = await fetchSheets({
-        action: 'update',
-        spreadsheetId: config.spreadsheetId,
+        action: 'update', spreadsheetId: config.spreadsheetId,
         range: `'${config.sheetNameSpeakers}'!M${rowNum}:N${rowNum}`,
         values: [[updatedSpeaker.herkunft || '', updatedSpeaker.sprache || '']],
       }, token, config.curationApiUrl);
       if (!ok2) throw new Error(err2);
-      // Update social media: AA=Instagram, AB=LinkedIn, AC=Sonstige Social Media
+      // Update social media: AA-AC
       const { ok: ok3, error: err3 } = await fetchSheets({
-        action: 'update',
-        spreadsheetId: config.spreadsheetId,
+        action: 'update', spreadsheetId: config.spreadsheetId,
         range: `'${config.sheetNameSpeakers}'!AA${rowNum}:AC${rowNum}`,
         values: [[updatedSpeaker.instagram || '', updatedSpeaker.linkedin || '', updatedSpeaker.socialSonstiges || '']],
       }, token, config.curationApiUrl);
       if (!ok3) throw new Error(err3);
-      setToast({ msg: 'Profil gespeichert!', type: 'success' });
+      // If speaker became invisible, remove from all linked sessions
+      if (becameInvisible) {
+        const removed = await removeSpeakerFromSessions(updatedSpeaker.id, updatedSpeaker.fullName, token);
+        if (removed > 0) {
+          setToast({ msg: `Profil gespeichert! Du wurdest aus ${removed} Session(s) entfernt.`, type: 'success' });
+        } else {
+          setToast({ msg: 'Profil gespeichert!', type: 'success' });
+        }
+      } else {
+        setToast({ msg: 'Profil gespeichert!', type: 'success' });
+      }
       setTimeout(() => setToast(null), 3000);
-      loadData({ manual: false });
-      setViewMode('SUBMIT'); // redirect to dashboard after save
+      loadData({ manual: true });
+      setViewMode('SUBMIT');
     } catch (e) {
       console.error('Profile save error:', e);
       setToast({ msg: 'Fehler beim Speichern des Profils', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    }
+  };
+
+  // --- PROFILE DELETION (GDPR) ---
+  const handleDeleteProfile = async () => {
+    if (!config.curationApiUrl || !mySpeakerRecord) return;
+    try {
+      const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
+      const allSpeakers = data.speakers;
+      const idx = allSpeakers.findIndex(s => s.id === mySpeakerRecord.id);
+      if (idx < 0) throw new Error('Speaker nicht gefunden');
+      const rowNum = idx + 2;
+      // 1) Remove speaker from all linked sessions + notify creators
+      await removeSpeakerFromSessions(mySpeakerRecord.id, mySpeakerRecord.fullName, token);
+      // 2) Clear personal data (D-N, AA-AC) and set status to "Gelöscht"
+      await fetchSheets({
+        action: 'update', spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!A${rowNum}:N${rowNum}`,
+        values: [['Gelöscht', '', mySpeakerRecord.id, '', '', '', '', '', '', '', '', '', '', '']],
+      }, token, config.curationApiUrl);
+      // Clear social media columns
+      await fetchSheets({
+        action: 'update', spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!AA${rowNum}:AC${rowNum}`,
+        values: [['', '', '']],
+      }, token, config.curationApiUrl);
+      // 3) Remove from Config_Users — find row and clear it
+      const email = authenticatedUser.email?.toLowerCase() || '';
+      const configIdx = curationData.users.findIndex(u => u.email.toLowerCase() === email);
+      if (configIdx >= 0) {
+        const configRow = configIdx + 2; // 1-indexed + header row
+        await fetchSheets({
+          action: 'update', spreadsheetId: config.spreadsheetId,
+          range: `'Config_Users'!A${configRow}:C${configRow}`,
+          values: [['[gelöscht]', 'GELÖSCHT', '']],
+        }, token, config.curationApiUrl);
+      }
+      // 4) Logout
+      setToast({ msg: 'Dein Profil wurde gelöscht. Alle personenbezogenen Daten wurden entfernt.', type: 'success' });
+      setTimeout(() => { handleLogout(); }, 2000);
+    } catch (e) {
+      console.error('Profile delete error:', e);
+      setToast({ msg: 'Fehler beim Löschen des Profils', type: 'error' });
       setTimeout(() => setToast(null), 3000);
     }
   };
@@ -2561,6 +2651,7 @@ function App({ authenticatedUser }) {
             userEmail={authenticatedUser.email || ''}
             onSave={handleSaveSpeakerProfile}
             onRegister={handleRegisterSpeakerProfile}
+            onDelete={handleDeleteProfile}
           />
         )}
       </div>

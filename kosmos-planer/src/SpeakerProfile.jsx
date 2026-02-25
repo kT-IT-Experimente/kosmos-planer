@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Save, Globe, MapPin, Languages, Building2, FileText, Camera, Loader2, CheckCircle2, UserPlus, Eye, EyeOff, Link2 } from 'lucide-react';
+import { User, Save, Globe, MapPin, Languages, Building2, FileText, Camera, Loader2, CheckCircle2, UserPlus, Eye, EyeOff, Link2, Trash2, AlertTriangle } from 'lucide-react';
 
 /**
  * Field — Reusable form field wrapper. Defined OUTSIDE SpeakerProfile
@@ -21,7 +21,7 @@ const inputCls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm fo
  * If no speaker record exists, shows a registration form.
  * Toggle: "Als SprecherIn auswählbar" controls visibility in speaker picker.
  */
-const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister }) => {
+const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) => {
     const isNew = !speaker;
     const [form, setForm] = useState({
         vorname: '',
@@ -41,6 +41,8 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister }) => {
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(false);
     const [hasChanges, setHasChanges] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         if (!speaker) {
@@ -259,6 +261,43 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister }) => {
                             </span>
                         )}
                     </div>
+
+                    {/* Delete Profile (only for existing speakers) */}
+                    {!isNew && onDelete && (
+                        <div className="mt-6 pt-4 border-t border-red-200">
+                            {!showDeleteConfirm ? (
+                                <button onClick={() => setShowDeleteConfirm(true)}
+                                    className="flex items-center gap-2 text-xs text-red-400 hover:text-red-600 transition-colors">
+                                    <Trash2 className="w-3.5 h-3.5" /> Profil und alle personenbezogenen Daten löschen
+                                </button>
+                            ) : (
+                                <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
+                                    <div className="flex items-start gap-2">
+                                        <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                                        <div>
+                                            <p className="text-sm font-bold text-red-800">Profil endgültig löschen?</p>
+                                            <p className="text-xs text-red-600 mt-1">
+                                                Alle personenbezogenen Daten (Name, Bio, Kontakt, Social Media) werden unwiderruflich gelöscht.
+                                                Du wirst aus allen verknüpften Sessions entfernt und die Session-Ersteller werden benachrichtigt.
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <button onClick={async () => { setDeleting(true); await onDelete(); }}
+                                            disabled={deleting}
+                                            className="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5">
+                                            {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                                            {deleting ? 'Wird gelöscht...' : 'Ja, endgültig löschen'}
+                                        </button>
+                                        <button onClick={() => setShowDeleteConfirm(false)}
+                                            className="px-4 py-2 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300">
+                                            Abbrechen
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

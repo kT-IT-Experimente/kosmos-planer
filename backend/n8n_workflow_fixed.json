@@ -2424,6 +2424,121 @@
         },
         "options": {}
       }
+    },
+    {
+      "id": "94efe294-0083-48d0-b562-dbecc7775ebc",
+      "name": "Webhook (POST /api/notify-speaker-removed)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        1600
+      ],
+      "webhookId": "18fae1c0-5ece-4922-ad5e-72d06bb23c76",
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/notify-speaker-removed",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app",
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, Authorization"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "b23ea18d-2960-4f55-b511-3b9fb1ecd99c",
+      "name": "Parse Notification",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        400,
+        1600
+      ],
+      "parameters": {
+        "jsCode": "const body = $('Webhook (POST /api/notify-speaker-removed)').first().json.body || {};\nconst speakerName = body.speakerName || 'Unbekannt';\nconst sessionTitle = body.sessionTitle || 'Unbekannt';\nconst submitterEmail = body.submitterEmail || '';\n\nif (!submitterEmail) {\n  return [{ json: { skip: true } }];\n}\n\nreturn [{ json: {\n  skip: false,\n  to: submitterEmail,\n  subject: `Kosmos 2026: SprecherIn \"${speakerName}\" hat abgesagt`,\n  body: `Hallo,\n\ndie SprecherIn \"${speakerName}\" hat ihre Teilnahme an deiner Session \"${sessionTitle}\" abgesagt und wurde automatisch entfernt.\n\nBitte überprüfe deine Session und füge ggf. eine neue SprecherIn hinzu.\n\nViele Grüße,\nKosmos 2026 Team`\n}}];\n"
+      }
+    },
+    {
+      "id": "3f82018b-52ff-444e-9f94-f490d141dd1b",
+      "name": "If Should Send",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        600,
+        1600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "check-skip",
+              "leftValue": "={{ $json.skip }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "0a5218c8-9129-47f2-9a7e-0ec826d0bddf",
+      "name": "Send Speaker Removed Email",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [
+        800,
+        1550
+      ],
+      "parameters": {
+        "fromEmail": "kosmos@kuenstlerische-tatsachen.de",
+        "toEmail": "={{ $json.to }}",
+        "subject": "={{ $json.subject }}",
+        "text": "={{ $json.body }}",
+        "options": {}
+      },
+      "credentials": {
+        "smtp": {
+          "id": "J3SxBLRnt91epoZF",
+          "name": "SMTP account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "46434c64-6515-495e-9c11-1263a228a880",
+      "name": "Respond Notify OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1000,
+        1600
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true }) }}",
+        "options": {}
+      }
     }
   ],
   "pinData": {
@@ -3265,6 +3380,57 @@
         [
           {
             "node": "Respond Write OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook (POST /api/notify-speaker-removed)": {
+      "main": [
+        [
+          {
+            "node": "Parse Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Notification": {
+      "main": [
+        [
+          {
+            "node": "If Should Send",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Should Send": {
+      "main": [
+        [
+          {
+            "node": "Send Speaker Removed Email",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond Notify OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Speaker Removed Email": {
+      "main": [
+        [
+          {
+            "node": "Respond Notify OK",
             "type": "main",
             "index": 0
           }
