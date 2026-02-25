@@ -2681,6 +2681,7 @@ function App({ authenticatedUser }) {
                 }
                 metadata={data.configThemen || curationData.metadata}
                 maxSubmissions={data.configThemen?.maxSubmissions || config.maxSubmissions || 5}
+                userRole={effectiveRole}
                 submitterEmail={authenticatedUser.email}
                 submitterName={mySpeakerRecord?.fullName || authenticatedUser.name || ''}
                 mySubmissions={mySubmissions}

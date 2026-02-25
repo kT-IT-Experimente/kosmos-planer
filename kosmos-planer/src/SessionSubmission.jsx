@@ -9,7 +9,7 @@ import { Send, AlertCircle, CheckCircle2, Loader2, UserPlus, Search, X, Edit3, C
 const SessionSubmission = ({
     speakers = [], stages = [], metadata = {}, submitterEmail = '', submitterName = '',
     mySubmissions = [], mySessions = [], fetchSheets, spreadsheetId, apiUrl, accessToken,
-    maxSubmissions = 5, onSuccess, onRegisterSpeaker
+    maxSubmissions = 5, onSuccess, onRegisterSpeaker, userRole = 'TEILNEHMENDE'
 }) => {
     const emptyForm = {
         titel: '', kurzbeschreibung: '', beschreibung: '', format: '',
@@ -23,7 +23,8 @@ const SessionSubmission = ({
     const [showMySubmissions, setShowMySubmissions] = useState(true);
 
     const isEditing = editingSubmission !== null;
-    const canSubmitNew = mySubmissions.length < maxSubmissions;
+    const hasUnlimitedSubmissions = ['ADMIN', 'CURATOR', 'REVIEWER'].includes(userRole);
+    const canSubmitNew = hasUnlimitedSubmissions || mySubmissions.length < maxSubmissions;
 
     const filteredSpeakers = useMemo(() => {
         if (!speakerSearch.trim()) return speakers;
