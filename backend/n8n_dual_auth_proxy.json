@@ -1,0 +1,152 @@
+{
+    "name": "Kosmos - Dual Auth Data Proxy",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "api/data",
+                "responseMode": "responseNode",
+                "options": {
+                    "responseHeaders": {
+                        "entries": [
+                            {
+                                "name": "Access-Control-Allow-Origin",
+                                "value": "*"
+                            },
+                            {
+                                "name": "Access-Control-Allow-Headers",
+                                "value": "Content-Type, Authorization"
+                            },
+                            {
+                                "name": "Access-Control-Allow-Methods",
+                                "value": "POST, OPTIONS"
+                            }
+                        ]
+                    }
+                }
+            },
+            "id": "proxy-webhook",
+            "name": "Webhook (POST /api/data)",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 2,
+            "position": [
+                250,
+                300
+            ],
+            "webhookId": "data-proxy-dual"
+        },
+        {
+            "parameters": {
+                "jsCode": "// === DUAL AUTH: Google OAuth + Magic Link JWT ===\n//\n// Prueft den Bearer Token aus dem Authorization Header.\n// 1) Versucht Google OAuth Token-Verifikation (googleapis.com)\n// 2) Fallback: Magic Link JWT Verifikation (jsonwebtoken)\n//\n// Gibt authValid: true/false zurueck plus die request body.\n\nconst jwt = require('jsonwebtoken');\nconst MAGIC_SECRET = '537f8c4ff1959fdc1d54ce852607f2c30f08607925a39e61be189d3d58e29ff1';\n\n// Token aus Header extrahieren\nconst headers = $input.first().json.headers || {};\nconst authHeader = headers.authorization || headers.Authorization || '';\nconst token = authHeader.replace(/^Bearer\\s+/i, '').trim();\nconst body = $input.first().json.body || {};\n\nif (!token) {\n  // Kein Token = trotzdem body weiterleiten (fuer oeffentliche Daten)\n  return [{ json: { authValid: false, authType: 'none', error: 'Kein Token', body } }];\n}\n\n// --- Schritt 1: Google OAuth pruefen ---\ntry {\n  const googleUrl = 'https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=' + encodeURIComponent(token);\n  const googleRes = await fetch(googleUrl);\n  if (googleRes.ok) {\n    const info = await googleRes.json();\n    if (info.email) {\n      return [{ json: { authValid: true, authType: 'google', email: info.email, body } }];\n    }\n  }\n} catch (e) {\n  // Google Token ungueltig - weiter mit Magic Link\n}\n\n// --- Schritt 2: Magic Link JWT pruefen ---\ntry {\n  const decoded = jwt.verify(token, MAGIC_SECRET);\n  if (decoded && decoded.email) {\n    return [{ json: {\n      authValid: true,\n      authType: 'magic',\n      email: decoded.email,\n      role: decoded.role || 'TEILNEHMENDE',\n      body\n    }}];\n  }\n} catch (e) {\n  // JWT auch ungueltig\n}\n\n// --- Beide fehlgeschlagen ---\nreturn [{ json: { authValid: false, authType: 'unknown', error: 'Token ungueltig oder abgelaufen', body } }];"
+            },
+            "id": "dual-auth-verify",
+            "name": "Verify Token (Dual Auth)",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                500,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "options": {
+                        "caseSensitive": true,
+                        "leftValue": ""
+                    },
+                    "conditions": [
+                        {
+                            "id": "auth-check-1",
+                            "leftValue": "={{ $json.authValid }}",
+                            "rightValue": true,
+                            "operator": {
+                                "type": "boolean",
+                                "operation": "true"
+                            }
+                        }
+                    ],
+                    "combinator": "and"
+                }
+            },
+            "id": "if-token-valid",
+            "name": "Token Valid?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                730,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "json",
+                "responseBody": "={{ JSON.stringify({ ok: false, error: $json.error || 'Unauthorized' }) }}",
+                "options": {
+                    "responseCode": 401,
+                    "responseHeaders": {
+                        "entries": [
+                            {
+                                "name": "Access-Control-Allow-Origin",
+                                "value": "*"
+                            }
+                        ]
+                    }
+                }
+            },
+            "id": "respond-401-unauth",
+            "name": "Respond 401 Unauthorized",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                960,
+                450
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook (POST /api/data)": {
+            "main": [
+                [
+                    {
+                        "node": "Verify Token (Dual Auth)",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Verify Token (Dual Auth)": {
+            "main": [
+                [
+                    {
+                        "node": "Token Valid?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Token Valid?": {
+            "main": [
+                [],
+                [
+                    {
+                        "node": "Respond 401 Unauthorized",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "pinData": {},
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "staticData": null,
+    "tags": [],
+    "triggerCount": 0,
+    "updatedAt": "2026-02-24T21:50:00.000Z",
+    "versionId": "1"
+}

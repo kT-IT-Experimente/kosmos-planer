@@ -57,7 +57,11 @@ const SpeakerRegistration = ({ n8nBaseUrl, accessToken, onSuccess, registeredBy 
 
             if (!res.ok) throw new Error(`Server-Fehler: ${res.status}`);
 
-            const data = await res.json();
+            let data = {};
+            try {
+                const text = await res.text();
+                data = text ? JSON.parse(text) : {};
+            } catch (_) { /* empty or non-JSON response is OK */ }
 
             if (data.error) throw new Error(data.error);
 

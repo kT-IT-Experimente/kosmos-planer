@@ -1,5 +1,20 @@
 import React, { useState, useEffect } from 'react';
-import { User, Save, Globe, MapPin, Languages, Building2, FileText, Camera, Loader2, CheckCircle2, UserPlus, Eye, EyeOff } from 'lucide-react';
+import { User, Save, Globe, MapPin, Languages, Building2, FileText, Camera, Loader2, CheckCircle2, UserPlus, Eye, EyeOff, Link2 } from 'lucide-react';
+
+/**
+ * Field — Reusable form field wrapper. Defined OUTSIDE SpeakerProfile
+ * to prevent React from unmounting inputs on every re-render.
+ */
+const Field = ({ label, icon: Icon, children }) => (
+    <div>
+        <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">
+            {Icon && <Icon className="w-3 h-3" />} {label}
+        </label>
+        {children}
+    </div>
+);
+
+const inputCls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500";
 
 /**
  * SpeakerProfile — Allows any authenticated user to create/edit their speaker profile.
@@ -18,6 +33,9 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister }) => {
         sprache: '',
         herkunft: '',
         bildUrl: '',
+        linkedin: '',
+        instagram: '',
+        socialSonstiges: '',
         auswaehlbar: true // toggle: visible as speaker in picker
     });
     const [saving, setSaving] = useState(false);
@@ -42,6 +60,9 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister }) => {
             sprache: speaker.sprache || '',
             herkunft: speaker.herkunft || '',
             bildUrl: speaker.bildUrl || '',
+            linkedin: speaker.linkedin || '',
+            instagram: speaker.instagram || '',
+            socialSonstiges: speaker.socialSonstiges || '',
             auswaehlbar: !statusLower.includes('teilnehm') // CFP_Teilnehmerin = not selectable as speaker
         });
         setHasChanges(false);
@@ -69,6 +90,9 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister }) => {
                     sprache: form.sprache,
                     herkunft: form.herkunft,
                     bildUrl: form.bildUrl,
+                    linkedin: form.linkedin,
+                    instagram: form.instagram,
+                    socialSonstiges: form.socialSonstiges,
                     status: form.auswaehlbar ? 'CFP' : 'CFP_Teilnehmerin'
                 });
             } else if (onSave && speaker) {
@@ -82,6 +106,9 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister }) => {
                     sprache: form.sprache,
                     herkunft: form.herkunft,
                     bildUrl: form.bildUrl,
+                    linkedin: form.linkedin,
+                    instagram: form.instagram,
+                    socialSonstiges: form.socialSonstiges,
                     status: form.auswaehlbar
                         ? ((speaker.status || '').toLowerCase().includes('teilnehm') ? 'CFP' : speaker.status)
                         : 'CFP_Teilnehmerin'
@@ -95,17 +122,6 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister }) => {
         }
         setSaving(false);
     };
-
-    const Field = ({ label, icon: Icon, children }) => (
-        <div>
-            <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">
-                {Icon && <Icon className="w-3 h-3" />} {label}
-            </label>
-            {children}
-        </div>
-    );
-
-    const inputCls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500";
 
     return (
         <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
@@ -172,8 +188,8 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister }) => {
                     {/* Bio */}
                     <Field label="Bio" icon={FileText}>
                         <textarea value={form.bio} onChange={e => handleChange('bio', e.target.value)}
-                            placeholder="Erzähle etwas über dich..." rows={5} maxLength={2000} className={inputCls + ' resize-none'} />
-                        <span className="text-xs text-slate-400">{form.bio.length}/2000</span>
+                            placeholder="Erzähle etwas über dich..." rows={5} maxLength={1000} className={inputCls + ' resize-none'} />
+                        <span className="text-xs text-slate-400">{form.bio.length}/1000</span>
                     </Field>
 
                     {/* Webseite */}
@@ -181,6 +197,25 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister }) => {
                         <input type="url" value={form.webseite} onChange={e => handleChange('webseite', e.target.value)}
                             placeholder="https://..." className={inputCls} />
                     </Field>
+
+                    {/* Social Media */}
+                    <div className="space-y-3">
+                        <p className="text-xs font-semibold text-slate-500 flex items-center gap-1"><Link2 className="w-3 h-3" /> Social Media</p>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Field label="LinkedIn">
+                                <input type="url" value={form.linkedin} onChange={e => handleChange('linkedin', e.target.value)}
+                                    placeholder="https://linkedin.com/in/..." className={inputCls} />
+                            </Field>
+                            <Field label="Instagram">
+                                <input type="text" value={form.instagram} onChange={e => handleChange('instagram', e.target.value)}
+                                    placeholder="@handle oder URL" className={inputCls} />
+                            </Field>
+                        </div>
+                        <Field label="Sonstige Links">
+                            <input type="text" value={form.socialSonstiges} onChange={e => handleChange('socialSonstiges', e.target.value)}
+                                placeholder="z.B. Twitter, Mastodon, YouTube..." className={inputCls} />
+                        </Field>
+                    </div>
 
                     {/* Sprache + Herkunft */}
                     <div className="grid grid-cols-2 gap-4">

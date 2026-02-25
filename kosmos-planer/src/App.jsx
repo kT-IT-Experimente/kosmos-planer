@@ -20,7 +20,7 @@ import {
   Trash2, PlusCircle, UploadCloud, LogIn, X,
   Lock, Unlock, MessageSquare, Globe, Flag, Layout,
   AlertTriangle, Mic2, PieChart, Search, CheckCircle2, Languages,
-  Download, DownloadCloud, Loader2, Key, LogOut, Mail, LayoutDashboard, Shield, User
+  Download, DownloadCloud, Loader2, Key, LogOut, Mail, LayoutDashboard, Shield, User, Heart
 } from 'lucide-react';
 import {
   INBOX_ID, HEADER_HEIGHT, PIXELS_PER_MINUTE, SNAP_MINUTES,
@@ -34,6 +34,7 @@ import AdminDashboard from './AdminDashboard';
 import SpeakerRegistration from './SpeakerRegistration';
 import SessionSubmission from './SessionSubmission';
 import SpeakerProfile from './SpeakerProfile';
+import ProductionTimeline from './ProductionTimeline';
 
 // --- HELPERS IMPORTED FROM utils.js ---
 
@@ -132,12 +133,11 @@ async function fetchSheets(body, token, n8nBaseUrl) {
   let lastError = null;
 
   try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
     const res = await fetch(reqUrl, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`,
-      },
+      headers,
       body: JSON.stringify(body),
     });
 
@@ -203,7 +203,7 @@ const Card = React.forwardRef(function Card({ children, className = "", onClick,
   );
 });
 
-function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConflict, conflictTooltip, listeners, attributes, isDimmed }) {
+function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConflict, conflictTooltip, listeners, attributes, isDimmed, isFavorite, onToggleFavorite }) {
   const formatColor = FORMAT_COLORS[session.format] || 'bg-slate-100 text-slate-700';
   const [activeOverlay, setActiveOverlay] = useState(null);
 
@@ -261,6 +261,16 @@ function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConfl
             >
               <AlertTriangle className="w-4 h-4 animate-pulse" />
             </div>
+          )}
+          {onToggleFavorite && (
+            <button
+              onPointerDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onToggleFavorite(session); }}
+              className={`p-1 rounded hover:bg-black/5 transition-colors ${isFavorite ? 'text-pink-500' : 'text-slate-300 hover:text-pink-400'}`}
+              title={isFavorite ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen'}
+            >
+              <Heart className={`w-3.5 h-3.5 transition-all ${isFavorite ? 'fill-pink-500' : ''}`} />
+            </button>
           )}
           <button
             onPointerDown={(e) => e.stopPropagation()}
@@ -324,7 +334,7 @@ function DroppableStage({ id, children, className }) {
   );
 };
 
-function DraggableTimelineItem({ session, onClick, style, onToggleLock, hasConflict, conflictTooltip, isDimmed }) {
+function DraggableTimelineItem({ session, onClick, style, onToggleLock, hasConflict, conflictTooltip, isDimmed, isFavorite, onToggleFavorite }) {
   const isLocked = session.status === 'Fixiert';
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: session.id,
@@ -346,12 +356,13 @@ function DraggableTimelineItem({ session, onClick, style, onToggleLock, hasConfl
         hasConflict={hasConflict} conflictTooltip={conflictTooltip}
         listeners={listeners} attributes={attributes}
         isDimmed={isDimmed}
+        isFavorite={isFavorite} onToggleFavorite={onToggleFavorite}
       />
     </div>
   );
 };
 
-function SortableInboxItem({ session, onClick, onToggleLock, hasConflict, conflictTooltip, isDimmed }) {
+function SortableInboxItem({ session, onClick, onToggleLock, hasConflict, conflictTooltip, isDimmed, isFavorite, onToggleFavorite }) {
   const isLocked = session.status === 'Fixiert';
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: session.id, data: session, disabled: isLocked
@@ -366,6 +377,7 @@ function SortableInboxItem({ session, onClick, onToggleLock, hasConflict, confli
         hasConflict={hasConflict} conflictTooltip={conflictTooltip}
         listeners={listeners} attributes={attributes}
         isDimmed={isDimmed}
+        isFavorite={isFavorite} onToggleFavorite={onToggleFavorite}
       />
     </div>
   );
@@ -449,7 +461,10 @@ const parsePlannerBatch = (batch, config) => {
         webseite: safeString(r[8]),
         email,
         herkunft: safeString(r[12]),
-        sprache: safeString(r[13])
+        sprache: safeString(r[13]),
+        linkedin: safeString(r[26]),
+        instagram: safeString(r[27]),
+        socialSonstiges: safeString(r[28])
       });
     }
   });
@@ -634,6 +649,52 @@ function App({ authenticatedUser }) {
   });
 
   const [activeDragItem, setActiveDragItem] = useState(null);
+  const [productionData, setProductionData] = useState([]);
+
+  // --- FAVORITES STATE (WebCal Heart) ---
+  const [favorites, setFavorites] = useState(() => {
+    try {
+      const saved = localStorage.getItem('kosmos_favorites');
+      return saved ? new Set(JSON.parse(saved)) : new Set();
+    } catch { return new Set(); }
+  });
+
+  const toggleFavorite = useCallback((session) => {
+    setFavorites(prev => {
+      const next = new Set(prev);
+      const action = next.has(session.id) ? 'remove' : 'add';
+      if (action === 'add') next.add(session.id);
+      else next.delete(session.id);
+      localStorage.setItem('kosmos_favorites', JSON.stringify([...next]));
+
+      // Fire webhook to n8n if configured
+      if (config.n8nBaseUrl) {
+        const token = authenticatedUser.accessToken || authenticatedUser.magicToken;
+        fetch(`${config.n8nBaseUrl}/webcal/toggle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            userId: authenticatedUser.email,
+            sessionId: session.id,
+            sessionTitle: session.title,
+            action
+          })
+        }).catch(e => console.warn('[Favorites] Webhook error:', e));
+      }
+
+      return next;
+    });
+  }, [config.n8nBaseUrl, authenticatedUser.accessToken, authenticatedUser.magicToken, authenticatedUser.email]);
+
+  // --- LIVE MODE STATE ---
+  const [liveMode, setLiveMode] = useState(() => localStorage.getItem('kosmos_live_mode') === 'true');
+  const toggleLiveMode = useCallback(() => {
+    setLiveMode(prev => {
+      const next = !prev;
+      localStorage.setItem('kosmos_live_mode', String(next));
+      return next;
+    });
+  }, []);
 
   // Sync userRole from authenticatedUser whenever it changes
   useEffect(() => {
@@ -888,8 +949,8 @@ function App({ authenticatedUser }) {
 
     setStatus({ loading: true, error: null });
     try {
-      // Use the access token from AuthGate
-      const token = authenticatedUser.accessToken;
+      // Use the access token from AuthGate, or magicToken for magic link users
+      const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
 
       // If curationApiUrl is set, we fetch from there first for the program data
       if (config.curationApiUrl) {
@@ -942,7 +1003,7 @@ function App({ authenticatedUser }) {
       }
 
       const ranges = [
-        `'${config.sheetNameSpeakers}'!A2:Z`,       // index 0: Speakers (26 cols)
+        `'${config.sheetNameSpeakers}'!A2:AC`,       // index 0: Speakers (29 cols incl social)
         `'${config.sheetNameMods}'!A2:C`,            // index 1: Moderators
         `'${config.sheetNameStages}'!A2:H`,          // index 2: Stages
       ];
@@ -971,9 +1032,12 @@ function App({ authenticatedUser }) {
 
       if (!ok) {
         if (resStatus === 401 || resStatus === 403) {
-          clearAuth();
-          setIsAuthenticated(false);
-          setAccessToken(null);
+          // Only force re-auth for Google users, not magic link users
+          if (authenticatedUser.authType !== 'magic') {
+            clearAuth();
+            setIsAuthenticated(false);
+            setAccessToken(null);
+          }
           setStatus({ loading: false, error: "Zugriff verweigert. Bitte erneut einloggen." });
           return;
         }
@@ -1037,6 +1101,54 @@ function App({ authenticatedUser }) {
       loadData({ manual: false });
     }
   }, [viewMode, config.curationApiUrl, curationData.sessions.length, loadData]);
+
+  // Fetch production data lazily when switching to PRODUCTION view
+  const PRODUCTION_SHEET_ID = '1kTZDPAzvp9WIjZ1sbG8sDIl5-iYQMWfsZ3pMN4lnNLA';
+  useEffect(() => {
+    if (viewMode !== 'PRODUCTION') return;
+    if (productionData.length > 0) return; // Already loaded
+
+    const fetchProductionData = async () => {
+      try {
+        const token = authenticatedUser.accessToken;
+        const { ok, data: batch, error } = await fetchSheets({
+          action: 'batchGet',
+          spreadsheetId: PRODUCTION_SHEET_ID,
+          ranges: ["'26_Kosmos_Produktions_Export'!A2:M"]
+        }, token, config.curationApiUrl);
+
+        if (!ok) {
+          console.warn('[Production] Failed to fetch production data:', error);
+          return;
+        }
+
+        const rows = batch?.valueRanges?.[0]?.values || [];
+        // Columns: A=Session_ID, B=Stage_Name, C=Start_Time, D=End_Time, E=Setup_Start,
+        // F=Session_Title, G=Mic_Count_Wireless, H=Mic_Count_Headset, I=Audio_Feeds,
+        // J=Visuals, K=Special_Requirements, L=Production_Status, M=Speaker_Contact_Link
+        const parsed = rows.filter(r => safeString(r[0])).map(r => ({
+          sessionId: safeString(r[0]),
+          stageName: safeString(r[1]),
+          startTime: safeString(r[2]),
+          endTime: safeString(r[3]),
+          setupStart: safeString(r[4]),
+          sessionTitle: safeString(r[5]),
+          micCountWireless: safeString(r[6]),
+          micCountHeadset: safeString(r[7]),
+          audioFeeds: safeString(r[8]),
+          visuals: safeString(r[9]),
+          specialRequirements: safeString(r[10]),
+          productionStatus: safeString(r[11]),
+          speakerContactLink: safeString(r[12]),
+        }));
+        setProductionData(parsed);
+        if (import.meta.env.DEV) console.log('[Production] Loaded', parsed.length, 'rows');
+      } catch (e) {
+        console.warn('[Production] Fetch error:', e);
+      }
+    };
+    fetchProductionData();
+  }, [viewMode, productionData.length, authenticatedUser.accessToken, config.curationApiUrl]);
 
   const handleLogout = () => {
     // Revoke the Google OAuth token if possible
@@ -1330,13 +1442,13 @@ function App({ authenticatedUser }) {
   const handleSaveSpeakerProfile = async (updatedSpeaker) => {
     if (!config.curationApiUrl || !updatedSpeaker) return;
     try {
-      const token = authenticatedUser.accessToken;
+      const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
       // Find the speaker's row index in the sheet
       const allSpeakers = data.speakers;
       const idx = allSpeakers.findIndex(s => s.id === updatedSpeaker.id);
       if (idx < 0) throw new Error('Speaker nicht gefunden');
       const rowNum = idx + 2; // 1-indexed + header row
-      // Update columns: D=Vorname(3), E=Nachname(4), F=Pronomen(5), G=Organisation(6), H=Bio(7), I=Webseite(8), N=Sprache(13), M=Herkunft(12)
+      // Update columns: D=Vorname(3), E=Nachname(4), F=Pronomen(5), G=Organisation(6), H=Bio(7), I=Webseite(8)
       const nameParts = (updatedSpeaker.fullName || '').split(' ');
       const vorname = nameParts[0] || '';
       const nachname = nameParts.slice(1).join(' ') || '';
@@ -1356,6 +1468,14 @@ function App({ authenticatedUser }) {
         values: [[updatedSpeaker.herkunft || '', updatedSpeaker.sprache || '']],
       }, token, config.curationApiUrl);
       if (!ok2) throw new Error(err2);
+      // Update social media: AA=LinkedIn, AB=Instagram, AC=Social_Sonstiges
+      const { ok: ok3, error: err3 } = await fetchSheets({
+        action: 'update',
+        spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!AA${rowNum}:AC${rowNum}`,
+        values: [[updatedSpeaker.linkedin || '', updatedSpeaker.instagram || '', updatedSpeaker.socialSonstiges || '']],
+      }, token, config.curationApiUrl);
+      if (!ok3) throw new Error(err3);
       setToast({ msg: 'Profil gespeichert!', type: 'success' });
       setTimeout(() => setToast(null), 3000);
       loadData({ manual: false });
@@ -1370,37 +1490,45 @@ function App({ authenticatedUser }) {
   const handleRegisterSpeakerProfile = async (newSpeaker) => {
     if (!config.curationApiUrl || !newSpeaker) return;
     try {
-      const token = authenticatedUser.accessToken;
+      const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
       const id = `SPK-${Date.now()}`;
       const registeredAm = new Date().toISOString();
-      // Append to Kosmos_SprecherInnen: A=Status, B=StatusBackend, C=ID, D=Vorname, E=Nachname,
-      //   F=Pronomen, G=Organisation, H=Bio, I=Webseite, J=Update, K=Email, L=Telefon,
-      //   M=Herkunft, N=Sprache, O=Registriert_am, P=Registriert_von
+      // Append to Kosmos_SprecherInnen:
+      //   A=Status_Einladung, B=Status_Backend, C=ID, D=Vorname, E=Nachname,
+      //   F=Pronomen, G=Organisation, H=Bio, I=Webseite, J=Update, K=E-Mail, L=Telefon,
+      //   M=Herkunft, N=Sprache, O=Registriert_am, P=Registriert_von,
+      //   Q=Kalkuliertes Honorar, R=MWST, S=Honorar brutto, T=Gesamtkosten,
+      //   U=Status Rechnung, V=Abrechnung, W=Reise von, X=Hotel, Y=Anzahl Nächte, Z=Briefing,
+      //   AA=LinkedIn, AB=Instagram, AC=Social_Sonstiges
       const nameParts = (newSpeaker.fullName || '').split(' ');
       const vorname = nameParts[0] || '';
       const nachname = nameParts.slice(1).join(' ') || '';
       const row = [
-        newSpeaker.status || 'CFP',  // A
-        '',                           // B
-        id,                           // C
+        newSpeaker.status || 'CFP',  // A - Status_Einladung
+        '',                           // B - Status_Backend
+        id,                           // C - ID
         vorname,                      // D
         nachname,                     // E
         newSpeaker.pronoun || '',     // F
         newSpeaker.organisation || '',// G
         newSpeaker.bio || '',         // H
         newSpeaker.webseite || '',    // I
-        '',                           // J
-        newSpeaker.email || '',       // K
-        '',                           // L
+        '',                           // J - Update
+        newSpeaker.email || '',       // K - E-Mail
+        '',                           // L - Telefon
         newSpeaker.herkunft || '',    // M
         newSpeaker.sprache || '',     // N
         registeredAm,                 // O
-        authenticatedUser.email || '' // P
+        authenticatedUser.email || '',// P
+        '', '', '', '', '', '', '', '', '', '', // Q-Z (financials/travel/briefing - skip)
+        newSpeaker.linkedin || '',    // AA
+        newSpeaker.instagram || '',   // AB
+        newSpeaker.socialSonstiges || '' // AC
       ];
       const { ok, error } = await fetchSheets({
         action: 'append',
         spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameSpeakers}'!A:P`,
+        range: `'${config.sheetNameSpeakers}'!A:AC`,
         values: [row],
       }, token, config.curationApiUrl);
       if (!ok) throw new Error(error || 'Registrierung fehlgeschlagen');
@@ -1812,6 +1940,30 @@ function App({ authenticatedUser }) {
           setTimeout(() => setToast(null), 4000);
         });
     }
+
+    // --- LIVE MODE: Notify on ANY status change ---
+    if (liveMode && config.n8nBaseUrl && editingSession) {
+      const oldStatus = editingSession.status || '';
+      const newStatus = finalSession.status || '';
+      if (oldStatus !== newStatus) {
+        const stageName = data.stages.find(st => st.id === finalSession.stage)?.name || '';
+        fetch(`${config.n8nBaseUrl}/live-update`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: finalSession.id,
+            sessionTitle: finalSession.title,
+            oldStatus,
+            newStatus,
+            stageName,
+            start: finalSession.start,
+            end: calculateEndTime(finalSession.start, finalSession.duration),
+            changedBy: authenticatedUser.email,
+            timestamp: new Date().toISOString()
+          })
+        }).catch(e => console.warn('[LiveMode] Webhook error:', e));
+      }
+    }
   };
 
   const handleDeleteSession = (id) => {
@@ -1932,11 +2084,16 @@ function App({ authenticatedUser }) {
                             <div className="flex-1 min-w-0">
                               <p className="font-bold text-slate-800 truncate">{authenticatedUser.name || 'User'}</p>
                               <p className="text-xs text-slate-500 truncate">{authenticatedUser.email}</p>
-                              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${curationData.userRole === 'ADMIN' ? 'bg-red-100 text-red-700' :
-                                curationData.userRole === 'CURATOR' ? 'bg-purple-100 text-purple-700' :
-                                  curationData.userRole === 'REVIEWER' ? 'bg-blue-100 text-blue-700' :
-                                    'bg-slate-100 text-slate-600'
-                                }`}>{curationData.userRole}</span>
+                              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${effectiveRole === 'ADMIN' ? 'bg-red-100 text-red-700' :
+                                effectiveRole === 'CURATOR' ? 'bg-purple-100 text-purple-700' :
+                                  effectiveRole === 'REVIEWER' ? 'bg-blue-100 text-blue-700' :
+                                    effectiveRole === 'PRODUCTION' ? 'bg-orange-100 text-orange-700' :
+                                      effectiveRole === 'SPEAKER' ? 'bg-emerald-100 text-emerald-700' :
+                                        effectiveRole === 'TEILNEHMENDE' ? 'bg-cyan-100 text-cyan-700' :
+                                          effectiveRole === 'PARTNER' ? 'bg-amber-100 text-amber-700' :
+                                            effectiveRole === 'BAND' ? 'bg-pink-100 text-pink-700' :
+                                              'bg-slate-100 text-slate-600'
+                                }`}>{effectiveRole}</span>
                             </div>
                           </div>
                         </div>
@@ -2042,6 +2199,8 @@ function App({ authenticatedUser }) {
                                 session={p}
                                 onClick={() => { setEditingSession(p); setIsModalOpen(true) }}
                                 onToggleLock={(s) => updateSession(s.id, { status: s.status === 'Fixiert' ? '2_Planung' : 'Fixiert' })}
+                                isFavorite={favorites.has(p.id)}
+                                onToggleFavorite={toggleFavorite}
                               />
                             ))}
                             {filteredAndSortedInbox.length === 0 && (
@@ -2102,6 +2261,8 @@ function App({ authenticatedUser }) {
                                   }}
                                   onClick={() => { setEditingSession(session); setIsModalOpen(true) }}
                                   onToggleLock={(s) => updateSession(s.id, { status: s.status === 'Fixiert' ? '2_Planung' : 'Fixiert' })}
+                                  isFavorite={favorites.has(session.id)}
+                                  onToggleFavorite={toggleFavorite}
                                 />
                               );
                             })}
@@ -2190,7 +2351,20 @@ function App({ authenticatedUser }) {
           <div className="flex flex-col h-full overflow-hidden">
             <header className="bg-indigo-900 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
               <h1 className="font-bold flex items-center gap-2"><Shield className="w-5 h-5" /> Admin Control Panel</h1>
-              <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-indigo-800 hover:bg-indigo-700 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
+              <div className="flex items-center gap-3">
+                {/* Live Mode Toggle */}
+                <button
+                  onClick={toggleLiveMode}
+                  className={`flex items-center gap-2 text-xs px-3 py-1 rounded-full transition-all font-bold uppercase tracking-wider border ${liveMode
+                    ? 'bg-red-600 border-red-400 text-white shadow-lg shadow-red-500/30 animate-pulse'
+                    : 'bg-indigo-800 border-indigo-600 text-indigo-200 hover:bg-indigo-700'
+                    }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${liveMode ? 'bg-white' : 'bg-indigo-400'}`} />
+                  {liveMode ? '🔴 LIVE' : 'Live Mode'}
+                </button>
+                <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-indigo-800 hover:bg-indigo-700 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
+              </div>
             </header>
             <AdminDashboard
               users={curationData.users || []}
@@ -2235,6 +2409,22 @@ function App({ authenticatedUser }) {
                 setToast({ msg: 'Programmeinstellungen gespeichert!', type: 'success' });
                 setTimeout(() => setToast(null), 3000);
               }}
+            />
+          </div>
+        )}
+
+        {viewMode === 'PRODUCTION' && (
+          <div className="flex flex-col h-full overflow-hidden">
+            <header className="bg-orange-800 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
+              <h1 className="font-bold flex items-center gap-2">🎛️ Produktions-Timeline</h1>
+              <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-orange-700 hover:bg-orange-600 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
+            </header>
+            <ProductionTimeline
+              sessions={data.program}
+              stages={data.stages}
+              productionData={productionData}
+              startHour={config.startHour}
+              endHour={config.endHour}
             />
           </div>
         )}
@@ -2299,8 +2489,8 @@ function App({ authenticatedUser }) {
       </div>
 
       <div className="h-10 bg-slate-900 flex items-center justify-center gap-4 sm:gap-8 shrink-0 border-t border-slate-800 overflow-x-auto">
-        {/* Planer: ADMIN, CURATOR */}
-        {['ADMIN', 'CURATOR'].includes(effectiveRole) && (
+        {/* Planer: ADMIN, CURATOR, PRODUCTION */}
+        {['ADMIN', 'CURATOR', 'PRODUCTION'].includes(effectiveRole) && (
           <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PLANNER' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <Layout className="w-3.5 h-3.5" /> Planer
           </button>
@@ -2332,6 +2522,21 @@ function App({ authenticatedUser }) {
           <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ADMIN' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <Shield className="w-3.5 h-3.5" /> Admin
           </button>
+        )}
+
+        {/* Production: ADMIN, PRODUCTION */}
+        {['ADMIN', 'PRODUCTION'].includes(effectiveRole) && (
+          <button onClick={() => setViewMode('PRODUCTION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PRODUCTION' ? 'text-orange-400' : 'text-slate-500 hover:text-white'}`}>
+            🎛️ Produktion
+          </button>
+        )}
+
+        {/* Live Mode indicator */}
+        {liveMode && (
+          <span className="flex items-center gap-1 text-[10px] font-bold text-red-400 animate-pulse ml-2">
+            <span className="w-2 h-2 rounded-full bg-red-500" />
+            LIVE
+          </span>
         )}
       </div>
 
