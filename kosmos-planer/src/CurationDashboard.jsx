@@ -171,7 +171,7 @@ const CurationDashboard = ({
                     { key: 'bereich', label: 'Bereich', options: lists.bereiche },
                     { key: 'thema', label: 'Thema', options: lists.themen },
                     { key: 'format', label: 'Format', options: lists.formate },
-                    { key: 'status', label: 'Status', options: ['Vorschlag', 'Akzeptiert', 'Abgelehnt'] }
+                    { key: 'status', label: 'Status', options: ['Vorschlag', 'Eingeladen', 'Akzeptiert', 'Abgelehnt'] }
                 ].map(({ key, label, options }) => (
                     <div key={key} className="w-36">
                         <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 block tracking-widest">{label}</label>

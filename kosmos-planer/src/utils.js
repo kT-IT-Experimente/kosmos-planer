@@ -7,10 +7,10 @@ export const PIXELS_PER_MINUTE = 2.5;
 export const SNAP_MINUTES = 5;
 
 export const STATUS_COLORS = {
-    '5_Vorschlag': 'border-yellow-400 bg-yellow-50',
-    '2_Planung': 'border-blue-300 bg-white',
-    '1_Zusage': 'border-green-400 bg-green-50',
+    'Vorschlag': 'border-yellow-400 bg-yellow-50',
+    'Eingeladen': 'border-orange-400 bg-orange-50 border-dashed',
     'Akzeptiert': 'border-green-500 bg-green-50',
+    'Abgelehnt': 'border-red-300 bg-red-50/30',
     'Fixiert': 'border-red-500 bg-slate-100 ring-1 ring-red-500'
 };
 

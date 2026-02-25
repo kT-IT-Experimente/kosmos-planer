@@ -203,7 +203,10 @@ const Card = React.forwardRef(function Card({ children, className = "", onClick,
   );
 });
 
-function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConflict, conflictTooltip, listeners, attributes, isDimmed, isFavorite, onToggleFavorite }) {
+function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConflict, conflictTooltip, listeners, attributes, isDimmed, isFavorite, onToggleFavorite, userRole }) {
+  const isEingeladen = session.status === 'Eingeladen';
+  const canSeeEingeladen = userRole === 'ADMIN' || userRole === 'REVIEWER';
+  const isMasked = isEingeladen && !canSeeEingeladen;
   const formatColor = FORMAT_COLORS[session.format] || 'bg-slate-100 text-slate-700';
   const [activeOverlay, setActiveOverlay] = useState(null);
 
@@ -284,12 +287,12 @@ function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConfl
       </div>
 
       {/* Title */}
-      <div className="font-bold text-xs leading-snug mb-1 text-slate-800 line-clamp-2" title={session.title}>
-        {session.title || 'Unbenannt'}
+      <div className="font-bold text-xs leading-snug mb-1 text-slate-800 line-clamp-2" title={isMasked ? 'Reserviert' : session.title}>
+        {isMasked ? '🔒 Reserviert' : (session.title || 'Unbenannt')}
       </div>
 
       {/* People & Details */}
-      <div className="mt-auto space-y-1">
+      {!isMasked && <div className="mt-auto space-y-1">
         {session.speakers && (
           <div className="text-[10px] text-slate-600 flex flex-wrap items-center gap-1 leading-tight mb-1" title={`Speaker: ${session.speakers}`}>
             <Users className="w-3 h-3 shrink-0 text-indigo-500 mr-0.5" />
@@ -320,7 +323,10 @@ function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConfl
             </div>
           )}
         </div>
-      </div>
+      </div>}
+      {isMasked && (
+        <div className="mt-auto text-[10px] text-orange-500 italic">Nur für Admin/Reviewer sichtbar</div>
+      )}
     </Card>
   );
 };
@@ -334,7 +340,7 @@ function DroppableStage({ id, children, className }) {
   );
 };
 
-function DraggableTimelineItem({ session, onClick, style, onToggleLock, hasConflict, conflictTooltip, isDimmed, isFavorite, onToggleFavorite }) {
+function DraggableTimelineItem({ session, onClick, style, onToggleLock, hasConflict, conflictTooltip, isDimmed, isFavorite, onToggleFavorite, userRole }) {
   const isLocked = session.status === 'Fixiert';
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: session.id,
@@ -357,12 +363,13 @@ function DraggableTimelineItem({ session, onClick, style, onToggleLock, hasConfl
         listeners={listeners} attributes={attributes}
         isDimmed={isDimmed}
         isFavorite={isFavorite} onToggleFavorite={onToggleFavorite}
+        userRole={userRole}
       />
     </div>
   );
 };
 
-function SortableInboxItem({ session, onClick, onToggleLock, hasConflict, conflictTooltip, isDimmed, isFavorite, onToggleFavorite }) {
+function SortableInboxItem({ session, onClick, onToggleLock, hasConflict, conflictTooltip, isDimmed, isFavorite, onToggleFavorite, userRole }) {
   const isLocked = session.status === 'Fixiert';
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: session.id, data: session, disabled: isLocked
@@ -378,6 +385,7 @@ function SortableInboxItem({ session, onClick, onToggleLock, hasConflict, confli
         listeners={listeners} attributes={attributes}
         isDimmed={isDimmed}
         isFavorite={isFavorite} onToggleFavorite={onToggleFavorite}
+        userRole={userRole}
       />
     </div>
   );
@@ -417,6 +425,7 @@ const normalizeStatus = (raw) => {
   const s = (raw || '').trim();
   const lower = s.toLowerCase();
   if (!s) return 'Vorschlag';
+  if (lower === 'eingeladen') return 'Eingeladen';
   if (lower === 'fixiert') return 'Fixiert';
   if (lower === 'akzeptiert' || lower === '1_zusage' || lower.startsWith('1_')) return 'Akzeptiert';
   if (lower === '2_planung' || lower.startsWith('2_')) return 'Akzeptiert';
@@ -2307,9 +2316,10 @@ function App({ authenticatedUser }) {
                                 key={p.id}
                                 session={p}
                                 onClick={() => { setEditingSession(p); setIsModalOpen(true) }}
-                                onToggleLock={(s) => updateSession(s.id, { status: s.status === 'Fixiert' ? '2_Planung' : 'Fixiert' })}
+                                onToggleLock={(s) => updateSession(s.id, { status: s.status === 'Fixiert' ? 'Akzeptiert' : 'Fixiert' })}
                                 isFavorite={favorites.has(p.id)}
                                 onToggleFavorite={toggleFavorite}
+                                userRole={effectiveRole}
                               />
                             ))}
                             {filteredAndSortedInbox.length === 0 && (
@@ -2369,9 +2379,10 @@ function App({ authenticatedUser }) {
                                     transition: 'opacity 0.3s, filter 0.3s'
                                   }}
                                   onClick={() => { setEditingSession(session); setIsModalOpen(true) }}
-                                  onToggleLock={(s) => updateSession(s.id, { status: s.status === 'Fixiert' ? '2_Planung' : 'Fixiert' })}
+                                  onToggleLock={(s) => updateSession(s.id, { status: s.status === 'Fixiert' ? 'Akzeptiert' : 'Fixiert' })}
                                   isFavorite={favorites.has(session.id)}
                                   onToggleFavorite={toggleFavorite}
+                                  userRole={effectiveRole}
                                 />
                               );
                             })}
