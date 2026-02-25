@@ -1254,6 +1254,17 @@ function App({ authenticatedUser }) {
     return data.submissions.filter(s => s.submitterEmail?.toLowerCase() === email);
   }, [data.submissions, authenticatedUser.email]);
 
+  // My sessions (sessions where I'm listed as speaker)
+  const mySessions = useMemo(() => {
+    if (!mySpeakerRecord) return [];
+    const myName = mySpeakerRecord.fullName?.toLowerCase() || '';
+    const myId = mySpeakerRecord.id || '';
+    return data.program.filter(session => {
+      const speakers = (session.speakers || '').toLowerCase();
+      return speakers.includes(myName) || speakers.includes(myId.toLowerCase());
+    });
+  }, [data.program, mySpeakerRecord]);
+
   // Set default view based on role (once data loaded)
   const [initialRedirectDone, setInitialRedirectDone] = useState(false);
   useEffect(() => {
@@ -1264,12 +1275,21 @@ function App({ authenticatedUser }) {
       setInitialRedirectDone(true);
       return;
     }
+    // TEILNEHMENDE → Profile first if no speaker record, otherwise SUBMIT
+    if (effectiveRole === 'TEILNEHMENDE') {
+      if (!mySpeakerRecord) {
+        setViewMode('PROFILE');
+      } else {
+        setViewMode('SUBMIT');
+      }
+      setInitialRedirectDone(true);
+      return;
+    }
     // Wait for data to determine role-based default
     if (!data.speakers.length) return;
     if (effectiveRole === 'SPEAKER') { setViewMode('PROFILE'); setInitialRedirectDone(true); }
-    else if (effectiveRole === 'TEILNEHMENDE') { setViewMode('SUBMIT'); setInitialRedirectDone(true); }
     else { setInitialRedirectDone(true); }
-  }, [effectiveRole, data.speakers, initialRedirectDone, authenticatedUser.isNewUser]);
+  }, [effectiveRole, data.speakers, mySpeakerRecord, initialRedirectDone, authenticatedUser.isNewUser]);
 
   const handleUpdateUserRole = async (email, newRole) => {
     if (effectiveRole !== 'ADMIN') {
@@ -2452,6 +2472,7 @@ function App({ authenticatedUser }) {
                 submitterEmail={authenticatedUser.email}
                 submitterName={mySpeakerRecord?.fullName || authenticatedUser.name || ''}
                 mySubmissions={mySubmissions}
+                mySessions={mySessions}
                 fetchSheets={fetchSheets}
                 spreadsheetId={config.spreadsheetId}
                 apiUrl={config.curationApiUrl}
