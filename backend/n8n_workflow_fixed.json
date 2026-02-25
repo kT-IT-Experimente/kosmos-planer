@@ -523,30 +523,15 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "api/data",
-        "responseMode": "lastNode",
+        "responseMode": "responseNode",
         "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Access-Control-Allow-Origin",
-                "value": "*"
-              },
-              {
-                "name": "Access-Control-Allow-Methods",
-                "value": "GET, POST, OPTIONS, PUT, DELETE"
-              },
-              {
-                "name": "Access-Control-Allow-Headers",
-                "value": "Authorization, Content-Type"
-              }
-            ]
-          }
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app"
         }
       },
       "id": "8f22b4ba-2e10-428b-9845-b9683087cef1",
       "name": "Webhook (POST /api/data)",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [
         0,
         1184
@@ -611,7 +596,7 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ $json }}",
+        "responseBody": "={{ JSON.stringify($json) }}",
         "options": {
           "responseCode": 200
         }
@@ -666,30 +651,15 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "auth/verify",
-        "responseMode": "lastNode",
+        "responseMode": "responseNode",
         "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Access-Control-Allow-Origin",
-                "value": "*"
-              },
-              {
-                "name": "Access-Control-Allow-Methods",
-                "value": "GET, POST, OPTIONS, PUT, DELETE"
-              },
-              {
-                "name": "Access-Control-Allow-Headers",
-                "value": "Authorization, Content-Type"
-              }
-            ]
-          }
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app"
         }
       },
       "id": "14166c0d-8ff8-4cc7-a4f0-cd84b7da6017",
       "name": "Webhook (POST /auth/verify)",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [
         0,
         848
@@ -819,30 +789,15 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "api/rating",
-        "responseMode": "lastNode",
+        "responseMode": "responseNode",
         "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Access-Control-Allow-Origin",
-                "value": "*"
-              },
-              {
-                "name": "Access-Control-Allow-Methods",
-                "value": "GET, POST, OPTIONS, PUT, DELETE"
-              },
-              {
-                "name": "Access-Control-Allow-Headers",
-                "value": "Authorization, Content-Type"
-              }
-            ]
-          }
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app"
         }
       },
       "id": "92ed6deb-8a38-46be-a49f-cdc06713fff9",
       "name": "Webhook (POST /api/rating)",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [
         1312,
         -32
@@ -1034,30 +989,15 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "api/register-speaker",
-        "responseMode": "lastNode",
+        "responseMode": "responseNode",
         "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Access-Control-Allow-Origin",
-                "value": "*"
-              },
-              {
-                "name": "Access-Control-Allow-Methods",
-                "value": "GET, POST, OPTIONS, PUT, DELETE"
-              },
-              {
-                "name": "Access-Control-Allow-Headers",
-                "value": "Authorization, Content-Type"
-              }
-            ]
-          }
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app"
         }
       },
       "id": "ec003506-090c-46bf-8652-50c3bd05fef9",
       "name": "Webhook (POST /api/register-speaker)",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [
         1856,
         480
@@ -1397,30 +1337,15 @@
       "parameters": {
         "httpMethod": "POST",
         "path": "api/save",
-        "responseMode": "lastNode",
+        "responseMode": "responseNode",
         "options": {
-          "responseHeaders": {
-            "entries": [
-              {
-                "name": "Access-Control-Allow-Origin",
-                "value": "*"
-              },
-              {
-                "name": "Access-Control-Allow-Methods",
-                "value": "GET, POST, OPTIONS, PUT, DELETE"
-              },
-              {
-                "name": "Access-Control-Allow-Headers",
-                "value": "Authorization, Content-Type"
-              }
-            ]
-          }
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app"
         }
       },
       "id": "c58340d7-5c70-48fd-80dc-f5cc41cb6670",
       "name": "Webhook (POST /api/save)",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [
         1472,
         1248
@@ -2285,6 +2210,21 @@
         1808,
         1448
       ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify($json) }}",
+        "options": {}
+      },
+      "id": "auth-verified-respond-001",
+      "name": "Respond Auth Verified",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1104,
+        736
+      ]
     }
   ],
   "pinData": {
@@ -3002,6 +2942,17 @@
         [
           {
             "node": "Token Valid?3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Authorized Response": {
+      "main": [
+        [
+          {
+            "node": "Respond Auth Verified",
             "type": "main",
             "index": 0
           }
