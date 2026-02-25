@@ -577,7 +577,8 @@ const parsePlannerBatch = (batch, config) => {
 
       const speakerNames = safeString(r[13]);
       const speakerIds = safeString(r[12]);
-      const speakerDisplay = speakerNames || speakerIds || safeString(r[2]);
+      // Only show actual speakers/dummies — NOT the submitter
+      const speakerDisplay = speakerNames || speakerIds || '';
 
       return {
         id: safeString(r[22]) || generateSessionId(), // Col W = Session_ID, auto-generate if missing
