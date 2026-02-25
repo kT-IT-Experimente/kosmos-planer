@@ -1500,6 +1500,7 @@ function App({ authenticatedUser }) {
       setToast({ msg: 'Profil gespeichert!', type: 'success' });
       setTimeout(() => setToast(null), 3000);
       loadData({ manual: false });
+      setViewMode('SUBMIT'); // redirect to dashboard after save
     } catch (e) {
       console.error('Profile save error:', e);
       setToast({ msg: 'Fehler beim Speichern des Profils', type: 'error' });
@@ -1555,6 +1556,7 @@ function App({ authenticatedUser }) {
       setToast({ msg: 'Profil angelegt!', type: 'success' });
       setTimeout(() => setToast(null), 3000);
       loadData({ manual: false });
+      setViewMode('SUBMIT'); // redirect to dashboard after registration
     } catch (e) {
       console.error('Speaker registration error:', e);
       setToast({ msg: 'Fehler bei der Registrierung', type: 'error' });

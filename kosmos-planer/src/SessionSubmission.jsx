@@ -97,7 +97,7 @@ const SessionSubmission = ({
             const { ok, error } = await fetchSheets({
                 action: 'append',
                 spreadsheetId,
-                range: `'Master_Einreichungen'!A:O`,
+                range: `'Master_Einreichungen'!A2:O`,
                 values: [row],
             }, accessToken, apiUrl);
 
@@ -393,8 +393,8 @@ const SessionSubmission = ({
                                     </div>
                                     {session.status && (
                                         <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${session.status === 'fixiert' ? 'bg-green-100 text-green-700' :
-                                                session.status === 'abgelehnt' ? 'bg-red-100 text-red-700' :
-                                                    'bg-amber-100 text-amber-700'}`}>
+                                            session.status === 'abgelehnt' ? 'bg-red-100 text-red-700' :
+                                                'bg-amber-100 text-amber-700'}`}>
                                             {session.status}
                                         </span>
                                     )}
