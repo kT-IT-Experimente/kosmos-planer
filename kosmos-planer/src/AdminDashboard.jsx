@@ -13,9 +13,17 @@ export default function AdminDashboard({
     const [localConfig, setLocalConfig] = useState({
         startHour: config.startHour ?? 8,
         endHour: config.endHour ?? 22,
-        bufferMin: config.bufferMin ?? 0
+        bufferMin: config.bufferMin ?? 0,
+        maxSubmissions: configThemen?.maxSubmissions || config.maxSubmissions || 5
     });
     const [configDirty, setConfigDirty] = useState(false);
+
+    // Sync maxSubmissions from sheet when configThemen loads
+    useEffect(() => {
+        if (configThemen?.maxSubmissions) {
+            setLocalConfig(prev => ({ ...prev, maxSubmissions: configThemen.maxSubmissions }));
+        }
+    }, [configThemen?.maxSubmissions]);
 
     // --- Stage editing ---
     const [localStages, setLocalStages] = useState(stages);
@@ -165,8 +173,8 @@ export default function AdminDashboard({
                                     Max Einreichungen
                                 </label>
                                 <div className="flex items-center gap-3">
-                                    <input type="number" min={1} max={50} value={localConfig.maxSubmissions || 10}
-                                        onChange={e => handleConfigChange('maxSubmissions', parseInt(e.target.value) || 10)}
+                                    <input type="number" min={1} max={50} value={localConfig.maxSubmissions || 5}
+                                        onChange={e => handleConfigChange('maxSubmissions', parseInt(e.target.value) || 5)}
                                         className="w-24 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-lg font-bold text-slate-700 text-center outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
                                     <span className="text-slate-400 text-sm">pro User</span>
                                 </div>
