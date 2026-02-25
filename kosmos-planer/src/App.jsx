@@ -665,7 +665,7 @@ function App({ authenticatedUser }) {
     startHour: parseInt(localStorage.getItem('kosmos_start_hour')) || 9,
     endHour: parseInt(localStorage.getItem('kosmos_end_hour')) || 22,
     bufferMin: parseInt(localStorage.getItem('kosmos_buffer_min')) || 5,
-    maxSubmissions: parseInt(localStorage.getItem('kosmos_max_submissions')) || 5
+    maxSubmissions: 5 // default only — overridden by Config_Themen!E2 after load
   });
 
   const [viewMode, setViewMode] = useState('PLANNER'); // 'PLANNER' or 'CURATION'
@@ -1003,7 +1003,7 @@ function App({ authenticatedUser }) {
       ranges.push(`'${config.sheetNameStages}'!A1:A1`);
 
       ranges.push(`'Master_Einreichungen'!A2:W`);          // index 4: Submissions + Planning (A-O submission, P-V planning, W=Session_ID)
-      ranges.push(`'Config_Themen'!A2:D`);                 // index 5: Bereiche/Themen/Tags/Formate
+      ranges.push(`'Config_Themen'!A2:E`);                 // index 5: Bereiche/Themen/Tags/Formate/MaxSubmissions
       ranges.push(`'Master_Ratings'!A2:F`);                 // index 6: Ratings
       ranges.push(`'Config_Users'!A2:C`);                   // index 7: Users (email, role, name)
       ranges.push(`'Config_Users'!D1:D1`);                   // index 8: Open Call status
