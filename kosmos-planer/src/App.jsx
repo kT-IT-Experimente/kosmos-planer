@@ -2047,34 +2047,78 @@ function App({ authenticatedUser }) {
         .map(name => data.speakers.find(sp => sp.fullName.toLowerCase() === name.toLowerCase())?.email)
         .filter(Boolean);
 
-      const webhookPayload = {
-        Session_Title: finalSession.title || '',
-        Description_Full: finalSession.description || finalSession.shortDescription || '',
-        Start_Time: finalSession.start || '',
-        End_Time: endTime || '',
-        Stage_Name: stageName,
-        Speaker_Email: speakerEmails
-      };
+      // Detect schedule change: was previously Fixiert and time/stage changed
+      const wasFixiert = editingSession && editingSession.status === 'Fixiert';
+      const timeChanged = editingSession && (editingSession.start !== finalSession.start || editingSession.stage !== finalSession.stage);
+      const isScheduleChange = wasFixiert && timeChanged;
 
-      // Fire-and-forget: don't block the save
-      fetch(`${config.n8nBaseUrl}/session-fixation`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(webhookPayload)
-      })
-        .then(res => {
-          if (res.ok) {
-            setToast({ msg: `📧 Fixierungs-Mail an ${speakerEmails.length} Speaker gesendet!`, type: 'success' });
-          } else {
-            setToast({ msg: `⚠️ Webhook-Fehler: HTTP ${res.status}`, type: 'error' });
-          }
-          setTimeout(() => setToast(null), 4000);
+      if (isScheduleChange) {
+        // --- SCHEDULE CHANGE NOTIFICATION ---
+        const oldStageName = data.stages.find(st => st.id === editingSession.stage)?.name || editingSession.stage || '';
+        const oldEnd = calculateEndTime(editingSession.start, editingSession.duration);
+
+        const changePayload = {
+          type: 'schedule_change',
+          Session_Title: finalSession.title || '',
+          Submitter_Email: finalSession.submitterEmail || '',
+          Submitter_Name: finalSession.submitterName || '',
+          Old_Start: editingSession.start || '',
+          Old_End: oldEnd || '',
+          Old_Stage: oldStageName,
+          New_Start: finalSession.start || '',
+          New_End: endTime || '',
+          New_Stage: stageName,
+          Speaker_Email: speakerEmails
+        };
+
+        fetch(`${config.n8nBaseUrl}/schedule-change`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(changePayload)
         })
-        .catch(err => {
-          console.warn('Session fixation webhook failed:', err);
-          setToast({ msg: '⚠️ Fixierungs-Mail konnte nicht gesendet werden.', type: 'error' });
-          setTimeout(() => setToast(null), 4000);
-        });
+          .then(res => {
+            if (res.ok) {
+              setToast({ msg: `📧 Terminänderung an ${finalSession.submitterEmail || 'Einreicher·in'} gesendet!`, type: 'success' });
+            } else {
+              setToast({ msg: `⚠️ Terminänderungs-Mail fehlgeschlagen: HTTP ${res.status}`, type: 'error' });
+            }
+            setTimeout(() => setToast(null), 4000);
+          })
+          .catch(err => {
+            console.warn('Schedule change webhook failed:', err);
+            setToast({ msg: '⚠️ Terminänderungs-Mail konnte nicht gesendet werden.', type: 'error' });
+            setTimeout(() => setToast(null), 4000);
+          });
+      } else {
+        // --- FIRST-TIME FIXATION ---
+        const webhookPayload = {
+          Session_Title: finalSession.title || '',
+          Description_Full: finalSession.description || finalSession.shortDescription || '',
+          Start_Time: finalSession.start || '',
+          End_Time: endTime || '',
+          Stage_Name: stageName,
+          Speaker_Email: speakerEmails
+        };
+
+        fetch(`${config.n8nBaseUrl}/session-fixation`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(webhookPayload)
+        })
+          .then(res => {
+            if (res.ok) {
+              setToast({ msg: `📧 Fixierungs-Mail an ${speakerEmails.length} Speaker gesendet!`, type: 'success' });
+            } else {
+              setToast({ msg: `⚠️ Webhook-Fehler: HTTP ${res.status}`, type: 'error' });
+            }
+            setTimeout(() => setToast(null), 4000);
+          })
+          .catch(err => {
+            console.warn('Session fixation webhook failed:', err);
+            setToast({ msg: '⚠️ Fixierungs-Mail konnte nicht gesendet werden.', type: 'error' });
+            setTimeout(() => setToast(null), 4000);
+          });
+      }
     }
 
     // --- LIVE MODE: Notify on ANY status change ---
