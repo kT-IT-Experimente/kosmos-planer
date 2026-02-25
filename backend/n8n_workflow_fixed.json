@@ -1572,7 +1572,8 @@
           "id": "XHAaj2jW66uJmJCY",
           "name": "Google Sheets account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1650,7 +1651,8 @@
           "id": "XHAaj2jW66uJmJCY",
           "name": "Google Sheets account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -1785,7 +1787,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check open call status and user existence\nconst inputData = $('Parse Input').first().json;\nconst email = inputData.email;\nconst adminInvite = inputData.adminInvite;\n\nconst rows = $input.all().map(item => item.json);\n\n// Open Call status check\nlet openCallStatus = 'OPEN';\nif (rows.length > 0) {\n  const firstRow = rows[0];\n  const dValue = firstRow['D'] || firstRow['Status'] || firstRow['OpenCall'] || '';\n  if (dValue.toUpperCase() === 'CLOSED') {\n    openCallStatus = 'CLOSED';\n  }\n}\n\n// Find user by email (check Email/A column)\nconst existingUser = rows.find(r => {\n  const rowEmail = (r['Email'] || r['A'] || r['email'] || '').toLowerCase().trim();\n  return rowEmail === email;\n});\n\nconst existingRole = existingUser\n  ? (existingUser['Role'] || existingUser['B'] || existingUser['role'] || 'TEILNEHMENDE')\n  : null;\n\n// Decision logic\nif (!adminInvite && openCallStatus === 'CLOSED' && !existingUser) {\n  return [{ json: {\n    allowed: false,\n    error: 'Der Open Call ist derzeit geschlossen. Nur eingeladene Personen können sich anmelden. Bitte wende dich an das Admin-Team.'\n  }}];\n}\n\nreturn [{ json: {\n  allowed: true,\n  email: email,\n  role: existingRole || 'TEILNEHMENDE',\n  isExistingUser: !!existingUser,\n  adminInvite: adminInvite\n}}];"
+        "jsCode": "// Check open call status and user existence\nconst inputData = $('Parse Input').first().json;\nconst email = inputData.email;\nconst adminInvite = inputData.adminInvite;\n\n// Handle case where Read Config_Users1 failed (e.g. expired credentials)\nconst items = $input.all();\nif (!items || items.length === 0 || items[0].json?.error) {\n  // If we can't read Config_Users, allow the request through as new user\n  // (the verification step will handle role assignment later)\n  return [{ json: {\n    allowed: true,\n    email: email,\n    role: 'TEILNEHMENDE',\n    isExistingUser: false,\n    adminInvite: adminInvite,\n    configError: true\n  }}];\n}\n\nconst rows = items.map(item => item.json);\n\n// Open Call status check\nlet openCallStatus = 'OPEN';\nif (rows.length > 0) {\n  const firstRow = rows[0];\n  const dValue = firstRow['D'] || firstRow['Status'] || firstRow['OpenCall'] || '';\n  if (dValue.toUpperCase() === 'CLOSED') {\n    openCallStatus = 'CLOSED';\n  }\n}\n\n// Find user by email (check Email/A column)\nconst existingUser = rows.find(r => {\n  const rowEmail = (r['Email'] || r['A'] || r['email'] || '').toLowerCase().trim();\n  return rowEmail === email;\n});\n\nconst existingRole = existingUser\n  ? (existingUser['Role'] || existingUser['B'] || existingUser['role'] || 'TEILNEHMENDE')\n  : null;\n\n// Decision logic\nif (!adminInvite && openCallStatus === 'CLOSED' && !existingUser) {\n  return [{ json: {\n    allowed: false,\n    error: 'Der Open Call ist derzeit geschlossen. Nur eingeladene Personen können sich anmelden.'\n  }}];\n}\n\nreturn [{ json: {\n  allowed: true,\n  email: email,\n  role: existingRole || 'TEILNEHMENDE',\n  isExistingUser: !!existingUser,\n  adminInvite: adminInvite\n}}];\n"
       },
       "id": "b123f346-b768-4ed4-abb6-3f96229a5ef5",
       "name": "Check Eligibility",
@@ -1920,7 +1922,8 @@
           "id": "XHAaj2jW66uJmJCY",
           "name": "Google Sheets account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -2012,7 +2015,8 @@
           "id": "XHAaj2jW66uJmJCY",
           "name": "Google Sheets account"
         }
-      }
+      },
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
