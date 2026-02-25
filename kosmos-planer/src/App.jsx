@@ -2506,7 +2506,28 @@ function App({ authenticatedUser }) {
                 spreadsheetId={config.spreadsheetId}
                 apiUrl={config.curationApiUrl}
                 accessToken={authenticatedUser.accessToken || authenticatedUser.magicToken || ''}
-                onSuccess={() => { setToast({ msg: 'Session erfolgreich eingereicht!', type: 'success' }); setTimeout(() => setToast(null), 3000); loadData({ manual: false }); }}
+                onSuccess={(newTitle) => {
+                  setToast({ msg: `Session "${newTitle || ''}" erfolgreich eingereicht!`, type: 'success' });
+                  setTimeout(() => setToast(null), 3000);
+                  // Optimistic local update: add the new submission immediately
+                  setData(prev => ({
+                    ...prev,
+                    submissions: [...prev.submissions, {
+                      id: `EINR-${String(prev.submissions.length + 1).padStart(4, '0')}`,
+                      rowIndex: prev.submissions.length + 2,
+                      timestamp: new Date().toISOString(),
+                      submitterEmail: authenticatedUser.email,
+                      submitterName: mySpeakerRecord?.fullName || authenticatedUser.name || '',
+                      title: newTitle || 'Neue Session',
+                      status: 'Vorschlag',
+                      format: '', thema: '', bereich: '', language: 'DE', duration: 60,
+                      speakers: '', shortDescription: '', description: '', notes: '', speakerIds: '',
+                      source: 'Einreichung'
+                    }]
+                  }));
+                  // Delayed reload from server (Google Sheets eventual consistency)
+                  setTimeout(() => loadData({ manual: true }), 2500);
+                }}
                 onRegisterSpeaker={() => setViewMode('REGISTER')}
               />
             )}

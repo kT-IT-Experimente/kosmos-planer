@@ -151,7 +151,7 @@ const SessionSubmission = ({
 
             setForm(emptyForm);
             setEditingSubmission(null);
-            if (onSuccess) onSuccess();
+            if (onSuccess) onSuccess(form.titel);
         } catch (err) {
             setStatus({ loading: false, error: err.message, success: null });
         }
@@ -470,7 +470,6 @@ const SessionSubmission = ({
                 </div>
             )}
 
-            )}
         </div>
     );
 };
