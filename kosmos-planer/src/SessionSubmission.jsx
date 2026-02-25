@@ -9,7 +9,7 @@ import { Send, AlertCircle, CheckCircle2, Loader2, UserPlus, Search, X, Edit3, C
 const SessionSubmission = ({
     speakers = [], stages = [], metadata = {}, submitterEmail = '', submitterName = '',
     mySubmissions = [], mySessions = [], fetchSheets, spreadsheetId, apiUrl, accessToken,
-    maxSubmissions = 10, onSuccess, onRegisterSpeaker
+    maxSubmissions = 5, onSuccess, onRegisterSpeaker
 }) => {
     const emptyForm = {
         titel: '', kurzbeschreibung: '', beschreibung: '', format: '',

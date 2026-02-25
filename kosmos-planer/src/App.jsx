@@ -2558,7 +2558,24 @@ function App({ authenticatedUser }) {
                 if (newSettings.startHour !== undefined) localStorage.setItem('kosmos_start_hour', String(newSettings.startHour));
                 if (newSettings.endHour !== undefined) localStorage.setItem('kosmos_end_hour', String(newSettings.endHour));
                 if (newSettings.bufferMin !== undefined) localStorage.setItem('kosmos_buffer_min', String(newSettings.bufferMin));
-                if (newSettings.maxSubmissions !== undefined) localStorage.setItem('kosmos_max_submissions', String(newSettings.maxSubmissions));
+                if (newSettings.maxSubmissions !== undefined) {
+                  localStorage.setItem('kosmos_max_submissions', String(newSettings.maxSubmissions));
+                  // Also persist to Config_Themen column E (single source of truth)
+                  const token = authenticatedUser.accessToken;
+                  fetchSheets({
+                    action: 'update',
+                    spreadsheetId: config.spreadsheetId,
+                    range: `'Config_Themen'!E2`,
+                    values: [[String(newSettings.maxSubmissions)]],
+                  }, token, config.curationApiUrl).then(({ ok }) => {
+                    if (ok) {
+                      setData(prev => ({
+                        ...prev,
+                        configThemen: { ...prev.configThemen, maxSubmissions: newSettings.maxSubmissions }
+                      }));
+                    }
+                  }).catch(console.error);
+                }
                 setToast({ msg: 'Programmeinstellungen gespeichert!', type: 'success' });
                 setTimeout(() => setToast(null), 3000);
               }}
@@ -2663,7 +2680,7 @@ function App({ authenticatedUser }) {
                   })
                 }
                 metadata={data.configThemen || curationData.metadata}
-                maxSubmissions={config.maxSubmissions || 5}
+                maxSubmissions={data.configThemen?.maxSubmissions || config.maxSubmissions || 5}
                 submitterEmail={authenticatedUser.email}
                 submitterName={mySpeakerRecord?.fullName || authenticatedUser.name || ''}
                 mySubmissions={mySubmissions}
