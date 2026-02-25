@@ -639,7 +639,8 @@ function App({ authenticatedUser }) {
     n8nBaseUrl: import.meta.env.VITE_CURATION_API_URL || (localStorage.getItem('kosmos_n8nBaseUrl')?.includes('script.google.com') ? '' : localStorage.getItem('kosmos_n8nBaseUrl')) || '',
     startHour: parseInt(localStorage.getItem('kosmos_start_hour')) || 9,
     endHour: parseInt(localStorage.getItem('kosmos_end_hour')) || 22,
-    bufferMin: parseInt(localStorage.getItem('kosmos_buffer_min')) || 5
+    bufferMin: parseInt(localStorage.getItem('kosmos_buffer_min')) || 5,
+    maxSubmissions: parseInt(localStorage.getItem('kosmos_max_submissions')) || 5
   });
 
   const [viewMode, setViewMode] = useState('PLANNER'); // 'PLANNER' or 'CURATION'
@@ -954,54 +955,17 @@ function App({ authenticatedUser }) {
       // Use the access token from AuthGate, or magicToken for magic link users
       const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
 
-      // If curationApiUrl is set, we fetch from there first for the program data
+      // Fire old curation API fetch non-blocking (don't await — prevents CORS from blocking navigation)
       if (config.curationApiUrl) {
-        try {
-          // Privacy fix: send email in POST body (not query string) + Bearer auth
-          const res = await fetch(config.curationApiUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              action: 'getCurationData',
-              includePlanner: true,
-              email: authenticatedUser.email || ''
-            })
-          });
-          if (res.ok) {
-            const result = await res.json();
-            // Deep merge to ensure all metadata keys exist
-            setCurationData(prev => ({
-              ...prev,
-              ...result,
-              metadata: {
-                ...prev.metadata,
-                ...(result.metadata || {})
-              }
-            }));
-
-            // If the curation API also provided planner data, we use it!
-            if (result.plannerData) {
-              const pData = result.plannerData;
-              const valRanges = [
-                { values: pData.speakers?.values || [] },
-                { values: pData.mods?.values || [] },
-                { values: pData.stages?.values || [] },
-                { values: pData.program?.values || [] }
-              ];
-
-              // Call the internal parsing logic (which we'll extract or replicate)
-              const parsed = parsePlannerBatch({ valueRanges: valRanges }, config);
-              setData(parsed);
-              setStatus({ loading: false, error: null });
-              return; // Done! No need for secondary fetch
-            }
+        fetch(config.curationApiUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ action: 'getCurationData', includePlanner: true, email: authenticatedUser.email || '' })
+        }).then(res => res.ok ? res.json() : null).then(result => {
+          if (result) {
+            setCurationData(prev => ({ ...prev, ...result, metadata: { ...prev.metadata, ...(result.metadata || {}) } }));
           }
-        } catch (e) {
-          console.warn("Could not fetch from Curation API:", e);
-        }
+        }).catch(e => console.warn('Could not fetch from Curation API:', e));
       }
 
       const ranges = [
@@ -2444,6 +2408,7 @@ function App({ authenticatedUser }) {
                 if (newSettings.startHour !== undefined) localStorage.setItem('kosmos_start_hour', String(newSettings.startHour));
                 if (newSettings.endHour !== undefined) localStorage.setItem('kosmos_end_hour', String(newSettings.endHour));
                 if (newSettings.bufferMin !== undefined) localStorage.setItem('kosmos_buffer_min', String(newSettings.bufferMin));
+                if (newSettings.maxSubmissions !== undefined) localStorage.setItem('kosmos_max_submissions', String(newSettings.maxSubmissions));
                 setToast({ msg: 'Programmeinstellungen gespeichert!', type: 'success' });
                 setTimeout(() => setToast(null), 3000);
               }}
@@ -2531,7 +2496,7 @@ function App({ authenticatedUser }) {
                   })
                 }
                 metadata={data.configThemen || curationData.metadata}
-                maxSubmissions={(data.configThemen || {}).maxSubmissions || 10}
+                maxSubmissions={config.maxSubmissions || 5}
                 submitterEmail={authenticatedUser.email}
                 submitterName={mySpeakerRecord?.fullName || authenticatedUser.name || ''}
                 mySubmissions={mySubmissions}
@@ -2623,6 +2588,11 @@ function App({ authenticatedUser }) {
             🎛️ Produktion
           </button>
         )}
+
+        {/* Logout */}
+        <button onClick={handleLogout} className="flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap text-slate-500 hover:text-red-400" title="Abmelden">
+          <LogOut className="w-3.5 h-3.5" /> Logout
+        </button>
 
         {/* Live Mode indicator */}
         {liveMode && (

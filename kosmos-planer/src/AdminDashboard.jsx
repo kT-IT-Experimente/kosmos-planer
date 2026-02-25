@@ -160,6 +160,18 @@ export default function AdminDashboard({
                                 </div>
                                 <p className="text-[10px] text-slate-400 mt-1.5">Mindestpause zwischen Sessions</p>
                             </div>
+                            <div>
+                                <label className="text-xs font-bold text-slate-400 uppercase mb-2 block tracking-widest">
+                                    Max Einreichungen
+                                </label>
+                                <div className="flex items-center gap-3">
+                                    <input type="number" min={1} max={50} value={localConfig.maxSubmissions || 10}
+                                        onChange={e => handleConfigChange('maxSubmissions', parseInt(e.target.value) || 10)}
+                                        className="w-24 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-lg font-bold text-slate-700 text-center outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+                                    <span className="text-slate-400 text-sm">pro User</span>
+                                </div>
+                                <p className="text-[10px] text-slate-400 mt-1.5">Max. Session-Einreichungen pro Person</p>
+                            </div>
                         </div>
                         {localConfig.startHour >= localConfig.endHour && (
                             <div className="mt-4 p-3 bg-red-50 border border-red-100 rounded-lg text-xs text-red-600 font-medium">
