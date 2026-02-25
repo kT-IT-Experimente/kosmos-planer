@@ -2441,15 +2441,21 @@ function App({ authenticatedUser }) {
               </div>
             ) : (
               <SessionSubmission
-                speakers={data.speakers}
-                metadata={curationData.metadata}
+                speakers={['ADMIN', 'CURATOR', 'REVIEWER'].includes(effectiveRole)
+                  ? data.speakers
+                  : data.speakers.filter(s => {
+                    const st = (s.status || '').toLowerCase();
+                    return st === 'cfp' || st.includes('dummy') || st === 'aktiv';
+                  })
+                }
+                metadata={data.configThemen || curationData.metadata}
                 submitterEmail={authenticatedUser.email}
                 submitterName={mySpeakerRecord?.fullName || authenticatedUser.name || ''}
                 mySubmissions={mySubmissions}
                 fetchSheets={fetchSheets}
                 spreadsheetId={config.spreadsheetId}
                 apiUrl={config.curationApiUrl}
-                accessToken={authenticatedUser.accessToken}
+                accessToken={authenticatedUser.accessToken || authenticatedUser.magicToken || ''}
                 onSuccess={() => { setToast({ msg: 'Session erfolgreich eingereicht!', type: 'success' }); setTimeout(() => setToast(null), 3000); loadData({ manual: false }); }}
                 onRegisterSpeaker={() => setViewMode('REGISTER')}
               />
