@@ -7,7 +7,7 @@ import {
 
 const CurationDashboard = ({
     sessions = [], metadata = {}, userRole = 'GUEST', userEmail = '',
-    ratings = {}, speakers = [],
+    ratings = {}, speakers = [], users = [],
     onUpdateMetadata, onSaveRating
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
@@ -18,9 +18,16 @@ const CurationDashboard = ({
     const [showLongDesc, setShowLongDesc] = useState({});
     const [editingCell, setEditingCell] = useState(null);
     const [draftRatings, setDraftRatings] = useState({});
-    const [speakerPopup, setSpeakerPopup] = useState(null); // speaker object or null
+    const [speakerPopup, setSpeakerPopup] = useState(null);
 
     const isAdmin = userRole === 'ADMIN';
+
+    // Build user email->name lookup for displaying reviewer names
+    const userNameMap = useMemo(() => {
+        const map = {};
+        users.forEach(u => { if (u.email) map[u.email.toLowerCase()] = u.name || u.email; });
+        return map;
+    }, [users]);
 
     const config = useMemo(() => ({
         bereiche: metadata.bereiche || [],
@@ -239,15 +246,19 @@ const CurationDashboard = ({
                                         {session.language && <span className="flex items-center gap-0.5"><Globe className="w-3 h-3" /> {session.language}</span>}
                                     </div>
 
-                                    {/* Average score */}
+                                    {/* Average score — only visible after own rating submitted */}
                                     <div className="text-center">
-                                        {session.average_score ? (
-                                            <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg border-2 shadow-sm ${Number(session.average_score) >= 4 ? 'bg-green-50 border-green-200 text-green-700' :
-                                                Number(session.average_score) >= 3 ? 'bg-yellow-50 border-yellow-200 text-yellow-700' :
-                                                    'bg-red-50 border-red-200 text-red-700'}`}>
-                                                {session.average_score}
-                                            </div>
-                                        ) : <div className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-200 border-2 border-slate-100 text-sm">—</div>}
+                                        {session._myScore > 0 ? (
+                                            session.average_score ? (
+                                                <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg border-2 shadow-sm ${Number(session.average_score) >= 4 ? 'bg-green-50 border-green-200 text-green-700' :
+                                                    Number(session.average_score) >= 3 ? 'bg-yellow-50 border-yellow-200 text-yellow-700' :
+                                                        'bg-red-50 border-red-200 text-red-700'}`}>
+                                                    {session.average_score}
+                                                </div>
+                                            ) : <div className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-200 border-2 border-slate-100 text-sm">—</div>
+                                        ) : (
+                                            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-300 border-2 border-slate-100 text-sm" title="Erst nach eigener Bewertung sichtbar">?</div>
+                                        )}
                                         <span className="text-[9px] text-slate-400 font-bold mt-0.5 block">{session.review_count || 0} Rev.</span>
                                     </div>
 
@@ -390,43 +401,50 @@ const CurationDashboard = ({
                                         </div>
                                     </div>
 
-                                    {/* REVIEWS — collapsible */}
+                                    {/* REVIEWS — visible after own rating submitted */}
                                     <div className="px-5 pt-2 pb-5">
                                         {session._ratings.length > 0 ? (
-                                            <>
-                                                <button
-                                                    onClick={(e) => { e.stopPropagation(); setExpandedReviews(prev => ({ ...prev, [session.id]: !prev[session.id] })); }}
-                                                    className="flex items-center gap-2 text-[10px] font-black uppercase text-slate-400 tracking-widest hover:text-indigo-600 transition-colors"
-                                                >
-                                                    {showReviews ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                                                    {session._ratings.length} Bewertung{session._ratings.length !== 1 ? 'en' : ''} anzeigen
-                                                </button>
-                                                {showReviews && (
-                                                    <div className="mt-3 space-y-2">
-                                                        {session._ratings.map((r, i) => {
-                                                            const isMe = r.reviewer?.toLowerCase() === userEmail?.toLowerCase();
-                                                            return (
-                                                                <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${isMe ? 'bg-indigo-50/50 border-indigo-100' : 'bg-slate-50/50 border-slate-100'}`}>
-                                                                    <div className="flex gap-0.5 shrink-0 pt-0.5">
-                                                                        {[1, 2, 3, 4, 5].map(s => (
-                                                                            <Star key={s} className={`w-3 h-3 ${r.score >= s ? 'text-amber-500 fill-amber-500' : 'text-slate-200'}`} />
-                                                                        ))}
-                                                                    </div>
-                                                                    <div className="flex-1 min-w-0">
-                                                                        <div className="flex items-center gap-2 mb-0.5">
-                                                                            <span className="text-[10px] font-bold text-slate-600">{isMe ? '🟢 Du' : (r.reviewer || 'Anonym')}</span>
-                                                                            {r.kategorie && <span className="text-[9px] text-slate-300 bg-slate-100 px-1.5 py-0.5 rounded">{r.kategorie}</span>}
-                                                                            <span className="text-[9px] text-slate-300">{r.timestamp ? new Date(r.timestamp).toLocaleDateString('de-DE') : ''}</span>
+                                            session._myScore > 0 ? (
+                                                <>
+                                                    <button
+                                                        onClick={(e) => { e.stopPropagation(); setExpandedReviews(prev => ({ ...prev, [session.id]: !prev[session.id] })); }}
+                                                        className="flex items-center gap-2 text-[10px] font-black uppercase text-indigo-500 tracking-widest hover:text-indigo-700 transition-colors"
+                                                    >
+                                                        {showReviews ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                                        {session._ratings.length} Bewertung{session._ratings.length !== 1 ? 'en' : ''} {showReviews ? 'ausblenden' : 'anzeigen'}
+                                                    </button>
+                                                    {showReviews && (
+                                                        <div className="mt-3 space-y-2">
+                                                            {session._ratings.map((r, i) => {
+                                                                const isMe = r.reviewer?.toLowerCase() === userEmail?.toLowerCase();
+                                                                const reviewerName = isMe ? 'Du' : (userNameMap[r.reviewer?.toLowerCase()] || r.reviewer || 'Anonym');
+                                                                return (
+                                                                    <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${isMe ? 'bg-indigo-50/50 border-indigo-100' : 'bg-slate-50/50 border-slate-100'}`}>
+                                                                        <div className="flex gap-0.5 shrink-0 pt-0.5">
+                                                                            {[1, 2, 3, 4, 5].map(s => (
+                                                                                <Star key={s} className={`w-3 h-3 ${r.score >= s ? 'text-amber-500 fill-amber-500' : 'text-slate-200'}`} />
+                                                                            ))}
                                                                         </div>
-                                                                        {r.kommentar && <p className="text-xs text-slate-600 leading-relaxed">{r.kommentar}</p>}
-                                                                        {!r.kommentar && <p className="text-[10px] text-slate-300 italic">Kein Kommentar</p>}
+                                                                        <div className="flex-1 min-w-0">
+                                                                            <div className="flex items-center gap-2 mb-0.5">
+                                                                                <span className={`text-[10px] font-bold ${isMe ? 'text-indigo-600' : 'text-slate-600'}`}>{isMe ? '🟢 ' : ''}{reviewerName}</span>
+                                                                                {r.kategorie && <span className="text-[9px] text-slate-300 bg-slate-100 px-1.5 py-0.5 rounded">{r.kategorie}</span>}
+                                                                                <span className="text-[9px] text-slate-300">{r.timestamp ? new Date(r.timestamp).toLocaleDateString('de-DE') : ''}</span>
+                                                                            </div>
+                                                                            {r.kommentar && <p className="text-xs text-slate-600 leading-relaxed">{r.kommentar}</p>}
+                                                                            {!r.kommentar && <p className="text-[10px] text-slate-300 italic">Kein Kommentar</p>}
+                                                                        </div>
                                                                     </div>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                    </div>
-                                                )}
-                                            </>
+                                                                );
+                                                            })}
+                                                        </div>
+                                                    )}
+                                                </>
+                                            ) : (
+                                                <p className="text-[10px] text-slate-300 italic flex items-center gap-1.5">
+                                                    <Star className="w-3 h-3" /> Bewerte diese Session, um die {session._ratings.length} Bewertung{session._ratings.length !== 1 ? 'en' : ''} anderer KuratorInnen zu sehen.
+                                                </p>
+                                            )
                                         ) : (
                                             <p className="text-[10px] text-slate-300 italic">Noch keine Bewertungen</p>
                                         )}

@@ -600,7 +600,7 @@ const parsePlannerBatch = (batch, config) => {
     themen: [...new Set(configRows.map(r => safeString(r[1])).filter(Boolean))],
     tags: [...new Set(configRows.map(r => safeString(r[2])).filter(Boolean))],
     formate: [...new Set(configRows.map(r => safeString(r[3])).filter(Boolean))],
-    maxSubmissions: parseInt(configRows.find(r => safeString(r[4]))?.[4]) || 10,
+    maxSubmissions: (() => { const v = configRows.find(r => safeString(r[4])); return v ? (parseInt(safeString(v[4])) || 5) : 5; })(),
   };
 
   // --- Parse Master_Ratings (valRanges[6]) ---
@@ -1179,6 +1179,11 @@ function App({ authenticatedUser }) {
 
   // --- USER MANAGEMENT (Config_Users sheet: A=Email, B=Role, C=Name) ---
   const saveUsersToSheet = async (updatedUsers) => {
+    // Only ADMIN can modify user roles
+    if (effectiveRole !== 'ADMIN') {
+      setToast({ msg: 'Nur Admins können Nutzerrollen ändern', type: 'error' });
+      return;
+    }
     const token = authenticatedUser.accessToken;
     const rows = updatedUsers.map(u => [u.email, u.role, u.name || '']);
     const { ok, error } = await fetchSheets({
@@ -1192,7 +1197,7 @@ function App({ authenticatedUser }) {
 
   // Effective role: derived from Config_Users list (sheet source of truth)
   // Role priority (highest first) — used to pick the "primary" display role
-  const ROLE_PRIORITY = ['ADMIN', 'CURATOR', 'REVIEWER', 'PRODUCTION', 'SPEAKER', 'SPRECHERIN', 'TEILNEHMENDE', 'PARTNER', 'BAND', 'GUEST'];
+  const ROLE_PRIORITY = ['ADMIN', 'CURATOR', 'REVIEWER', 'PRODUCTION', 'SPEAKER', 'TEILNEHMENDE', 'PARTNER', 'BAND', 'GUEST'];
 
   // Parse all roles from comma-separated string
   const userRoles = (() => {
@@ -1210,7 +1215,10 @@ function App({ authenticatedUser }) {
     }
     // 3. Auto-detect: is user a registered speaker?
     const isSpeaker = data.speakers.some(s => s.email?.toLowerCase() === email);
-    if (isSpeaker && !roles.includes('SPEAKER') && !roles.includes('SPRECHERIN')) roles.push('SPRECHERIN');
+    if (isSpeaker && !roles.includes('SPEAKER')) roles.push('SPEAKER');
+    // Normalize: merge SPRECHERIN into SPEAKER
+    const spIdx = roles.indexOf('SPRECHERIN');
+    if (spIdx >= 0) { roles[spIdx] = 'SPEAKER'; if (roles.filter(r => r === 'SPEAKER').length > 1) roles.splice(spIdx, 1); }
     // 4. Auto-detect: has user submitted sessions?
     const hasSubmissions = data.submissions.some(s => s.submitterEmail?.toLowerCase() === email);
     if (hasSubmissions && !roles.includes('TEILNEHMENDE')) roles.push('TEILNEHMENDE');
@@ -1257,7 +1265,7 @@ function App({ authenticatedUser }) {
       return;
     }
     // TEILNEHMENDE → Profile first if no speaker record, otherwise SUBMIT
-    if (hasRole('TEILNEHMENDE', 'SPRECHERIN')) {
+    if (hasRole('TEILNEHMENDE', 'SPEAKER')) {
       if (!mySpeakerRecord) {
         setViewMode('PROFILE');
       } else {
@@ -2181,7 +2189,7 @@ function App({ authenticatedUser }) {
                                   hasRole('REVIEWER') ? 'bg-blue-100 text-blue-700' :
                                     hasRole('PRODUCTION') ? 'bg-orange-100 text-orange-700' :
                                       hasRole('SPEAKER') ? 'bg-emerald-100 text-emerald-700' :
-                                        hasRole('TEILNEHMENDE', 'SPRECHERIN') ? 'bg-cyan-100 text-cyan-700' :
+                                        hasRole('TEILNEHMENDE', 'SPEAKER') ? 'bg-cyan-100 text-cyan-700' :
                                           hasRole('PARTNER') ? 'bg-amber-100 text-amber-700' :
                                             hasRole('BAND') ? 'bg-pink-100 text-pink-700' :
                                               'bg-slate-100 text-slate-600'
@@ -2411,6 +2419,7 @@ function App({ authenticatedUser }) {
               userEmail={authenticatedUser.email || ''}
               ratings={data.ratings}
               speakers={data.speakers}
+              users={curationData.users || []}
               onUpdateMetadata={handleUpdateCurationMetadata}
               onSaveRating={async (sessionId, score, kommentar) => {
                 if (!config.curationApiUrl) return;
@@ -2439,7 +2448,7 @@ function App({ authenticatedUser }) {
           </div>
         )}
 
-        {viewMode === 'ADMIN' && (
+        {viewMode === 'ADMIN' && effectiveRole === 'ADMIN' && (
           <div className="flex flex-col h-full overflow-hidden">
             <header className="bg-indigo-900 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
               <h1 className="font-bold flex items-center gap-2"><Shield className="w-5 h-5" /> Admin Control Panel</h1>
@@ -2532,8 +2541,8 @@ function App({ authenticatedUser }) {
                   <p className="text-sm text-red-600">Der Open Call für Einreichungen ist derzeit geschlossen. Bitte wende dich an das Admin-Team, wenn du eine Session einreichen möchtest.</p>
                 </div>
               </div>
-            ) : hasRole('SPRECHERIN') && !hasRole('ADMIN', 'TEILNEHMENDE') ? (
-              /* SPRECHERIN: read-only session overview */
+            ) : hasRole('SPEAKER') && !hasRole('ADMIN', 'TEILNEHMENDE') ? (
+              /* SPEAKER: read-only session overview */
               <div className="max-w-3xl mx-auto space-y-6">
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-2">
                   <span className="text-amber-600 text-lg">⚠️</span>
@@ -2665,8 +2674,8 @@ function App({ authenticatedUser }) {
           </button>
         )}
 
-        {/* Einreichung: ADMIN, TEILNEHMENDE, SPRECHERIN */}
-        {hasRole('ADMIN', 'TEILNEHMENDE', 'SPRECHERIN') && (
+        {/* Einreichung: ADMIN, TEILNEHMENDE, SPEAKER */}
+        {hasRole('ADMIN', 'TEILNEHMENDE', 'SPEAKER') && (
           <button onClick={() => setViewMode('SUBMIT')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SUBMIT' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <PlusCircle className="w-3.5 h-3.5" /> Einreichung
           </button>
@@ -2680,8 +2689,8 @@ function App({ authenticatedUser }) {
           </button>
         )}
 
-        {/* Profil: SPEAKER, TEILNEHMENDE, SPRECHERIN (+ ADMIN for own) */}
-        {hasRole('ADMIN', 'SPEAKER', 'SPRECHERIN', 'TEILNEHMENDE') && (
+        {/* Profil: SPEAKER, TEILNEHMENDE (+ ADMIN for own) */}
+        {hasRole('ADMIN', 'SPEAKER', 'TEILNEHMENDE') && (
           <button onClick={() => setViewMode('PROFILE')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PROFILE' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <User className="w-3.5 h-3.5" /> Profil
           </button>
