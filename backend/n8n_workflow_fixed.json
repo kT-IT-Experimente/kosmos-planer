@@ -524,12 +524,14 @@
         "httpMethod": "POST",
         "path": "api/data",
         "responseMode": "lastNode",
-        "options": {}
+        "options": {
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app"
+        }
       },
       "id": "8f22b4ba-2e10-428b-9845-b9683087cef1",
       "name": "Webhook (POST /api/data)",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [
         0,
         1184
@@ -650,12 +652,14 @@
         "httpMethod": "POST",
         "path": "auth/verify",
         "responseMode": "lastNode",
-        "options": {}
+        "options": {
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app"
+        }
       },
       "id": "14166c0d-8ff8-4cc7-a4f0-cd84b7da6017",
       "name": "Webhook (POST /auth/verify)",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [
         0,
         848
@@ -802,13 +806,14 @@
                 "value": "Authorization, Content-Type"
               }
             ]
-          }
+          },
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app"
         }
       },
       "id": "92ed6deb-8a38-46be-a49f-cdc06713fff9",
       "name": "Webhook (POST /api/rating)",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [
         1312,
         -32
@@ -1017,13 +1022,14 @@
                 "value": "Authorization, Content-Type"
               }
             ]
-          }
+          },
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app"
         }
       },
       "id": "ec003506-090c-46bf-8652-50c3bd05fef9",
       "name": "Webhook (POST /api/register-speaker)",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [
         1856,
         480
@@ -1380,13 +1386,14 @@
                 "value": "Authorization, Content-Type"
               }
             ]
-          }
+          },
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app"
         }
       },
       "id": "c58340d7-5c70-48fd-80dc-f5cc41cb6670",
       "name": "Webhook (POST /api/save)",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
+      "typeVersion": 2,
       "position": [
         1472,
         1248
@@ -1538,7 +1545,8 @@
                 "value": "Content-Type, Authorization"
               }
             ]
-          }
+          },
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app"
         }
       },
       "id": "58613fd1-5c92-4890-951e-d9c4efb2767c",
@@ -2032,7 +2040,8 @@
                 "value": "Content-Type, Authorization"
               }
             ]
-          }
+          },
+          "allowedOrigins": "https://tourmaline-taffy-61d3c1.netlify.app"
         }
       },
       "id": "ccc06b68-2fa4-4e47-a7e1-6d6d24fb1349",
