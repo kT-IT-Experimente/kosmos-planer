@@ -2431,7 +2431,7 @@ function App({ authenticatedUser }) {
                   const { ok, error } = await fetchSheets({
                     action: 'append',
                     spreadsheetId: config.spreadsheetId,
-                    range: `'Master_Ratings'!A:F`,
+                    range: `'Master_Ratings'!A2:F`,
                     values: [[timestamp, sessionId, reviewerEmail, String(score), kommentar || '', 'relevanz']],
                   }, token, config.curationApiUrl);
                   if (!ok) throw new Error(error || 'Rating save failed');

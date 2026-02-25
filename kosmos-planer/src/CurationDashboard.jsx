@@ -63,20 +63,29 @@ const CurationDashboard = ({
         return speakerMap[name.trim().toLowerCase()] || null;
     };
 
-    // Merge ratings into sessions
+    // Merge ratings into sessions — use latest score per reviewer for average
     const sessionsWithRatings = useMemo(() => {
         return sessions.map(s => {
             const sessionRatings = ratings[s.id] || [];
-            const scores = sessionRatings.map(r => r.score).filter(v => v > 0);
-            const avg = scores.length > 0 ? (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1) : null;
-            const myRating = sessionRatings.find(r => r.reviewer?.toLowerCase() === userEmail?.toLowerCase());
+            // Group by reviewer email, keep only latest score per reviewer for average
+            const latestByReviewer = {};
+            sessionRatings.forEach(r => {
+                const key = (r.reviewer || '').toLowerCase();
+                if (!key) return;
+                if (!latestByReviewer[key] || r.timestamp > latestByReviewer[key].timestamp) {
+                    latestByReviewer[key] = r;
+                }
+            });
+            const latestScores = Object.values(latestByReviewer).map(r => r.score).filter(v => v > 0);
+            const avg = latestScores.length > 0 ? (latestScores.reduce((a, b) => a + b, 0) / latestScores.length).toFixed(1) : null;
+            const myLatest = latestByReviewer[userEmail?.toLowerCase()];
             return {
                 ...s,
                 average_score: avg,
-                review_count: sessionRatings.length,
-                _ratings: sessionRatings,
-                _myScore: myRating?.score || 0,
-                _myKommentar: myRating?.kommentar || ''
+                review_count: Object.keys(latestByReviewer).length,
+                _ratings: sessionRatings, // all entries for comments display
+                _myScore: myLatest?.score || 0,
+                _myKommentar: myLatest?.kommentar || ''
             };
         });
     }, [sessions, ratings, userEmail]);
