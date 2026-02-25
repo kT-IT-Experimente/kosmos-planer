@@ -583,8 +583,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.1,
       "position": [
-        672,
-        1184
+        872,
+        1284
       ],
       "credentials": {
         "googleApi": {
@@ -2225,6 +2225,92 @@
         1104,
         736
       ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Route based on action from the request body\nconst body = $('Webhook (POST /api/data)').first().json.body || {};\nconst action = (body.action || 'batchGet').toLowerCase();\n\nif (action === 'append') {\n  // Pass through the append data for the HTTP append node\n  const spreadsheetId = body.spreadsheetId;\n  const range = body.range;\n  const values = body.values || [];\n  return [{\n    json: {\n      action: 'append',\n      spreadsheetId,\n      range,\n      values,\n      url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values/' + encodeURIComponent(range) + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS'\n    }\n  }];\n} else {\n  // Default: batchGet (read)\n  const spreadsheetId = body.spreadsheetId;\n  const ranges = body.ranges || [];\n  const rangeParams = ranges.map(r => 'ranges=' + encodeURIComponent(r)).join('&');\n  return [{\n    json: {\n      action: 'batchGet',\n      spreadsheetId,\n      ranges,\n      url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values:batchGet?' + rangeParams\n    }\n  }];\n}"
+      },
+      "id": "route-action-001",
+      "name": "Route Action",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        472,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "if-append-001",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "append",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "if-append-001",
+      "name": "If Append",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        672,
+        1184
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ values: $json.values }) }}",
+        "options": {}
+      },
+      "id": "append-sheet-001",
+      "name": "Append to Sheet",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        872,
+        1084
+      ],
+      "credentials": {
+        "googleApi": {
+          "id": "LvHMiivmZXgTlEwU",
+          "name": "Google Service Account account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({ ok: true, message: 'Data appended successfully' }) }}",
+        "options": {}
+      },
+      "id": "respond-append-001",
+      "name": "Respond Append OK",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1072,
+        1084
+      ]
     }
   ],
   "pinData": {
@@ -2435,7 +2521,7 @@
       "main": [
         [
           {
-            "node": "Fetch Google Sheets Data (Proxy)",
+            "node": "Route Action",
             "type": "main",
             "index": 0
           }
@@ -2953,6 +3039,46 @@
         [
           {
             "node": "Respond Auth Verified",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route Action": {
+      "main": [
+        [
+          {
+            "node": "If Append",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If Append": {
+      "main": [
+        [
+          {
+            "node": "Append to Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Fetch Google Sheets Data (Proxy)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append to Sheet": {
+      "main": [
+        [
+          {
+            "node": "Respond Append OK",
             "type": "main",
             "index": 0
           }
