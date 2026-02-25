@@ -1703,33 +1703,50 @@ function App({ authenticatedUser }) {
   const handleUpdateCurationMetadata = async (sessionId, field, newValue) => {
     if (!config.curationApiUrl) return;
 
+    // Map field names to Master_Einreichungen columns
+    const FIELD_TO_COL = {
+      status: 'D', format: 'H', thema: 'I', bereich: 'J',
+      sprache: 'K', tags: 'U'
+    };
+    const col = FIELD_TO_COL[field];
+    if (!col) {
+      console.warn(`Unknown metadata field: ${field}`);
+      return;
+    }
+
+    // Find the session's rowIndex from submissions (Master_Einreichungen)
+    const session = data.submissions.find(s => s.id === sessionId);
+    if (!session || !session.rowIndex) {
+      console.warn(`Session ${sessionId} not found in submissions`);
+      setToast({ msg: 'Session nicht gefunden', type: 'error' });
+      return;
+    }
+
     try {
-      // Optimistic locally
-      setCurationData(prev => ({
+      const token = authenticatedUser.accessToken;
+
+      // Optimistic local update (submissions = source of truth)
+      setData(prev => ({
         ...prev,
-        sessions: prev.sessions.map(s => s.id === sessionId ? { ...s, [field]: newValue } : s)
+        submissions: prev.submissions.map(s => s.id === sessionId ? { ...s, [field]: newValue } : s),
+        program: prev.program.map(s => s.id === sessionId ? { ...s, [field]: newValue } : s)
       }));
 
-      const res = await fetch(config.curationApiUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authenticatedUser.accessToken}`,
-        },
-        body: JSON.stringify({
-          action: 'updateMetadata',
-          id: sessionId,
-          field: field,
-          value: newValue,
-          email: authenticatedUser.email
-        })
-      });
+      // Write to Master_Einreichungen
+      const { ok, error } = await fetchSheets({
+        action: 'update',
+        spreadsheetId: config.spreadsheetId,
+        range: `'Master_Einreichungen'!${col}${session.rowIndex}`,
+        values: [[newValue]],
+      }, token, config.curationApiUrl);
 
-      if (!res.ok) throw new Error("Sync Fehler");
-      setToast({ msg: `${field} aktualisiert & synchronisiert.`, type: "success" });
+      if (!ok) throw new Error(error || 'Speichern fehlgeschlagen');
+      setToast({ msg: `${field} aktualisiert`, type: 'success' });
+      setTimeout(() => setToast(null), 2000);
     } catch (e) {
-      console.error("Fehler beim Metadata-Update:", e);
-      setToast({ msg: "Synchronisierung fehlgeschlagen.", type: "error" });
+      console.error('Metadata update failed:', e);
+      setToast({ msg: `Fehler: ${e.message}`, type: 'error' });
+      setTimeout(() => setToast(null), 3000);
     }
   };
 
