@@ -1278,7 +1278,7 @@ function App({ authenticatedUser }) {
       return;
     }
     // TEILNEHMENDE → Profile first if no speaker record, otherwise SUBMIT
-    if (effectiveRole === 'TEILNEHMENDE') {
+    if (effectiveRole === 'TEILNEHMENDE' || effectiveRole === 'SPRECHERIN') {
       if (!mySpeakerRecord) {
         setViewMode('PROFILE');
       } else {
@@ -2112,7 +2112,7 @@ function App({ authenticatedUser }) {
                                   effectiveRole === 'REVIEWER' ? 'bg-blue-100 text-blue-700' :
                                     effectiveRole === 'PRODUCTION' ? 'bg-orange-100 text-orange-700' :
                                       effectiveRole === 'SPEAKER' ? 'bg-emerald-100 text-emerald-700' :
-                                        effectiveRole === 'TEILNEHMENDE' ? 'bg-cyan-100 text-cyan-700' :
+                                        effectiveRole === 'TEILNEHMENDE' || effectiveRole === 'SPRECHERIN' ? 'bg-cyan-100 text-cyan-700' :
                                           effectiveRole === 'PARTNER' ? 'bg-amber-100 text-amber-700' :
                                             effectiveRole === 'BAND' ? 'bg-pink-100 text-pink-700' :
                                               'bg-slate-100 text-slate-600'
@@ -2462,6 +2462,37 @@ function App({ authenticatedUser }) {
                   <p className="text-sm text-red-600">Der Open Call für Einreichungen ist derzeit geschlossen. Bitte wende dich an das Admin-Team, wenn du eine Session einreichen möchtest.</p>
                 </div>
               </div>
+            ) : effectiveRole === 'SPRECHERIN' ? (
+              /* SPRECHERIN: read-only session overview */
+              <div className="max-w-3xl mx-auto space-y-6">
+                {mySessions.length > 0 ? (
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h2 className="text-lg font-bold text-slate-800 mb-4">📋 Meine Sessions ({mySessions.length})</h2>
+                    <div className="space-y-3">
+                      {mySessions.map((session, i) => (
+                        <div key={session.id || i} className="border border-slate-200 rounded-lg p-4">
+                          <h3 className="font-bold text-sm text-slate-800">{session.title || 'Ohne Titel'}</h3>
+                          <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400">
+                            {session.stage && <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{session.stage}</span>}
+                            {session.format && <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">{session.format}</span>}
+                            {session.startTime && <span>🕐 {session.startTime}</span>}
+                            {session.speakers && <span>🎤 {session.speakers}</span>}
+                          </div>
+                          {session.status && (
+                            <span className={`mt-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${session.status === 'fixiert' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                              {session.status}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center text-slate-400">
+                    <p className="text-sm">Du bist noch keiner Session als SprecherIn zugeordnet.</p>
+                  </div>
+                )}
+              </div>
             ) : (
               <SessionSubmission
                 speakers={['ADMIN', 'CURATOR', 'REVIEWER'].includes(effectiveRole)
@@ -2527,8 +2558,8 @@ function App({ authenticatedUser }) {
           </button>
         )}
 
-        {/* Einreichung: ADMIN, TEILNEHMENDE */}
-        {['ADMIN', 'TEILNEHMENDE'].includes(effectiveRole) && (
+        {/* Einreichung: ADMIN, TEILNEHMENDE, SPRECHERIN */}
+        {['ADMIN', 'TEILNEHMENDE', 'SPRECHERIN'].includes(effectiveRole) && (
           <button onClick={() => setViewMode('SUBMIT')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SUBMIT' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <PlusCircle className="w-3.5 h-3.5" /> Einreichung
           </button>
@@ -2541,8 +2572,8 @@ function App({ authenticatedUser }) {
           </button>
         )}
 
-        {/* Profil: SPEAKER, TEILNEHMENDE (+ ADMIN for own) */}
-        {['ADMIN', 'SPEAKER', 'TEILNEHMENDE'].includes(effectiveRole) && (
+        {/* Profil: SPEAKER, TEILNEHMENDE, SPRECHERIN (+ ADMIN for own) */}
+        {['ADMIN', 'SPEAKER', 'SPRECHERIN', 'TEILNEHMENDE'].includes(effectiveRole) && (
           <button onClick={() => setViewMode('PROFILE')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PROFILE' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <User className="w-3.5 h-3.5" /> Profil
           </button>
