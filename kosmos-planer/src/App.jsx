@@ -417,11 +417,12 @@ const parsePlannerBatch = (batch, config) => {
   if (!valRanges || valRanges.length < 3) return { speakers: [], moderators: [], stages: [], program: [] };
 
   const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag', 'cfp', 'cfp_dummy'];
-  // 26_Kosmos_SprecherInnen columns (A-Z, 26 cols):
+  // 26_Kosmos_SprecherInnen columns (A-AD):
   // A=Status_Einladung(0), B=Status_Backend(1), C=ID(2), D=Vorname(3), E=Nachname(4),
   // F=Pronomen(5), G=Organisation(6), H=Bio(7), I=Webseite(8), J=Update(9),
   // K=E-Mail(10), L=Telefon(11), M=Herkunft(12), N=Sprache(13),
-  // O=Registriert_am(14), P=Registriert_von(15), Q-Z=Financial/Travel
+  // O=Registriert_am(14), P=Registriert_von(15), Q-Z=Financial/Travel,
+  // AA=Instagram(26), AB=LinkedIn(27), AC=Sonstige Social Media(28), AD=Zeitstempel(29)
   const speakerMap = new Map();
   // Debug: log all status values to see what's in the sheet
   if (import.meta.env.DEV) {
@@ -462,8 +463,8 @@ const parsePlannerBatch = (batch, config) => {
         email,
         herkunft: safeString(r[12]),
         sprache: safeString(r[13]),
-        linkedin: safeString(r[26]),
-        instagram: safeString(r[27]),
+        instagram: safeString(r[26]),
+        linkedin: safeString(r[27]),
         socialSonstiges: safeString(r[28])
       });
     }
@@ -1003,7 +1004,7 @@ function App({ authenticatedUser }) {
       }
 
       const ranges = [
-        `'${config.sheetNameSpeakers}'!A2:AC`,       // index 0: Speakers (29 cols incl social)
+        `'${config.sheetNameSpeakers}'!A2:AD`,       // index 0: Speakers (30 cols incl social + timestamp)
         `'${config.sheetNameMods}'!A2:C`,            // index 1: Moderators
         `'${config.sheetNameStages}'!A2:H`,          // index 2: Stages
       ];
@@ -1488,12 +1489,12 @@ function App({ authenticatedUser }) {
         values: [[updatedSpeaker.herkunft || '', updatedSpeaker.sprache || '']],
       }, token, config.curationApiUrl);
       if (!ok2) throw new Error(err2);
-      // Update social media: AA=LinkedIn, AB=Instagram, AC=Social_Sonstiges
+      // Update social media: AA=Instagram, AB=LinkedIn, AC=Sonstige Social Media
       const { ok: ok3, error: err3 } = await fetchSheets({
         action: 'update',
         spreadsheetId: config.spreadsheetId,
         range: `'${config.sheetNameSpeakers}'!AA${rowNum}:AC${rowNum}`,
-        values: [[updatedSpeaker.linkedin || '', updatedSpeaker.instagram || '', updatedSpeaker.socialSonstiges || '']],
+        values: [[updatedSpeaker.instagram || '', updatedSpeaker.linkedin || '', updatedSpeaker.socialSonstiges || '']],
       }, token, config.curationApiUrl);
       if (!ok3) throw new Error(err3);
       setToast({ msg: 'Profil gespeichert!', type: 'success' });
@@ -1517,9 +1518,7 @@ function App({ authenticatedUser }) {
       //   A=Status_Einladung, B=Status_Backend, C=ID, D=Vorname, E=Nachname,
       //   F=Pronomen, G=Organisation, H=Bio, I=Webseite, J=Update, K=E-Mail, L=Telefon,
       //   M=Herkunft, N=Sprache, O=Registriert_am, P=Registriert_von,
-      //   Q=Kalkuliertes Honorar, R=MWST, S=Honorar brutto, T=Gesamtkosten,
-      //   U=Status Rechnung, V=Abrechnung, W=Reise von, X=Hotel, Y=Anzahl Nächte, Z=Briefing,
-      //   AA=LinkedIn, AB=Instagram, AC=Social_Sonstiges
+      //   Q-Z=Financial/Travel, AA=Instagram, AB=LinkedIn, AC=Sonstige, AD=Zeitstempel
       const nameParts = (newSpeaker.fullName || '').split(' ');
       const vorname = nameParts[0] || '';
       const nachname = nameParts.slice(1).join(' ') || '';
@@ -1540,15 +1539,16 @@ function App({ authenticatedUser }) {
         newSpeaker.sprache || '',     // N
         registeredAm,                 // O
         authenticatedUser.email || '',// P
-        '', '', '', '', '', '', '', '', '', '', // Q-Z (financials/travel/briefing - skip)
-        newSpeaker.linkedin || '',    // AA
-        newSpeaker.instagram || '',   // AB
-        newSpeaker.socialSonstiges || '' // AC
+        '', '', '', '', '', '', '', '', '', '', // Q-Z (financials/travel/briefing)
+        newSpeaker.instagram || '',   // AA - Instagram
+        newSpeaker.linkedin || '',    // AB - LinkedIn
+        newSpeaker.socialSonstiges || '', // AC - Sonstige Social Media
+        registeredAm                  // AD - Zeitstempel
       ];
       const { ok, error } = await fetchSheets({
         action: 'append',
         spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameSpeakers}'!A:AC`,
+        range: `'${config.sheetNameSpeakers}'!A2:AD`,
         values: [row],
       }, token, config.curationApiUrl);
       if (!ok) throw new Error(error || 'Registrierung fehlgeschlagen');
