@@ -6,7 +6,7 @@ export default function AdminDashboard({
     onUpdateUserRole, onDeleteUser, onAddUser, onUpdateConfig,
     onSaveStages, onSaveConfigThemen,
     openCallClosed = false, onToggleOpenCall, onInviteUser,
-    curationApiUrl = '', userEmail = ''
+    curationApiUrl = '', userEmail = '', readOnly = false
 }) {
     const [newUserEmail, setNewUserEmail] = useState('');
     const [newUserRole, setNewUserRole] = useState('REVIEWER');
@@ -102,8 +102,9 @@ export default function AdminDashboard({
                     </div>
                     {/* OPEN CALL TOGGLE */}
                     <button
-                        onClick={onToggleOpenCall}
-                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md active:scale-95 ${openCallClosed
+                        onClick={readOnly ? undefined : onToggleOpenCall}
+                        disabled={readOnly}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold transition-all shadow-md active:scale-95 ${readOnly ? 'opacity-60 cursor-not-allowed' : ''} ${openCallClosed
                             ? 'bg-red-100 text-red-700 hover:bg-red-200 border border-red-200'
                             : 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200 border border-emerald-200'
                             }`}
@@ -113,6 +114,13 @@ export default function AdminDashboard({
                     </button>
                 </div>
 
+                {readOnly && (
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center gap-2">
+                        <Eye className="w-4 h-4 text-amber-600" />
+                        <span className="text-sm text-amber-700 font-medium">Nur Lesezugriff — Änderungen sind ADMINs vorbehalten.</span>
+                    </div>
+                )}
+
                 {/* SCHEDULE CONTROL */}
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                     <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
@@ -120,7 +128,7 @@ export default function AdminDashboard({
                             <Clock className="w-5 h-5 text-indigo-500" />
                             Programmeinstellungen
                         </h3>
-                        {configDirty && (
+                        {configDirty && !readOnly && (
                             <button
                                 onClick={handleSaveConfig}
                                 className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-md active:scale-95"
@@ -239,48 +247,52 @@ export default function AdminDashboard({
                                             </div>
                                         </td>
                                         <td className="py-4 px-2 text-right flex items-center gap-1 justify-end">
-                                            {onInviteUser && (
+                                            {!readOnly && onInviteUser && (
                                                 <button onClick={() => onInviteUser(user.email)}
                                                     className="p-2 text-slate-300 hover:text-indigo-600 transition-colors" title="Magic Link senden">
                                                     <Send className="w-4 h-4" />
                                                 </button>
                                             )}
-                                            <button onClick={() => onDeleteUser(user.email)}
-                                                className="p-2 text-slate-300 hover:text-red-500 transition-colors" title="Delete User">
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
+                                            {!readOnly && (
+                                                <button onClick={() => onDeleteUser(user.email)}
+                                                    className="p-2 text-slate-300 hover:text-red-500 transition-colors" title="Delete User">
+                                                    <Trash2 className="w-4 h-4" />
+                                                </button>
+                                            )}
                                         </td>
                                     </tr>
                                 ))}
-                                <tr className="bg-indigo-50/30">
-                                    <td className="py-4 px-2">
-                                        <input type="email" placeholder="new-user@example.com" value={newUserEmail}
-                                            onChange={(e) => setNewUserEmail(e.target.value)}
-                                            className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none" />
-                                    </td>
-                                    <td className="py-4 px-2">
-                                        <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)}
-                                            className="text-xs font-bold py-1.5 px-2 rounded border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer">
-                                            <option value="ADMIN">ADMIN</option>
-                                            <option value="CURATOR">CURATOR</option>
-                                            <option value="REVIEWER">REVIEWER</option>
-                                            <option value="SPRECHERIN">SPRECHERIN</option>
-                                            <option value="TEILNEHMENDE">TEILNEHMENDE</option>
-                                            <option value="SPEAKER">SPEAKER</option>
-                                            <option value="PRODUCTION">PRODUCTION</option>
-                                            <option value="PARTNER">PARTNER</option>
-                                            <option value="BAND">BAND</option>
-                                            <option value="GUEST">GUEST</option>
-                                        </select>
-                                    </td>
-                                    <td className="py-4 px-2 text-right">
-                                        <button
-                                            onClick={() => { if (newUserEmail) { onAddUser(newUserEmail, newUserRole); setNewUserEmail(''); } }}
-                                            className="bg-indigo-600 text-white p-2 rounded hover:bg-indigo-700 transition-all flex items-center gap-2 text-xs font-bold ml-auto shadow-md active:scale-95">
-                                            <Plus className="w-3.5 h-3.5" /> Add User
-                                        </button>
-                                    </td>
-                                </tr>
+                                {!readOnly && (
+                                    <tr className="bg-indigo-50/30">
+                                        <td className="py-4 px-2">
+                                            <input type="email" placeholder="new-user@example.com" value={newUserEmail}
+                                                onChange={(e) => setNewUserEmail(e.target.value)}
+                                                className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                        </td>
+                                        <td className="py-4 px-2">
+                                            <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)}
+                                                className="text-xs font-bold py-1.5 px-2 rounded border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer">
+                                                <option value="ADMIN">ADMIN</option>
+                                                <option value="CURATOR">CURATOR</option>
+                                                <option value="REVIEWER">REVIEWER</option>
+                                                <option value="ORGANISATION">ORGANISATION</option>
+                                                <option value="SPRECHERIN">SPRECHERIN</option>
+                                                <option value="TEILNEHMENDE">TEILNEHMENDE</option>
+                                                <option value="SPEAKER">SPEAKER</option>
+                                                <option value="PRODUCTION">PRODUCTION</option>
+                                                <option value="BAND">BAND</option>
+                                                <option value="GUEST">GUEST</option>
+                                            </select>
+                                        </td>
+                                        <td className="py-4 px-2 text-right">
+                                            <button
+                                                onClick={() => { if (newUserEmail) { onAddUser(newUserEmail, newUserRole); setNewUserEmail(''); } }}
+                                                className="bg-indigo-600 text-white p-2 rounded hover:bg-indigo-700 transition-all flex items-center gap-2 text-xs font-bold ml-auto shadow-md active:scale-95">
+                                                <Plus className="w-3.5 h-3.5" /> Add User
+                                            </button>
+                                        </td>
+                                    </tr>
+                                )}
                             </tbody>
                         </table>
                     </div>

@@ -752,6 +752,7 @@ function App({ authenticatedUser }) {
 
   const [localChanges, setLocalChanges] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [expandedOrgEmail, setExpandedOrgEmail] = useState(null);
   const [editingSession, setEditingSession] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -2589,7 +2590,7 @@ function App({ authenticatedUser }) {
           </div>
         )}
 
-        {viewMode === 'ADMIN' && effectiveRole === 'ADMIN' && (
+        {viewMode === 'ADMIN' && hasRole('ADMIN', 'REVIEWER') && (
           <div className="flex flex-col h-full overflow-hidden">
             <header className="bg-indigo-900 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
               <h1 className="font-bold flex items-center gap-2"><Shield className="w-5 h-5" /> Admin Control Panel</h1>
@@ -2615,6 +2616,7 @@ function App({ authenticatedUser }) {
               configThemen={data.configThemen}
               curationApiUrl={config.curationApiUrl}
               userEmail={authenticatedUser.email || ''}
+              readOnly={!hasRole('ADMIN')}
               onUpdateUserRole={handleUpdateUserRole}
               onAddUser={handleAddUser}
               onDeleteUser={handleDeleteUser}
@@ -2701,66 +2703,103 @@ function App({ authenticatedUser }) {
                         {(data.organisations || []).map((org, i) => {
                           const orgSessions = data.program.filter(s => (s.partner || '').toLowerCase() === (org.name || '').toLowerCase());
                           const isConfirmed = org.status === 'bestätigt';
+                          const isExpanded = expandedOrgEmail === org.email;
                           return (
-                            <tr key={org.email || i} className="border-b border-slate-100 hover:bg-slate-50/50">
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-3">
-                                  {org.logoUrl && <img src={org.logoUrl} alt="" className="w-8 h-8 rounded object-cover border" />}
-                                  <div>
-                                    <div className="font-bold text-slate-800">{org.name || '—'}</div>
-                                    {org.beschreibung && <div className="text-[10px] text-slate-400 truncate max-w-[200px]">{org.beschreibung}</div>}
+                            <React.Fragment key={org.email || i}>
+                              <tr className={`border-b border-slate-100 hover:bg-slate-50/50 cursor-pointer ${isExpanded ? 'bg-blue-50/30' : ''}`} onClick={() => setExpandedOrgEmail(isExpanded ? null : org.email)}>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-3">
+                                    {org.logoUrl && <img src={org.logoUrl} alt="" className="w-8 h-8 rounded object-cover border" />}
+                                    <div>
+                                      <div className="font-bold text-slate-800">{org.name || '—'}</div>
+                                      {org.beschreibung && <div className="text-[10px] text-slate-400 truncate max-w-[200px]">{org.beschreibung}</div>}
+                                    </div>
                                   </div>
-                                </div>
-                              </td>
-                              <td className="py-3 px-4 text-slate-600 text-xs">{org.email}</td>
-                              <td className="py-3 px-4">
-                                {hasRole('ADMIN') ? (
-                                  <button
-                                    onClick={async () => {
-                                      const newStatus = isConfirmed ? 'ausstehend' : 'bestätigt';
-                                      const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
-                                      try {
-                                        const { ok, error } = await fetchSheets({
-                                          action: 'update', spreadsheetId: config.spreadsheetId,
-                                          range: `'Config_Organisations'!I${org.rowIndex}`,
-                                          values: [[newStatus]]
-                                        }, token, config.curationApiUrl);
-                                        if (!ok) throw new Error(error);
-                                        setData(prev => ({
-                                          ...prev,
-                                          organisations: prev.organisations.map(o => o.email === org.email ? { ...o, status: newStatus } : o)
-                                        }));
-                                        setToast({ msg: `${org.name}: ${newStatus}`, type: 'success' });
-                                        setTimeout(() => setToast(null), 2000);
-                                      } catch (e) {
-                                        setToast({ msg: `Fehler: ${e.message}`, type: 'error' });
-                                        setTimeout(() => setToast(null), 3000);
-                                      }
-                                    }}
-                                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-colors ${isConfirmed
-                                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
-                                      : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
-                                      }`}
-                                  >
-                                    {isConfirmed ? '✓ Bestätigt' : '⏳ Ausstehend'}
-                                  </button>
-                                ) : (
-                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${isConfirmed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                                    {isConfirmed ? '✓ Bestätigt' : '⏳ Ausstehend'}
+                                </td>
+                                <td className="py-3 px-4 text-slate-600 text-xs">{org.email}</td>
+                                <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
+                                  {hasRole('ADMIN') ? (
+                                    <button
+                                      onClick={async () => {
+                                        const newStatus = isConfirmed ? 'ausstehend' : 'bestätigt';
+                                        const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
+                                        try {
+                                          const { ok, error } = await fetchSheets({
+                                            action: 'update', spreadsheetId: config.spreadsheetId,
+                                            range: `'Config_Organisations'!I${org.rowIndex}`,
+                                            values: [[newStatus]]
+                                          }, token, config.curationApiUrl);
+                                          if (!ok) throw new Error(error);
+                                          setData(prev => ({
+                                            ...prev,
+                                            organisations: prev.organisations.map(o => o.email === org.email ? { ...o, status: newStatus } : o)
+                                          }));
+                                          setToast({ msg: `${org.name}: ${newStatus}`, type: 'success' });
+                                          setTimeout(() => setToast(null), 2000);
+                                        } catch (e) {
+                                          setToast({ msg: `Fehler: ${e.message}`, type: 'error' });
+                                          setTimeout(() => setToast(null), 3000);
+                                        }
+                                      }}
+                                      className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-colors ${isConfirmed
+                                        ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                        : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                        }`}
+                                    >
+                                      {isConfirmed ? '✓ Bestätigt' : '⏳ Ausstehend'}
+                                    </button>
+                                  ) : (
+                                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${isConfirmed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                      {isConfirmed ? '✓ Bestätigt' : '⏳ Ausstehend'}
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className={`text-xs font-bold ${orgSessions.length > 0 ? 'text-indigo-600' : 'text-slate-400'}`}>
+                                    {isExpanded ? '▼' : '▶'} {orgSessions.length} Session{orgSessions.length !== 1 ? 's' : ''}
                                   </span>
-                                )}
-                              </td>
-                              <td className="py-3 px-4">
-                                <span className="text-xs text-slate-500">{orgSessions.length} Session{orgSessions.length !== 1 ? 's' : ''}</span>
-                              </td>
-                              <td className="py-3 px-4">
-                                <div className="flex items-center gap-2 text-[10px]">
-                                  {org.webseite && <a href={org.webseite} target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">🌐</a>}
-                                  {org.instagram && <span className="text-pink-500">📷</span>}
-                                  {org.linkedin && <span className="text-blue-600">💼</span>}
-                                </div>
-                              </td>
-                            </tr>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center gap-2 text-[10px]">
+                                    {org.webseite && <a href={org.webseite} target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline" onClick={e => e.stopPropagation()}>🌐</a>}
+                                    {org.instagram && <span className="text-pink-500">📷</span>}
+                                    {org.linkedin && <span className="text-blue-600">💼</span>}
+                                  </div>
+                                </td>
+                              </tr>
+                              {isExpanded && orgSessions.length > 0 && (
+                                <tr>
+                                  <td colSpan="5" className="bg-slate-50 px-4 py-3">
+                                    <div className="space-y-2 max-w-3xl">
+                                      {orgSessions.map((session, si) => {
+                                        const statusLower = (session.status || '').toLowerCase();
+                                        const isFixed = statusLower === 'fixiert';
+                                        const isAccepted = statusLower === 'akzeptiert';
+                                        const stageName = data.stages.find(s => s.id === session.stage)?.name || '';
+                                        return (
+                                          <div key={session.id || si}
+                                            onClick={() => { setEditingSession(session); setIsModalOpen(true); }}
+                                            className={`border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow ${isFixed ? 'border-green-200 bg-green-50/50' : isAccepted ? 'border-blue-200 bg-blue-50/50' : 'border-slate-200 bg-white'}`}
+                                          >
+                                            <div className="flex items-center justify-between gap-2">
+                                              <h4 className="text-sm font-bold text-slate-800">{session.title || 'Ohne Titel'}</h4>
+                                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${isFixed ? 'bg-green-100 text-green-700' : isAccepted ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                                                {session.status || 'Vorschlag'}
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
+                                              {stageName && <span className="bg-slate-100 px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
+                                              {session.start && session.start !== '-' && <span>🕐 {session.start} – {session.end || ''}</span>}
+                                              {session.speakers && <span>🎤 {session.speakers}</span>}
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
+                                  </td>
+                                </tr>
+                              )}
+                            </React.Fragment>
                           );
                         })}
                       </tbody>
@@ -2789,7 +2828,7 @@ function App({ authenticatedUser }) {
         )}
 
         {/* Submit View */}
-        {viewMode === 'SUBMIT' && (
+        {(viewMode === 'SUBMIT' || viewMode === 'ORG_SESSIONS' || viewMode === 'ORG_PROFILE') && (
           <div className="flex-1 overflow-y-auto bg-slate-50 p-6 space-y-6">
             {openCallClosed && !hasRole('ADMIN') ? (
               <div className="max-w-2xl mx-auto mt-20 text-center">
@@ -3140,8 +3179,8 @@ function App({ authenticatedUser }) {
           </button>
         )}
 
-        {/* Admin: ADMIN only */}
-        {hasRole('ADMIN') && (
+        {/* Admin: ADMIN + REVIEWER (read-only) */}
+        {hasRole('ADMIN', 'REVIEWER') && (
           <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ADMIN' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <Shield className="w-3.5 h-3.5" /> Admin
           </button>
