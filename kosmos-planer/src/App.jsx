@@ -449,12 +449,14 @@ const parsePlannerBatch = (batch, config) => {
   if (!valRanges || valRanges.length < 3) return { speakers: [], moderators: [], stages: [], program: [] };
 
   const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag', 'cfp', 'cfp_dummy'];
-  // 26_Kosmos_SprecherInnen columns (A-AD):
+  // 26_Kosmos_SprecherInnen columns (A-AE):
   // A=Status_Einladung(0), B=Status_Backend(1), C=ID(2), D=Vorname(3), E=Nachname(4),
   // F=Pronomen(5), G=Organisation(6), H=Bio(7), I=Webseite(8), J=Update(9),
   // K=E-Mail(10), L=Telefon(11), M=Herkunft(12), N=Sprache(13),
-  // O=Registriert_am(14), P=Registriert_von(15), Q-Z=Financial/Travel,
-  // AA=Instagram(26), AB=LinkedIn(27), AC=Sonstige Social Media(28), AD=Zeitstempel(29)
+  // O=Registriert_am(14), P=Registriert_von(15), Q=Catering(16), R=Anreise(17),
+  // S=Hotel(18), T=Hotel_Nächte(19), U=Hotel_Daten(20), V=Honorar(21), W=Vertrag_Status(22),
+  // X-Z=(reserved 23-25), AA=Instagram(26), AB=LinkedIn(27), AC=Sonstige Social Media(28),
+  // AD=Zeitstempel(29), AE=Adresse(30)
   const speakerMap = new Map();
   // Debug: log all status values to see what's in the sheet
   if (import.meta.env.DEV) {
@@ -497,7 +499,17 @@ const parsePlannerBatch = (batch, config) => {
         sprache: safeString(r[13]),
         instagram: safeString(r[26]),
         linkedin: safeString(r[27]),
-        socialSonstiges: safeString(r[28])
+        socialSonstiges: safeString(r[28]),
+        telefon: safeString(r[11]),
+        registeredBy: safeString(r[15]),
+        catering: safeString(r[16]),
+        anreise: safeString(r[17]),
+        hotel: safeString(r[18]),
+        hotelNaechte: safeString(r[19]),
+        hotelDaten: safeString(r[20]),
+        honorar: safeString(r[21]),
+        vertragStatus: safeString(r[22]),
+        adresse: safeString(r[30])
       });
     }
   });
@@ -757,6 +769,8 @@ function App({ authenticatedUser }) {
   const [localChanges, setLocalChanges] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [expandedOrgEmail, setExpandedOrgEmail] = useState(null);
+  const [speakerDashFilter, setSpeakerDashFilter] = useState('ALL');
+  const [expandedSpeakerId, setExpandedSpeakerId] = useState(null);
   const [editingSession, setEditingSession] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
 
@@ -1015,7 +1029,7 @@ function App({ authenticatedUser }) {
       }
 
       const ranges = [
-        `'${config.sheetNameSpeakers}'!A2:AD`,       // index 0: Speakers (30 cols incl social + timestamp)
+        `'${config.sheetNameSpeakers}'!A2:AE`,       // index 0: Speakers (31 cols incl address)
         `'${config.sheetNameMods}'!A2:C`,            // index 1: Moderators
         `'${config.sheetNameStages}'!A2:H`,          // index 2: Stages
       ];
@@ -1594,6 +1608,19 @@ function App({ authenticatedUser }) {
         values: [[updatedSpeaker.instagram || '', updatedSpeaker.linkedin || '', updatedSpeaker.socialSonstiges || '']],
       }, token, config.curationApiUrl);
       if (!ok3) throw new Error(err3);
+      // Update phone (L)
+      await fetchSheets({
+        action: 'update', spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!L${rowNum}`,
+        values: [[updatedSpeaker.telefon || '']],
+      }, token, config.curationApiUrl);
+      // Update address (AE) — replace commas with semicolons for CSV safety
+      const safeAddress = (updatedSpeaker.adresse || '').replace(/,/g, ';');
+      await fetchSheets({
+        action: 'update', spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!AE${rowNum}`,
+        values: [[safeAddress]],
+      }, token, config.curationApiUrl);
       // If speaker became invisible, remove from all linked sessions
       if (becameInvisible) {
         const removed = await removeSpeakerFromSessions(updatedSpeaker.id, updatedSpeaker.fullName, token);
@@ -1638,6 +1665,12 @@ function App({ authenticatedUser }) {
         range: `'${config.sheetNameSpeakers}'!AA${rowNum}:AC${rowNum}`,
         values: [['', '', '']],
       }, token, config.curationApiUrl);
+      // Clear address (AE) — GDPR personal data
+      await fetchSheets({
+        action: 'update', spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!AE${rowNum}`,
+        values: [['']],
+      }, token, config.curationApiUrl);
       // 3) Remove from Config_Users — find row and clear it
       const email = authenticatedUser.email?.toLowerCase() || '';
       const configIdx = curationData.users.findIndex(u => u.email.toLowerCase() === email);
@@ -1674,6 +1707,7 @@ function App({ authenticatedUser }) {
       const nameParts = (newSpeaker.fullName || '').split(' ');
       const vorname = nameParts[0] || '';
       const nachname = nameParts.slice(1).join(' ') || '';
+      const safeAddr = (newSpeaker.adresse || '').replace(/,/g, ';');
       const row = [
         newSpeaker.status || 'CFP',  // A - Status_Einladung
         '',                           // B - Status_Backend
@@ -1686,7 +1720,7 @@ function App({ authenticatedUser }) {
         newSpeaker.webseite || '',    // I
         '',                           // J - Update
         newSpeaker.email || '',       // K - E-Mail
-        '',                           // L - Telefon
+        newSpeaker.telefon || '',     // L - Telefon
         newSpeaker.herkunft || '',    // M
         newSpeaker.sprache || '',     // N
         registeredAm,                 // O
@@ -1695,12 +1729,13 @@ function App({ authenticatedUser }) {
         newSpeaker.instagram || '',   // AA - Instagram
         newSpeaker.linkedin || '',    // AB - LinkedIn
         newSpeaker.socialSonstiges || '', // AC - Sonstige Social Media
-        registeredAm                  // AD - Zeitstempel
+        registeredAm,                 // AD - Zeitstempel
+        safeAddr                      // AE - Adresse
       ];
       const { ok, error } = await fetchSheets({
         action: 'append',
         spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameSpeakers}'!A2:AD`,
+        range: `'${config.sheetNameSpeakers}'!A2:AE`,
         values: [row],
       }, token, config.curationApiUrl);
       if (!ok) throw new Error(error || 'Registrierung fehlgeschlagen');
@@ -2248,6 +2283,11 @@ function App({ authenticatedUser }) {
                         </button>
                       )}
                     </div>
+                    {searchQuery && searchResults.length > 0 && (
+                      <div className="text-[10px] text-indigo-500 font-bold px-2 mt-0.5">
+                        🔍 {searchResults.length} Treffer ({searchResults.filter(id => data.program.find(p => p.id === id)?.stage !== INBOX_ID).length} auf Bühnen)
+                      </div>
+                    )}
                   </div>
                 )}
                 {!isMobile && (
@@ -2469,16 +2509,19 @@ function App({ authenticatedUser }) {
                         return (
                           <StageColumn key={stage.id} stage={stage} height={timelineHeight}>
                             {stageSessions.map(session => {
-                              // Search Highlighting (Dimming)
+                              // Search Highlighting (Dimming + Glow)
                               let isDimmed = false;
+                              let isMatch = false;
                               if (searchQuery) {
                                 const q = searchQuery.toLowerCase();
                                 const matches =
                                   safeString(session.title).toLowerCase().includes(q) ||
                                   safeString(session.id).toLowerCase().includes(q) ||
                                   safeString(session.speakers).toLowerCase().includes(q) ||
-                                  safeString(session.moderators).toLowerCase().includes(q);
+                                  safeString(session.moderators).toLowerCase().includes(q) ||
+                                  safeString(session.partner).replace(/^pending:/, '').toLowerCase().includes(q);
                                 if (!matches) isDimmed = true;
+                                else isMatch = true;
                               }
 
                               return (
@@ -2487,9 +2530,11 @@ function App({ authenticatedUser }) {
                                   session={session}
                                   style={{
                                     ...getPos(session.start, session.duration),
-                                    opacity: isDimmed ? 0.2 : 1,
-                                    filter: isDimmed ? 'grayscale(1)' : 'none',
-                                    transition: 'opacity 0.3s, filter 0.3s'
+                                    opacity: isDimmed ? 0.08 : 1,
+                                    filter: isDimmed ? 'grayscale(1) blur(1px)' : 'none',
+                                    boxShadow: isMatch ? '0 0 0 3px #6366f1, 0 0 12px rgba(99,102,241,0.4)' : '',
+                                    zIndex: isMatch ? 50 : undefined,
+                                    transition: 'opacity 0.3s, filter 0.3s, box-shadow 0.3s'
                                   }}
                                   onClick={() => { setEditingSession(session); setIsModalOpen(true) }}
                                   onToggleLock={(s) => updateSession(s.id, { status: s.status === 'Fixiert' ? 'Akzeptiert' : 'Fixiert' })}
@@ -2814,6 +2859,254 @@ function App({ authenticatedUser }) {
             </div>
           </div>
         )}
+
+        {viewMode === 'SPRECHERIN_DASHBOARD' && hasRole('ADMIN', 'REVIEWER') && (() => {
+          const allSpeakers = data.speakers || [];
+          const filterMap = {
+            'ALL': () => true,
+            'VORSCHLAG': s => (s.status || '').toLowerCase().includes('vorschlag'),
+            'AKZEPTIERT': s => (s.status || '').toLowerCase().includes('zusage') || (s.status || '').toLowerCase().includes('akzeptiert'),
+            'FIXIERT': s => (s.status || '').toLowerCase().includes('fixiert') || (s.status || '').toLowerCase().includes('eingeladen'),
+            'CFP': s => (s.status || '').toLowerCase().includes('cfp') && !(s.status || '').toLowerCase().includes('dummy'),
+            'DUMMY': s => (s.status || '').toLowerCase().includes('dummy'),
+          };
+          const filtered = allSpeakers.filter(filterMap[speakerDashFilter] || (() => true));
+          const filterTabs = [
+            { key: 'ALL', label: 'Alle', count: allSpeakers.length },
+            { key: 'CFP', label: 'CFP', count: allSpeakers.filter(filterMap.CFP).length },
+            { key: 'AKZEPTIERT', label: 'Zugesagt', count: allSpeakers.filter(filterMap.AKZEPTIERT).length },
+            { key: 'FIXIERT', label: 'Fixiert/Eingeladen', count: allSpeakers.filter(filterMap.FIXIERT).length },
+            { key: 'DUMMY', label: 'Dummies', count: allSpeakers.filter(filterMap.DUMMY).length },
+          ];
+
+          const updateSpeakerField = async (speaker, col, value) => {
+            const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
+            const idx = allSpeakers.findIndex(s => s.id === speaker.id);
+            if (idx < 0) return;
+            const rowNum = idx + 2;
+            try {
+              const { ok, error } = await fetchSheets({
+                action: 'update', spreadsheetId: config.spreadsheetId,
+                range: `'${config.sheetNameSpeakers}'!${col}${rowNum}`,
+                values: [[value]]
+              }, token, config.curationApiUrl);
+              if (!ok) throw new Error(error);
+              // Optimistic update
+              const fieldMap = { Q: 'catering', R: 'anreise', S: 'hotel', T: 'hotelNaechte', U: 'hotelDaten', V: 'honorar', W: 'vertragStatus' };
+              const field = fieldMap[col];
+              if (field) {
+                setData(prev => ({
+                  ...prev,
+                  speakers: prev.speakers.map(s => s.id === speaker.id ? { ...s, [field]: value } : s)
+                }));
+              }
+              setToast({ msg: `${speaker.fullName}: aktualisiert`, type: 'success' });
+              setTimeout(() => setToast(null), 2000);
+            } catch (e) {
+              setToast({ msg: `Fehler: ${e.message}`, type: 'error' });
+              setTimeout(() => setToast(null), 3000);
+            }
+          };
+
+          return (
+            <div className="flex flex-col h-full overflow-hidden">
+              <header className="bg-purple-900 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
+                <h1 className="font-bold flex items-center gap-2">🎤 SprecherInnen-Dashboard</h1>
+                <span className="text-xs text-purple-300">{filtered.length} / {allSpeakers.length} SprecherInnen</span>
+              </header>
+              <div className="flex-1 overflow-auto p-4">
+                <div className="max-w-6xl mx-auto">
+                  {/* Filter tabs */}
+                  <div className="flex flex-wrap gap-2 mb-4">
+                    {filterTabs.map(tab => (
+                      <button key={tab.key} onClick={() => { setSpeakerDashFilter(tab.key); setExpandedSpeakerId(null); }}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${speakerDashFilter === tab.key ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        {tab.label} ({tab.count})
+                      </button>
+                    ))}
+                  </div>
+
+                  {filtered.length === 0 ? (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center text-slate-400">
+                      <p className="text-sm">Keine SprecherInnen in dieser Kategorie.</p>
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200">
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Name</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Status</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Sessions</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Profil</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Catering</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Anreise</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Hotel</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Honorar</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Vertrag</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {filtered.map((spk, i) => {
+                              const isDummy = (spk.status || '').toLowerCase().includes('dummy');
+                              const isCreatedByOther = spk.registeredBy && spk.email && spk.registeredBy.toLowerCase() !== spk.email.toLowerCase();
+                              const profileComplete = Boolean(spk.bio && spk.telefon && spk.adresse);
+                              const spkSessions = data.program.filter(s => {
+                                const names = (s.speakers || '').toLowerCase();
+                                return names.includes((spk.fullName || '').toLowerCase()) || names.includes((spk.id || '').toLowerCase());
+                              });
+                              const isExpanded = expandedSpeakerId === spk.id;
+                              const isAdmin = hasRole('ADMIN');
+
+                              return (
+                                <React.Fragment key={spk.id || i}>
+                                  <tr className={`border-b border-slate-100 hover:bg-slate-50/50 cursor-pointer ${isExpanded ? 'bg-purple-50/30' : ''}`}
+                                    onClick={() => setExpandedSpeakerId(isExpanded ? null : spk.id)}>
+                                    <td className="py-2 px-3">
+                                      <div className="font-bold text-slate-800 text-xs">{spk.fullName || '—'}</div>
+                                      <div className="text-[10px] text-slate-400">{spk.email}</div>
+                                      {isDummy && isCreatedByOther && (
+                                        <div className="text-[9px] text-amber-600 font-bold mt-0.5">🤖 Dummy · erstellt von {spk.registeredBy}</div>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${isDummy ? 'bg-amber-100 text-amber-700' :
+                                        (spk.status || '').toLowerCase().includes('fixiert') ? 'bg-green-100 text-green-700' :
+                                          (spk.status || '').toLowerCase().includes('zusage') ? 'bg-blue-100 text-blue-700' :
+                                            'bg-slate-100 text-slate-600'
+                                        }`}>{spk.status || '—'}</span>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      <span className={`text-xs font-bold ${spkSessions.length > 0 ? 'text-purple-600' : 'text-slate-400'}`}>
+                                        {isExpanded ? '▼' : '▶'} {spkSessions.length}
+                                      </span>
+                                    </td>
+                                    <td className="py-2 px-3">
+                                      {profileComplete ? (
+                                        <span className="text-green-600 text-xs font-bold">✓</span>
+                                      ) : (
+                                        <span className="text-amber-600 text-xs font-bold" title={`${!spk.bio ? 'Bio fehlt ' : ''}${!spk.telefon ? 'Tel fehlt ' : ''}${!spk.adresse ? 'Adresse fehlt' : ''}`}>⚠️</span>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                                      {isAdmin ? (
+                                        <button onClick={() => updateSpeakerField(spk, 'Q', spk.catering === 'ja' ? 'nein' : 'ja')}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${spk.catering === 'ja' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                                          {spk.catering === 'ja' ? '✓ Ja' : '—'}
+                                        </button>
+                                      ) : (
+                                        <span className="text-[10px] text-slate-500">{spk.catering || '—'}</span>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                                      {isAdmin ? (
+                                        <select value={spk.anreise || ''} onChange={e => updateSpeakerField(spk, 'R', e.target.value)}
+                                          className="text-[10px] border rounded px-1 py-0.5">
+                                          <option value="">—</option>
+                                          <option value="selbst">selbst</option>
+                                          <option value="gebucht">gebucht</option>
+                                        </select>
+                                      ) : (
+                                        <span className="text-[10px] text-slate-500">{spk.anreise || '—'}</span>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                                      {isAdmin ? (
+                                        <div className="flex items-center gap-1">
+                                          <button onClick={() => updateSpeakerField(spk, 'S', spk.hotel === 'ja' ? 'nein' : 'ja')}
+                                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${spk.hotel === 'ja' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                                            {spk.hotel === 'ja' ? '✓' : '—'}
+                                          </button>
+                                          {spk.hotel === 'ja' && (
+                                            <span className="text-[9px] text-slate-500">{spk.hotelNaechte || '?'} N.</span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        <span className="text-[10px] text-slate-500">{spk.hotel || '—'} {spk.hotel === 'ja' && `(${spk.hotelNaechte || '?'}N)`}</span>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                                      {isAdmin ? (
+                                        <input type="text" defaultValue={spk.honorar || ''} placeholder="€"
+                                          onBlur={e => { if (e.target.value !== (spk.honorar || '')) updateSpeakerField(spk, 'V', e.target.value); }}
+                                          className="w-16 text-[10px] border rounded px-1 py-0.5" />
+                                      ) : (
+                                        <span className="text-[10px] text-slate-500">{spk.honorar || '—'}</span>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                                      {isAdmin ? (
+                                        <select value={spk.vertragStatus || ''} onChange={e => updateSpeakerField(spk, 'W', e.target.value)}
+                                          className={`text-[10px] border rounded px-1 py-0.5 font-bold ${spk.vertragStatus === 'unterschrieben' ? 'text-green-700' : ''}`}>
+                                          <option value="">—</option>
+                                          <option value="ausstehend">ausstehend</option>
+                                          <option value="unterschrieben">unterschrieben</option>
+                                        </select>
+                                      ) : (
+                                        <span className={`text-[10px] font-bold ${spk.vertragStatus === 'unterschrieben' ? 'text-green-700' : 'text-slate-500'}`}>{spk.vertragStatus || '—'}</span>
+                                      )}
+                                    </td>
+                                  </tr>
+                                  {isExpanded && (
+                                    <tr>
+                                      <td colSpan="9" className="bg-slate-50 px-3 py-3">
+                                        <div className="grid grid-cols-2 gap-4 mb-3 text-[10px] text-slate-500">
+                                          <div><strong>📞 Telefon:</strong> {spk.telefon || '—'}</div>
+                                          <div><strong>🏠 Adresse:</strong> {spk.adresse || '—'}</div>
+                                          <div><strong>🌐 Webseite:</strong> {spk.webseite || '—'}</div>
+                                          <div><strong>🗣️ Sprache:</strong> {spk.sprache || '—'}</div>
+                                          {spk.hotel === 'ja' && <div><strong>🏨 Hotel-Daten:</strong> {spk.hotelDaten || '—'}
+                                            {isAdmin && <input type="text" defaultValue={spk.hotelDaten || ''} placeholder="Daten..."
+                                              onBlur={e => { if (e.target.value !== (spk.hotelDaten || '')) updateSpeakerField(spk, 'U', e.target.value); }}
+                                              className="ml-2 w-32 border rounded px-1 py-0.5 text-[10px]" />}
+                                          </div>}
+                                          {spk.hotel === 'ja' && isAdmin && <div><strong>🏨 Nächte:</strong>
+                                            <input type="number" defaultValue={spk.hotelNaechte || ''} placeholder="0" min="0"
+                                              onBlur={e => { if (e.target.value !== (spk.hotelNaechte || '')) updateSpeakerField(spk, 'T', e.target.value); }}
+                                              className="ml-2 w-12 border rounded px-1 py-0.5 text-[10px]" />
+                                          </div>}
+                                        </div>
+                                        {spkSessions.length > 0 ? (
+                                          <div className="space-y-2">
+                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Sessions ({spkSessions.length})</p>
+                                            {spkSessions.map((session, si) => {
+                                              const stageName = data.stages.find(s => s.id === session.stage)?.name || '';
+                                              return (
+                                                <div key={session.id || si}
+                                                  onClick={() => { setEditingSession(session); setIsModalOpen(true); }}
+                                                  className="border rounded-lg p-2 cursor-pointer hover:shadow-md transition-shadow bg-white border-slate-200">
+                                                  <div className="flex items-center justify-between gap-2">
+                                                    <span className="text-xs font-bold text-slate-800">{session.title || 'Ohne Titel'}</span>
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-100 text-slate-600">{session.status || 'Vorschlag'}</span>
+                                                  </div>
+                                                  <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
+                                                    {stageName && <span className="bg-slate-100 px-1 py-0.5 rounded font-bold">{stageName}</span>}
+                                                    {session.start && session.start !== '-' && <span>🕐 {session.start}</span>}
+                                                  </div>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        ) : (
+                                          <p className="text-[10px] text-slate-400">Keine Sessions verknüpft.</p>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  )}
+                                </React.Fragment>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {viewMode === 'PRODUCTION' && (
           <div className="flex flex-col h-full overflow-hidden">
@@ -3271,6 +3564,13 @@ function App({ authenticatedUser }) {
         {hasRole('ADMIN', 'REVIEWER') && (
           <button onClick={() => setViewMode('ORG_DASHBOARD')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ORG_DASHBOARD' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             🏢 Organisationen
+          </button>
+        )}
+
+        {/* SprecherInnen Dashboard: ADMIN, REVIEWER */}
+        {hasRole('ADMIN', 'REVIEWER') && (
+          <button onClick={() => setViewMode('SPRECHERIN_DASHBOARD')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SPRECHERIN_DASHBOARD' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+            🎤 SprecherInnen
           </button>
         )}
 

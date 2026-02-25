@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Save, Globe, MapPin, Languages, Building2, FileText, Camera, Loader2, CheckCircle2, UserPlus, Eye, EyeOff, Link2, Trash2, AlertTriangle } from 'lucide-react';
+import { User, Save, Globe, MapPin, Languages, Building2, FileText, Camera, Loader2, CheckCircle2, UserPlus, Eye, EyeOff, Link2, Trash2, AlertTriangle, Phone, Home } from 'lucide-react';
 
 /**
  * Field — Reusable form field wrapper. Defined OUTSIDE SpeakerProfile
@@ -36,6 +36,8 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
         linkedin: '',
         instagram: '',
         socialSonstiges: '',
+        telefon: '',
+        adresse: '',
         auswaehlbar: true // toggle: visible as speaker in picker
     });
     const [saving, setSaving] = useState(false);
@@ -43,6 +45,7 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
     const [hasChanges, setHasChanges] = useState(false);
     const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
     const [deleting, setDeleting] = useState(false);
+    const [validationErrors, setValidationErrors] = useState({});
 
     useEffect(() => {
         if (!speaker) {
@@ -65,6 +68,8 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
             linkedin: speaker.linkedin || '',
             instagram: speaker.instagram || '',
             socialSonstiges: speaker.socialSonstiges || '',
+            telefon: speaker.telefon || '',
+            adresse: speaker.adresse || '',
             auswaehlbar: !statusLower.includes('teilnehm') // CFP_Teilnehmerin = not selectable as speaker
         });
         setHasChanges(false);
@@ -78,6 +83,15 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
 
     const handleSave = async () => {
         if (!form.vorname && !form.nachname) return;
+        // Validate required fields
+        const errs = {};
+        if (!form.telefon.trim()) errs.telefon = 'Telefonnummer ist erforderlich';
+        if (!form.adresse.trim()) errs.adresse = 'Adresse ist erforderlich';
+        if (Object.keys(errs).length > 0) {
+            setValidationErrors(errs);
+            return;
+        }
+        setValidationErrors({});
         setSaving(true);
         try {
             if (isNew && onRegister) {
@@ -95,6 +109,8 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                     linkedin: form.linkedin,
                     instagram: form.instagram,
                     socialSonstiges: form.socialSonstiges,
+                    telefon: form.telefon,
+                    adresse: form.adresse,
                     status: form.auswaehlbar ? 'CFP' : 'CFP_Teilnehmerin'
                 });
             } else if (onSave && speaker) {
@@ -111,6 +127,8 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                     linkedin: form.linkedin,
                     instagram: form.instagram,
                     socialSonstiges: form.socialSonstiges,
+                    telefon: form.telefon,
+                    adresse: form.adresse,
                     status: form.auswaehlbar
                         ? ((speaker.status || '').toLowerCase().includes('teilnehm') ? 'CFP' : speaker.status)
                         : 'CFP_Teilnehmerin'
@@ -228,6 +246,20 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                         <Field label="Herkunft" icon={MapPin}>
                             <input type="text" value={form.herkunft} onChange={e => handleChange('herkunft', e.target.value)}
                                 placeholder="Stadt, Land" className={inputCls} />
+                        </Field>
+                    </div>
+
+                    {/* Telefon + Adresse (Pflichtfelder) */}
+                    <div className="grid grid-cols-2 gap-4">
+                        <Field label="Telefon *" icon={Phone}>
+                            <input type="tel" value={form.telefon} onChange={e => handleChange('telefon', e.target.value)}
+                                placeholder="+49 123 456789" className={`${inputCls} ${validationErrors.telefon ? 'border-red-400 ring-2 ring-red-100' : ''}`} />
+                            {validationErrors.telefon && <span className="text-xs text-red-500 mt-1">{validationErrors.telefon}</span>}
+                        </Field>
+                        <Field label="Adresse *" icon={Home}>
+                            <input type="text" value={form.adresse} onChange={e => handleChange('adresse', e.target.value)}
+                                placeholder="Straße, PLZ Ort" className={`${inputCls} ${validationErrors.adresse ? 'border-red-400 ring-2 ring-red-100' : ''}`} />
+                            {validationErrors.adresse && <span className="text-xs text-red-500 mt-1">{validationErrors.adresse}</span>}
                         </Field>
                     </div>
 
