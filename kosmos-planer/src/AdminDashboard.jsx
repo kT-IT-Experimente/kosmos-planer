@@ -212,7 +212,7 @@ export default function AdminDashboard({
                                         <td className="py-4 px-2 font-medium text-slate-700">{user.email}</td>
                                         <td className="py-4 px-2">
                                             <div className="flex flex-wrap gap-1">
-                                                {['ADMIN', 'CURATOR', 'REVIEWER', 'SPRECHERIN', 'TEILNEHMENDE', 'SPEAKER', 'PRODUCTION', 'PARTNER', 'BAND', 'GUEST'].map(role => {
+                                                {['ADMIN', 'CURATOR', 'REVIEWER', 'ORGANISATION', 'SPRECHERIN', 'TEILNEHMENDE', 'SPEAKER', 'PRODUCTION', 'BAND', 'GUEST'].map(role => {
                                                     const userRolesArr = (user.role || '').split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
                                                     const hasThis = userRolesArr.includes(role);
                                                     return (

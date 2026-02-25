@@ -313,7 +313,7 @@ function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConfl
         <div className="flex items-center gap-2 text-[9px] text-slate-400 pt-1 border-t border-black/5 mt-1">
           <span className="font-mono text-slate-300 text-[8px]">{session.id}</span>
           {session.language && <span className="flex items-center gap-0.5 ml-auto font-bold text-slate-500">{session.language.toUpperCase()}</span>}
-          {session.partner === 'TRUE' && <span className="flex items-center gap-0.5 truncate text-blue-600 font-bold bg-blue-50 px-1 rounded border border-blue-100"><Flag className="w-2.5 h-2.5" /> Partner</span>}
+          {session.partner && session.partner !== 'FALSE' && <span className="flex items-center gap-0.5 truncate text-blue-600 font-bold bg-blue-50 px-1 rounded border border-blue-100"><Flag className="w-2.5 h-2.5" /> {session.partner}</span>}
           {session.notes && (
             <div
               className="ml-1 text-blue-500 cursor-help"
@@ -585,7 +585,7 @@ const parsePlannerBatch = (batch, config) => {
         rowIndex: i + 2,
         title: safeString(r[4]),
         status: normalizeStatus(r[3]),
-        partner: (safeString(r[18]) === 'TRUE' || safeString(r[18]) === 'P') ? 'TRUE' : 'FALSE', // Col S
+        partner: safeString(r[18]) || '', // Col S = Partner/Organisation name (string)
         format: safeString(r[7]) || 'Talk',
         stage: stage,
         start: finalStart,
@@ -618,7 +618,7 @@ const parsePlannerBatch = (batch, config) => {
 
 
   // --- Parse Config_Themen (valRanges[5]) ---
-  // Columns: A=Bereiche, B=Themen, C=Tags, D=Formate
+  // Columns: A=Bereiche, B=Themen, C=Tags, D=Formate, E=MaxSubmissions
   const configRows = (valRanges[5] && valRanges[5].values) ? valRanges[5].values : [];
   const configThemen = {
     bereiche: [...new Set(configRows.map(r => safeString(r[0])).filter(Boolean))],
@@ -627,6 +627,21 @@ const parsePlannerBatch = (batch, config) => {
     formate: [...new Set(configRows.map(r => safeString(r[3])).filter(Boolean))],
     maxSubmissions: (() => { const v = configRows.find(r => safeString(r[4])); return v ? (parseInt(safeString(v[4])) || 5) : 5; })(),
   };
+
+  // --- Parse Config_Organisations (valRanges[9]) ---
+  // Columns: A=Email, B=Name, C=Beschreibung, D=Webseite, E=Logo_URL, F=Instagram, G=LinkedIn, H=Social_Sonstiges
+  const orgRows = (valRanges[9] && valRanges[9].values) ? valRanges[9].values : [];
+  const organisations = orgRows.filter(r => r[0]).map((r, i) => ({
+    rowIndex: i + 2,
+    email: safeString(r[0]),
+    name: safeString(r[1]),
+    beschreibung: safeString(r[2]),
+    webseite: safeString(r[3]),
+    logoUrl: safeString(r[4]),
+    instagram: safeString(r[5]),
+    linkedin: safeString(r[6]),
+    socialSonstiges: safeString(r[7])
+  }));
 
   // --- Parse Master_Ratings (valRanges[6]) ---
   // Columns: A=Zeitstempel, B=Session_ID, C=Reviewer_Email, D=Score, E=Kommentar, F=Kategorie
@@ -645,10 +660,10 @@ const parsePlannerBatch = (batch, config) => {
     });
   });
 
-  return { speakers: sp, moderators: mo, stages: st, program: pr, submissions, configThemen, ratings: ratingsMap };
+  return { speakers: sp, moderators: mo, stages: st, program: pr, submissions, configThemen, ratings: ratingsMap, organisations };
 };
 function App({ authenticatedUser }) {
-  const [data, setData] = useState({ speakers: [], moderators: [], program: [], stages: [], submissions: [], configThemen: { bereiche: [], themen: [], tags: [], formate: [] }, ratings: {} });
+  const [data, setData] = useState({ speakers: [], moderators: [], program: [], stages: [], submissions: [], organisations: [], configThemen: { bereiche: [], themen: [], tags: [], formate: [] }, ratings: {} });
   const [status, setStatus] = useState({ loading: false, error: null });
 
   // Simplified config - no more complex auth initialization
@@ -810,7 +825,7 @@ function App({ authenticatedUser }) {
     data.program.forEach(s => {
       if (s.stage !== INBOX_ID && s.start !== '-') {
         totalPlacedSessions++;
-        if (s.partner === 'TRUE') partnerSessions++;
+        if (s.partner && s.partner !== 'FALSE') partnerSessions++;
 
         // Track occupancy
         if (stageMinutesUsed[s.stage] !== undefined) {
@@ -1007,6 +1022,7 @@ function App({ authenticatedUser }) {
       ranges.push(`'Master_Ratings'!A2:F`);                 // index 6: Ratings
       ranges.push(`'Config_Users'!A2:C`);                   // index 7: Users (email, role, name)
       ranges.push(`'Config_Users'!D1:D1`);                   // index 8: Open Call status
+      ranges.push(`'Config_Organisations'!A2:H`);           // index 9: Organisations
 
       if (import.meta.env.DEV) console.log('[loadData] Final ranges to fetch:', ranges);
 
@@ -1219,7 +1235,7 @@ function App({ authenticatedUser }) {
 
   // Effective role: derived from Config_Users list (sheet source of truth)
   // Role priority (highest first) — used to pick the "primary" display role
-  const ROLE_PRIORITY = ['ADMIN', 'CURATOR', 'REVIEWER', 'PRODUCTION', 'SPEAKER', 'TEILNEHMENDE', 'PARTNER', 'BAND', 'GUEST'];
+  const ROLE_PRIORITY = ['ADMIN', 'CURATOR', 'REVIEWER', 'PRODUCTION', 'SPEAKER', 'ORGANISATION', 'TEILNEHMENDE', 'BAND', 'GUEST'];
 
   // Parse all roles from comma-separated string
   const userRoles = (() => {
@@ -1244,6 +1260,12 @@ function App({ authenticatedUser }) {
     // 4. Auto-detect: has user submitted sessions?
     const hasSubmissions = data.submissions.some(s => s.submitterEmail?.toLowerCase() === email);
     if (hasSubmissions && !roles.includes('TEILNEHMENDE')) roles.push('TEILNEHMENDE');
+    // 5. Auto-detect: is user in Config_Organisations?
+    const isOrg = data.organisations?.some(o => o.email?.toLowerCase() === email);
+    if (isOrg && !roles.includes('ORGANISATION')) roles.push('ORGANISATION');
+    // Normalize old PARTNER role to ORGANISATION
+    const partnerIdx = roles.indexOf('PARTNER');
+    if (partnerIdx >= 0) { roles[partnerIdx] = 'ORGANISATION'; }
     return roles.length > 0 ? roles : ['GUEST'];
   })();
 
@@ -1258,6 +1280,12 @@ function App({ authenticatedUser }) {
     const email = authenticatedUser.email?.toLowerCase() || '';
     return data.speakers.find(s => s.email?.toLowerCase() === email) || null;
   }, [data.speakers, authenticatedUser.email]);
+
+  // My organisation record (for org profile editing)
+  const myOrgRecord = useMemo(() => {
+    const email = authenticatedUser.email?.toLowerCase() || '';
+    return data.organisations?.find(o => o.email?.toLowerCase() === email) || null;
+  }, [data.organisations, authenticatedUser.email]);
 
   // My submissions (for Einreichung dashboard)
   const mySubmissions = useMemo(() => {
@@ -1276,6 +1304,17 @@ function App({ authenticatedUser }) {
     });
   }, [data.program, mySpeakerRecord]);
 
+  // My org sessions (sessions where partner field matches my org name)
+  const myOrgSessions = useMemo(() => {
+    if (!myOrgRecord) return [];
+    const orgName = myOrgRecord.name?.toLowerCase() || '';
+    if (!orgName) return [];
+    return data.program.filter(session => {
+      const partner = (session.partner || '').toLowerCase();
+      return partner === orgName;
+    });
+  }, [data.program, myOrgRecord]);
+
   // Set default view based on role (once data loaded)
   const [initialRedirectDone, setInitialRedirectDone] = useState(false);
   useEffect(() => {
@@ -1293,6 +1332,12 @@ function App({ authenticatedUser }) {
       } else {
         setViewMode('SUBMIT');
       }
+      setInitialRedirectDone(true);
+      return;
+    }
+    // ORGANISATION → show org sessions
+    if (hasRole('ORGANISATION') && !hasRole('ADMIN', 'CURATOR')) {
+      setViewMode('ORG_SESSIONS');
       setInitialRedirectDone(true);
       return;
     }
@@ -1832,7 +1877,7 @@ function App({ authenticatedUser }) {
             p.stage === INBOX_ID ? '' : safeString(p.stage),  // P: Bühne
             p.start === '-' ? '' : p.start,                   // Q: Startzeit
             p.start === '-' ? '' : calculateEndTime(p.start, p.duration), // R: Endzeit
-            p.partner === 'TRUE' ? 'TRUE' : '',               // S: Partner
+            safeString(p.partner),                             // S: Partner/Org name
             safeString(p.stageDispo),                          // T: Stage_Dispo
             safeString(p.tags),                                // U: Tags
             modsStr,                                           // V: Moderators
@@ -2714,6 +2759,162 @@ function App({ authenticatedUser }) {
                   </div>
                 )}
               </div>
+            ) : hasRole('ORGANISATION') && viewMode === 'ORG_SESSIONS' ? (
+              /* ORGANISATION: sessions linked via partner field */
+              <div className="max-w-3xl mx-auto space-y-6">
+                {/* Org Profile Card */}
+                {myOrgRecord && (
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <div className="flex items-center gap-4 mb-4">
+                      {myOrgRecord.logoUrl && (
+                        <img src={myOrgRecord.logoUrl} alt={myOrgRecord.name} className="w-16 h-16 rounded-lg object-cover border border-slate-200" />
+                      )}
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-800">{myOrgRecord.name || 'Meine Organisation'}</h2>
+                        {myOrgRecord.webseite && <a href={myOrgRecord.webseite} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline">{myOrgRecord.webseite}</a>}
+                      </div>
+                      <button onClick={() => setViewMode('ORG_PROFILE')} className="ml-auto px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors">
+                        Profil bearbeiten
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-2">
+                  <span className="text-amber-600 text-lg">⚠️</span>
+                  <p className="text-sm text-amber-800"><strong>Hinweis:</strong> Zeiten und Bühnen sind vorläufig, solange eine Session nicht den Status <strong className="text-green-700">fixiert</strong> hat.</p>
+                </div>
+                {myOrgSessions.length > 0 ? (
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                    <h2 className="text-lg font-bold text-slate-800 mb-4">🏢 Partner-Sessions ({myOrgSessions.length})</h2>
+                    <div className="space-y-3">
+                      {myOrgSessions.map((session, i) => {
+                        const statusLower = (session.status || '').toLowerCase();
+                        const isFixed = statusLower === 'fixiert';
+                        const isAccepted = statusLower === 'akzeptiert';
+                        const isVorschlag = !isFixed && !isAccepted;
+                        const stageName = data.stages.find(s => s.id === session.stage)?.name || session.stage;
+                        const showSchedule = !isVorschlag;
+                        return (
+                          <div key={session.id || i} className={`border rounded-lg p-4 ${isFixed ? 'border-green-200 bg-green-50/30' : isAccepted ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200'}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="font-bold text-sm text-slate-800">{session.title || 'Ohne Titel'}</h3>
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${isFixed ? 'bg-green-100 text-green-700' : isAccepted ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {isFixed ? '✓ Fixiert' : isAccepted ? '✓ Akzeptiert' : session.status || 'Vorschlag'}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500">
+                              {showSchedule && stageName && <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
+                              {session.format && <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">{session.format}</span>}
+                              {showSchedule && session.start && session.start !== '-' && (
+                                <span className={`flex items-center gap-1 ${isFixed ? 'text-green-700 font-bold' : 'text-blue-600 italic'}`}>
+                                  🕐 {session.start} – {session.end || ''} {!isFixed && '(Planungsstand)'}
+                                </span>
+                              )}
+                              {session.duration && <span>{session.duration} min</span>}
+                              {session.speakers && <span>🎤 {session.speakers}</span>}
+                            </div>
+                            {isAccepted && (
+                              <p className="mt-2 text-[10px] text-blue-500 italic">ℹ️ Zeiten und Bühne können sich noch ändern.</p>
+                            )}
+                            {isVorschlag && (
+                              <p className="mt-2 text-[10px] text-slate-400 italic">Bühne und Zeiten werden nach der Kuration zugewiesen.</p>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center text-slate-400">
+                    <p className="text-sm">Noch keine Sessions mit deiner Organisation verknüpft.</p>
+                  </div>
+                )}
+              </div>
+            ) : hasRole('ORGANISATION') && viewMode === 'ORG_PROFILE' ? (
+              /* ORGANISATION: Profile editing */
+              <div className="max-w-2xl mx-auto">
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                  <h2 className="text-lg font-bold text-slate-800 mb-4">🏢 Organisations-Profil</h2>
+                  <form onSubmit={async (e) => {
+                    e.preventDefault();
+                    const fd = new FormData(e.target);
+                    const row = [
+                      authenticatedUser.email || '',
+                      fd.get('orgName') || '',
+                      fd.get('orgBeschreibung') || '',
+                      fd.get('orgWebseite') || '',
+                      fd.get('orgLogoUrl') || '',
+                      fd.get('orgInstagram') || '',
+                      fd.get('orgLinkedin') || '',
+                      fd.get('orgSocialSonstiges') || ''
+                    ];
+                    try {
+                      const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
+                      const rowIdx = myOrgRecord?.rowIndex || (data.organisations.length + 2);
+                      const action = myOrgRecord ? 'update' : 'append';
+                      const range = myOrgRecord
+                        ? `'Config_Organisations'!A${rowIdx}:H${rowIdx}`
+                        : `'Config_Organisations'!A2:H`;
+                      const { ok, error } = await fetchSheets({
+                        action, spreadsheetId: config.spreadsheetId, range, values: [row]
+                      }, token, config.curationApiUrl);
+                      if (!ok) throw new Error(error);
+                      setToast({ msg: 'Profil gespeichert!', type: 'success' });
+                      setTimeout(() => setToast(null), 3000);
+                      // Optimistic update
+                      setData(prev => {
+                        const newOrg = { rowIndex: rowIdx, email: row[0], name: row[1], beschreibung: row[2], webseite: row[3], logoUrl: row[4], instagram: row[5], linkedin: row[6], socialSonstiges: row[7] };
+                        const orgs = myOrgRecord
+                          ? prev.organisations.map(o => o.email?.toLowerCase() === authenticatedUser.email?.toLowerCase() ? newOrg : o)
+                          : [...prev.organisations, newOrg];
+                        return { ...prev, organisations: orgs };
+                      });
+                      setViewMode('ORG_SESSIONS');
+                    } catch (err) {
+                      setToast({ msg: `Fehler: ${err.message}`, type: 'error' });
+                      setTimeout(() => setToast(null), 3000);
+                    }
+                  }} className="space-y-4">
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Name der Organisation</label>
+                      <input name="orgName" defaultValue={myOrgRecord?.name || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" required />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Beschreibung</label>
+                      <textarea name="orgBeschreibung" defaultValue={myOrgRecord?.beschreibung || ''} rows={4} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Webseite</label>
+                        <input name="orgWebseite" defaultValue={myOrgRecord?.webseite || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" placeholder="https://..." />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Logo URL</label>
+                        <input name="orgLogoUrl" defaultValue={myOrgRecord?.logoUrl || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" placeholder="https://..." />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-4">
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Instagram</label>
+                        <input name="orgInstagram" defaultValue={myOrgRecord?.instagram || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" placeholder="@handle" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">LinkedIn</label>
+                        <input name="orgLinkedin" defaultValue={myOrgRecord?.linkedin || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" />
+                      </div>
+                      <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Sonstiges</label>
+                        <input name="orgSocialSonstiges" defaultValue={myOrgRecord?.socialSonstiges || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2 pt-2">
+                      <button type="submit" className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors">💾 Speichern</button>
+                      <button type="button" onClick={() => setViewMode('ORG_SESSIONS')} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition-colors">Abbrechen</button>
+                    </div>
+                  </form>
+                </div>
+              </div>
             ) : (
               <SessionSubmission
                 speakers={hasRole('ADMIN', 'CURATOR', 'REVIEWER')
@@ -2823,6 +3024,13 @@ function App({ authenticatedUser }) {
         {hasRole('ADMIN', 'SPEAKER', 'TEILNEHMENDE') && (
           <button onClick={() => setViewMode('PROFILE')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PROFILE' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <User className="w-3.5 h-3.5" /> Profil
+          </button>
+        )}
+
+        {/* Organisation: ORGANISATION role */}
+        {hasRole('ORGANISATION') && (
+          <button onClick={() => setViewMode('ORG_SESSIONS')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ORG_SESSIONS' || viewMode === 'ORG_PROFILE' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+            🏢 Organisation
           </button>
         )}
 
