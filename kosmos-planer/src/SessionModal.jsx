@@ -5,12 +5,12 @@ import { INBOX_ID, generateId, timeToMinutes } from './utils';
 // Fallback lists in case Config_Themen has not yet loaded
 const FALLBACK_FORMATE = ['Talk', 'Panel', 'Workshop', 'Vortrag', 'Keynote', 'Lightning Talk'];
 
-function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList, configThemen = { bereiche: [], themen: [], tags: [], formate: [] } }) {
+function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList, configThemen = { bereiche: [], themen: [], tags: [], formate: [] }, organisations = [] }) {
     const [formData, setFormData] = useState({
         id: '', title: '', start: '10:00', duration: 60, stage: INBOX_ID,
         status: '5_Vorschlag', format: '', bereich: '', thema: '',
         speakers: [], moderators: [], day: '20.09.',
-        partner: 'FALSE', language: 'de', notes: '', stageDispo: '',
+        partner: '', language: 'de', notes: '', stageDispo: '',
         shortDescription: '', description: ''
     });
     const [searchTermSp, setSearchTermSp] = useState('');
@@ -44,7 +44,7 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
                 id: generateId(), title: '', start: '10:00', duration: 60, stage: INBOX_ID,
                 status: '5_Vorschlag', format: '', bereich: '', thema: '',
                 speakers: [], moderators: [], day: '20.09.',
-                partner: 'FALSE', language: 'de', notes: '', stageDispo: '',
+                partner: '', language: 'de', notes: '', stageDispo: '',
                 shortDescription: '', description: ''
             });
         }
@@ -120,10 +120,10 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
                             <div className="col-span-4">
                                 <label className={labelStd}>Status</label>
                                 <select className={inputStd} value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value })}>
-                                    <option value="5_Vorschlag">🟡 Vorschlag</option>
-                                    <option value="2_Planung">🔵 Planung</option>
-                                    <option value="1_Zusage">🟢 Zusage</option>
-                                    <option value="Fixiert">🔴 Fixiert</option>
+                                    <option value="Vorschlag">🟡 Vorschlag</option>
+                                    <option value="Akzeptiert">🔵 Akzeptiert</option>
+                                    <option value="Eingeladen">🟠 Eingeladen</option>
+                                    <option value="Fixiert">🟢 Fixiert</option>
                                 </select>
                             </div>
                         </div>
@@ -148,14 +148,17 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
                                     <option value="de/en">DE/EN</option>
                                 </select>
                             </div>
-                            <div className="flex flex-col justify-end pb-2">
-                                <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-50 p-2 rounded border border-slate-200 hover:border-blue-300 transition-colors">
-                                    <div className={`w-10 h-5 rounded-full relative transition-colors ${formData.partner === 'TRUE' ? 'bg-blue-600' : 'bg-slate-300'}`}>
-                                        <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${formData.partner === 'TRUE' ? 'translate-x-5' : ''}`}></div>
-                                    </div>
-                                    <input type="checkbox" className="hidden" checked={formData.partner === 'TRUE'} onChange={e => setFormData({ ...formData, partner: e.target.checked ? 'TRUE' : 'FALSE' })} />
-                                    <span className="text-sm font-medium text-slate-700">Partner-Session</span>
-                                </label>
+                            <div>
+                                <label className={labelStd}>Organisation / Partner</label>
+                                <select className={inputStd} value={formData.partner || ''} onChange={e => setFormData({ ...formData, partner: e.target.value })}>
+                                    <option value="">— keine —</option>
+                                    {organisations.filter(o => o.status === 'bestätigt' || o.name === formData.partner).map(o => (
+                                        <option key={o.email} value={o.name}>{o.name}</option>
+                                    ))}
+                                    {formData.partner && !organisations.some(o => o.name === formData.partner) && (
+                                        <option value={formData.partner}>{formData.partner} (manuell)</option>
+                                    )}
+                                </select>
                             </div>
                         </div>
 

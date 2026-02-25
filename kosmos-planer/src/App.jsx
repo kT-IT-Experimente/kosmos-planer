@@ -629,7 +629,7 @@ const parsePlannerBatch = (batch, config) => {
   };
 
   // --- Parse Config_Organisations (valRanges[9]) ---
-  // Columns: A=Email, B=Name, C=Beschreibung, D=Webseite, E=Logo_URL, F=Instagram, G=LinkedIn, H=Social_Sonstiges
+  // Columns: A=Email, B=Name, C=Beschreibung, D=Webseite, E=Logo_URL, F=Instagram, G=LinkedIn, H=Social_Sonstiges, I=Status
   const orgRows = (valRanges[9] && valRanges[9].values) ? valRanges[9].values : [];
   const organisations = orgRows.filter(r => r[0]).map((r, i) => ({
     rowIndex: i + 2,
@@ -640,7 +640,8 @@ const parsePlannerBatch = (batch, config) => {
     logoUrl: safeString(r[4]),
     instagram: safeString(r[5]),
     linkedin: safeString(r[6]),
-    socialSonstiges: safeString(r[7])
+    socialSonstiges: safeString(r[7]),
+    status: safeString(r[8]) || 'ausstehend' // 'bestätigt' or 'ausstehend'
   }));
 
   // --- Parse Master_Ratings (valRanges[6]) ---
@@ -1022,7 +1023,7 @@ function App({ authenticatedUser }) {
       ranges.push(`'Master_Ratings'!A2:F`);                 // index 6: Ratings
       ranges.push(`'Config_Users'!A2:C`);                   // index 7: Users (email, role, name)
       ranges.push(`'Config_Users'!D1:D1`);                   // index 8: Open Call status
-      ranges.push(`'Config_Organisations'!A2:H`);           // index 9: Organisations
+      ranges.push(`'Config_Organisations'!A2:I`);           // index 9: Organisations (incl status col I)
 
       if (import.meta.env.DEV) console.log('[loadData] Final ranges to fetch:', ranges);
 
@@ -2672,6 +2673,105 @@ function App({ authenticatedUser }) {
           </div>
         )}
 
+        {viewMode === 'ORG_DASHBOARD' && hasRole('ADMIN', 'REVIEWER') && (
+          <div className="flex flex-col h-full overflow-hidden">
+            <header className="bg-blue-900 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
+              <h1 className="font-bold flex items-center gap-2">🏢 Organisations-Dashboard</h1>
+              <span className="text-xs text-blue-300">{(data.organisations || []).length} Organisationen</span>
+            </header>
+            <div className="flex-1 overflow-auto p-4">
+              <div className="max-w-5xl mx-auto">
+                {(data.organisations || []).length === 0 ? (
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center text-slate-400">
+                    <p className="text-sm">Noch keine Organisationen in Config_Organisations hinterlegt.</p>
+                  </div>
+                ) : (
+                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase">Organisation</th>
+                          <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase">E-Mail</th>
+                          <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase">Status</th>
+                          <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase">Sessions</th>
+                          <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase">Links</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(data.organisations || []).map((org, i) => {
+                          const orgSessions = data.program.filter(s => (s.partner || '').toLowerCase() === (org.name || '').toLowerCase());
+                          const isConfirmed = org.status === 'bestätigt';
+                          return (
+                            <tr key={org.email || i} className="border-b border-slate-100 hover:bg-slate-50/50">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-3">
+                                  {org.logoUrl && <img src={org.logoUrl} alt="" className="w-8 h-8 rounded object-cover border" />}
+                                  <div>
+                                    <div className="font-bold text-slate-800">{org.name || '—'}</div>
+                                    {org.beschreibung && <div className="text-[10px] text-slate-400 truncate max-w-[200px]">{org.beschreibung}</div>}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-slate-600 text-xs">{org.email}</td>
+                              <td className="py-3 px-4">
+                                {hasRole('ADMIN') ? (
+                                  <button
+                                    onClick={async () => {
+                                      const newStatus = isConfirmed ? 'ausstehend' : 'bestätigt';
+                                      const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
+                                      try {
+                                        const { ok, error } = await fetchSheets({
+                                          action: 'update', spreadsheetId: config.spreadsheetId,
+                                          range: `'Config_Organisations'!I${org.rowIndex}`,
+                                          values: [[newStatus]]
+                                        }, token, config.curationApiUrl);
+                                        if (!ok) throw new Error(error);
+                                        setData(prev => ({
+                                          ...prev,
+                                          organisations: prev.organisations.map(o => o.email === org.email ? { ...o, status: newStatus } : o)
+                                        }));
+                                        setToast({ msg: `${org.name}: ${newStatus}`, type: 'success' });
+                                        setTimeout(() => setToast(null), 2000);
+                                      } catch (e) {
+                                        setToast({ msg: `Fehler: ${e.message}`, type: 'error' });
+                                        setTimeout(() => setToast(null), 3000);
+                                      }
+                                    }}
+                                    className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase transition-colors ${isConfirmed
+                                      ? 'bg-green-100 text-green-700 hover:bg-green-200'
+                                      : 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                                      }`}
+                                  >
+                                    {isConfirmed ? '✓ Bestätigt' : '⏳ Ausstehend'}
+                                  </button>
+                                ) : (
+                                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${isConfirmed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                    {isConfirmed ? '✓ Bestätigt' : '⏳ Ausstehend'}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="py-3 px-4">
+                                <span className="text-xs text-slate-500">{orgSessions.length} Session{orgSessions.length !== 1 ? 's' : ''}</span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-2 text-[10px]">
+                                  {org.webseite && <a href={org.webseite} target="_blank" rel="noreferrer" className="text-indigo-500 hover:underline">🌐</a>}
+                                  {org.instagram && <span className="text-pink-500">📷</span>}
+                                  {org.linkedin && <span className="text-blue-600">💼</span>}
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
         {viewMode === 'PRODUCTION' && (
           <div className="flex flex-col h-full overflow-hidden">
             <header className="bg-orange-800 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
@@ -3012,11 +3112,17 @@ function App({ authenticatedUser }) {
           </button>
         )}
 
-        {/* Kuration: ADMIN, CURATOR, REVIEWER */}
-        {/* Kuration: ADMIN, CURATOR, REVIEWER */}
-        {hasRole('ADMIN', 'CURATOR', 'REVIEWER') && (
+        {/* Kuration: ADMIN, CURATOR only (not REVIEWER) */}
+        {hasRole('ADMIN', 'CURATOR') && (
           <button onClick={() => setViewMode('CURATION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'CURATION' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <LayoutDashboard className="w-3.5 h-3.5" /> Kuration
+          </button>
+        )}
+
+        {/* Organisations: ADMIN, REVIEWER */}
+        {hasRole('ADMIN', 'REVIEWER') && (
+          <button onClick={() => setViewMode('ORG_DASHBOARD')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ORG_DASHBOARD' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+            🏢 Organisationen
           </button>
         )}
 
@@ -3178,6 +3284,7 @@ function App({ authenticatedUser }) {
         initialData={editingSession} definedStages={data.stages}
         speakersList={data.speakers} moderatorsList={data.moderators}
         configThemen={data.configThemen}
+        organisations={data.organisations || []}
       />
     </div >
   );
