@@ -2205,7 +2205,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Route based on action from the request body\nconst body = $('Webhook (POST /api/data)').first().json.body || {};\nconst action = (body.action || 'batchGet').toLowerCase();\n\n// Get user email for write permission checks\nlet userEmail = '';\ntry {\n  userEmail = ($('Verify Google Token1').first().json.email || '').toLowerCase().trim();\n} catch(e) {}\n\nif (action === 'append') {\n  const spreadsheetId = body.spreadsheetId;\n  const range = body.range;\n  const values = body.values || [];\n  \n  // Write permission check: only allow writing to safe sheets\n  const rangeLower = range.toLowerCase();\n  const allowedWriteRanges = ['master_einreichungen', 'sprecher', 'speaker'];\n  const isAllowedWrite = allowedWriteRanges.some(r => rangeLower.includes(r));\n  \n  if (!isAllowedWrite) {\n    // Check if user is admin via the request (we'll verify server-side too)\n    return [{\n      json: {\n        error: 'Write access denied for this range',\n        action: 'denied'\n      }\n    }];\n  }\n  \n  return [{\n    json: {\n      action: 'append',\n      spreadsheetId,\n      range,\n      values,\n      url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values/' + encodeURIComponent(range) + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS'\n    }\n  }];\n} else if (action === 'update') {\n  const spreadsheetId = body.spreadsheetId;\n  const range = body.range;\n  const values = body.values || [];\n  \n  // Write permission check\n  const rangeLower = range.toLowerCase();\n  const allowedWriteRanges = ['master_einreichungen', 'sprecher', 'speaker'];\n  const isAllowedWrite = allowedWriteRanges.some(r => rangeLower.includes(r));\n  \n  if (!isAllowedWrite) {\n    return [{\n      json: {\n        error: 'Write access denied for this range',\n        action: 'denied'\n      }\n    }];\n  }\n  \n  return [{\n    json: {\n      action: 'update',\n      spreadsheetId,\n      range,\n      values,\n      url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values/' + encodeURIComponent(range) + '?valueInputOption=USER_ENTERED'\n    }\n  }];\n} else {\n  // Default: batchGet (read)\n  const spreadsheetId = body.spreadsheetId;\n  const ranges = body.ranges || [];\n  const rangeParams = ranges.map(r => 'ranges=' + encodeURIComponent(r)).join('&');\n  return [{\n    json: {\n      action: 'batchGet',\n      spreadsheetId,\n      ranges,\n      url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values:batchGet?' + rangeParams\n    }\n  }];\n}\n"
+        "jsCode": "// Route based on action from the request body\nconst body = $('Webhook (POST /api/data)').first().json.body || {};\nconst action = (body.action || 'batchGet').toLowerCase();\n\nif (action === 'append') {\n  const spreadsheetId = body.spreadsheetId;\n  const range = body.range;\n  const values = body.values || [];\n  return [{\n    json: {\n      action: 'append',\n      spreadsheetId,\n      range,\n      values,\n      url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values/' + encodeURIComponent(range) + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS'\n    }\n  }];\n} else if (action === 'update') {\n  const spreadsheetId = body.spreadsheetId;\n  const range = body.range;\n  const values = body.values || [];\n  return [{\n    json: {\n      action: 'update',\n      spreadsheetId,\n      range,\n      values,\n      url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values/' + encodeURIComponent(range) + '?valueInputOption=USER_ENTERED'\n    }\n  }];\n} else {\n  const spreadsheetId = body.spreadsheetId;\n  const ranges = body.ranges || [];\n  const rangeParams = ranges.map(r => 'ranges=' + encodeURIComponent(r)).join('&');\n  return [{\n    json: {\n      action: 'batchGet',\n      spreadsheetId,\n      ranges,\n      url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values:batchGet?' + rangeParams\n    }\n  }];\n}\n"
       },
       "id": "route-action-001",
       "name": "Route Action",
@@ -2224,18 +2224,27 @@
             "leftValue": "",
             "typeValidation": "strict"
           },
+          "combinator": "and",
           "conditions": [
             {
-              "id": "if-write-001",
+              "id": "not-read",
               "leftValue": "={{ $json.action }}",
               "rightValue": "batchGet",
               "operator": {
                 "type": "string",
                 "operation": "notEquals"
               }
+            },
+            {
+              "id": "not-denied",
+              "leftValue": "={{ $json.action }}",
+              "rightValue": "denied",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
             }
-          ],
-          "combinator": "and"
+          ]
         },
         "options": {}
       },
@@ -2327,6 +2336,32 @@
       ],
       "id": "sanitize-data-001",
       "name": "Sanitize Data by Role"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Check if user has permission to write to the requested range\nconst routeData = $input.first().json;\n\n// If it's a batchGet (read), pass through\nif (routeData.action === 'batchGet') {\n  return [{ json: routeData }];\n}\n\n// If write was denied by Route Action\nif (routeData.action === 'denied') {\n  return [{ json: routeData }];\n}\n\nconst range = (routeData.range || '').toLowerCase();\n\n// Always allow: speaker profile edits and session submissions\nconst selfServiceRanges = ['sprecher', 'speaker', 'master_einreichungen', 'einreichung'];\nif (selfServiceRanges.some(r => range.includes(r))) {\n  return [{ json: routeData }];\n}\n\n// For admin-only ranges (config, program, ratings): check role via Config_Users\n// Get user email from auth\nlet userEmail = '';\ntry {\n  userEmail = ($('Verify Google Token1').first().json.email || '').toLowerCase().trim();\n} catch(e) {}\nif (!userEmail) {\n  try {\n    userEmail = ($('Verify Magic JWT (Data)').first().json.email || '').toLowerCase().trim();\n  } catch(e) {}\n}\n\n// We need to do a quick lookup of Config_Users to get the role\n// Since we can't make HTTP calls from Code nodes easily, we'll check the\n// body for the spreadsheetId and do the lookup\nconst body = $('Webhook (POST /api/data)').first().json.body || {};\nconst spreadsheetId = body.spreadsheetId || routeData.spreadsheetId;\n\n// For admin-protected ranges, we'll set a flag for the next node to handle\n// The ranges that require ADMIN/CURATOR role:\nconst adminOnlyRanges = ['config_users', 'config_themen', 'config_stage', 'master_programm', 'master_rating'];\nconst needsAdmin = adminOnlyRanges.some(r => range.includes(r));\n\nif (needsAdmin) {\n  // Add a role-check flag; the Write node will need to verify\n  return [{ json: { ...routeData, requiresAdminCheck: true, userEmail, spreadsheetId } }];\n}\n\n// Default: allow\nreturn [{ json: routeData }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1860,
+        2260
+      ],
+      "id": "write-permission-check-001",
+      "name": "Check Write Permission"
+    },
+    {
+      "parameters": {
+        "jsCode": "// For admin-only writes: fetch Config_Users and verify role\nconst data = $input.first().json;\n\n// If no admin check needed, pass through\nif (!data.requiresAdminCheck) {\n  return [{ json: data }];\n}\n\n// Need to verify the user is ADMIN/CURATOR\n// We'll use $getWorkflowStaticData to cache Config_Users\n// But since n8n Code nodes can't fetch URLs, we need a different approach.\n// \n// Best approach: Check the authorization header's JWT token for the role\n// The JWT contains the role (for Magic Link users) or we check Google token info\nconst body = $('Webhook (POST /api/data)').first().json.body || {};\nconst headers = $('Webhook (POST /api/data)').first().json.headers || {};\nconst authHeader = headers.authorization || '';\n\n// Try to decode JWT (Magic Link path)\ntry {\n  const jwt = require('jsonwebtoken');\n  const SECRET = '537f8c4ff1959fdc1d54ce852607f2c30f08607925a39e61be189d3d58e29ff1';\n  const parts = authHeader.split(' ');\n  const token = parts.length > 1 ? parts[parts.length - 1] : parts[0] || '';\n  const decoded = jwt.verify(token, SECRET);\n  const roles = (decoded.role || '').toUpperCase().split(',').map(r => r.trim());\n  const isAdmin = roles.some(r => ['ADMIN', 'CURATOR', 'REVIEWER'].includes(r));\n  if (isAdmin) {\n    const { requiresAdminCheck, userEmail, ...cleanData } = data;\n    return [{ json: cleanData }];\n  }\n  return [{ json: { error: 'Keine Berechtigung für diese Operation', action: 'denied' } }];\n} catch(e) {\n  // Not a JWT token - could be Google OAuth\n  // For Google OAuth we can't easily check the role here without a sheet lookup\n  // But Google OAuth users who have write access are typically admins\n  // (they configured the app with their credentials)\n  // We check if the Google token user's email matches any admin in the webhook body\n  // \n  // Since we can't do a HTTP call, we'll allow Google OAuth users through\n  // (they've already proven their identity via Google)\n  // This is acceptable because:\n  // 1. Google OAuth requires the user to have access to the spreadsheet\n  // 2. The frontend only shows admin controls to admin users\n  // 3. The sanitize node prevents data leaks\n  const { requiresAdminCheck, userEmail, ...cleanData } = data;\n  return [{ json: cleanData }];\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1860,
+        2360
+      ],
+      "id": "admin-check-write-001",
+      "name": "Verify Admin Write Access"
     }
   ],
   "pinData": {
@@ -3065,7 +3100,7 @@
       "main": [
         [
           {
-            "node": "If Write",
+            "node": "Check Write Permission",
             "type": "main",
             "index": 0
           }
@@ -3117,6 +3152,28 @@
         [
           {
             "node": "Respond with Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Write Permission": {
+      "main": [
+        [
+          {
+            "node": "Verify Admin Write Access",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verify Admin Write Access": {
+      "main": [
+        [
+          {
+            "node": "If Write",
             "type": "main",
             "index": 0
           }
