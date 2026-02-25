@@ -583,40 +583,6 @@ const parsePlannerBatch = (batch, config) => {
 
   if (st.length === 0) st.push({ id: 'main', name: 'Main Stage', capacity: 200, maxMics: 4 });
 
-  // NOTE: program items (pr) are now built from Master_Einreichungen above (Solution A)
-  // Legacy Programm_Export (valRanges[3]) is no longer used as primary source.
-  // If Master_Einreichungen had no data but Programm_Export does, fall back:
-  if (pr.length === 0 && valRanges[3] && valRanges[3].values && valRanges[3].values.length > 0) {
-    pr = valRanges[3].values
-      .filter(r => safeString(r[0]) || safeString(r[1]))
-      .map((r, i) => {
-        const dur = parseInt(r[8]) || 60;
-        const start = safeString(r[6]) || '-';
-        const rawStage = safeString(r[5]);
-        let stage = INBOX_ID;
-        if (rawStage) {
-          const matchById = st.find(s => s.id === rawStage);
-          if (matchById) { stage = matchById.id; }
-          else { const matchByName = st.find(s => s.name === rawStage); if (matchByName) { stage = matchByName.id; } }
-        }
-        let finalStart = start;
-        if (finalStart.length > 5 && (finalStart.includes('.') || finalStart.includes(' '))) { finalStart = '-'; }
-        else if (finalStart && !finalStart.includes(':')) { finalStart = '-'; }
-        const rawId = safeString(r[0]);
-        const id = (rawId && rawId.length > 1) ? rawId : generateId();
-        return {
-          id, title: safeString(r[1]), status: safeString(r[2]) || '5_Vorschlag',
-          partner: (safeString(r[3]) === 'TRUE' || safeString(r[3]) === 'P') ? 'TRUE' : 'FALSE',
-          format: safeString(r[4]) || 'Talk', stage, start: finalStart, duration: dur,
-          end: calculateEndTime(finalStart, dur), speakers: safeString(r[9]),
-          moderators: safeString(r[10]), language: safeString(r[11]), notes: safeString(r[12]),
-          stageDispo: safeString(r[13]), shortDescription: safeString(r[14]),
-          description: safeString(r[15]), bereich: safeString(r[16]), thema: safeString(r[17]),
-          source: 'Programm_Export_Legacy'
-        };
-      });
-    if (import.meta.env.DEV) console.log('[parsePlannerBatch] Using legacy Programm_Export fallback:', pr.length, 'items');
-  }
 
   // --- Parse Config_Themen (valRanges[5]) ---
   // Columns: A=Bereiche, B=Themen, C=Tags, D=Formate
@@ -657,7 +623,7 @@ function App({ authenticatedUser }) {
     googleClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
     googleApiKey: import.meta.env.VITE_GOOGLE_API_KEY || '',
     spreadsheetId: localStorage.getItem('kosmos_spreadsheet_id') || import.meta.env.VITE_SPREADSHEET_ID || '',
-    sheetNameProgram: localStorage.getItem('kosmos_sheet_program') || 'Programm_Export',
+
     sheetNameSpeakers: localStorage.getItem('kosmos_sheet_speakers') || '26_Kosmos_SprecherInnen',
     sheetNameMods: localStorage.getItem('kosmos_sheet_mods') || '26_Kosmos_Moderation',
     sheetNameStages: localStorage.getItem('kosmos_sheet_stages') || 'Bühnen_Import',
@@ -1000,11 +966,8 @@ function App({ authenticatedUser }) {
         `'${config.sheetNameStages}'!A2:H`,          // index 2: Stages
       ];
 
-      if (importProgram) {
-        ranges.push(`'${config.sheetNameProgram}'!A2:P`);  // index 3: Program
-      } else {
-        ranges.push(`'${config.sheetNameStages}'!A1:A1`);  // index 3: placeholder (1 cell)
-      }
+      // index 3: placeholder (kept for valRanges index compatibility)
+      ranges.push(`'${config.sheetNameStages}'!A1:A1`);
 
       ranges.push(`'Master_Einreichungen'!A2:V`);          // index 4: Submissions + Planning (A-O submission, P-V planning)
       ranges.push(`'Config_Themen'!A2:D`);                 // index 5: Bereiche/Themen/Tags/Formate
@@ -1078,7 +1041,7 @@ function App({ authenticatedUser }) {
       console.error(e);
       setStatus({ loading: false, error: getErrorMessage(e) });
     }
-  }, [authenticatedUser.accessToken, config.spreadsheetId, config.sheetNameSpeakers, config.sheetNameMods, config.sheetNameProgram, config.sheetNameStages]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [authenticatedUser.accessToken, config.spreadsheetId, config.sheetNameSpeakers, config.sheetNameMods, config.sheetNameStages]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Auto-load data when app mounts
   useEffect(() => {
@@ -1838,32 +1801,7 @@ function App({ authenticatedUser }) {
 
       if (!ok) throw new Error(error || 'Sheets API Fehler');
 
-      // --- Also update legacy Programm_Export for backward compatibility ---
-      try {
-        const legacyRows = data.program.map(p => {
-          const speakersStr = Array.isArray(p.speakers) ? p.speakers.join(', ') : (p.speakers || '');
-          const modsStr = Array.isArray(p.moderators) ? p.moderators.join(', ') : (p.moderators || '');
-          return [
-            safeString(p.id), safeString(p.title), safeString(p.status),
-            p.partner === 'TRUE' ? 'TRUE' : 'FALSE', safeString(p.format),
-            p.stage === INBOX_ID ? '' : safeString(p.stage),
-            p.start === '-' ? '' : p.start,
-            p.start === '-' ? '' : calculateEndTime(p.start, p.duration),
-            p.duration || 60, speakersStr, modsStr,
-            safeString(p.language), safeString(p.notes), safeString(p.stageDispo),
-            safeString(p.shortDescription), safeString(p.description),
-            safeString(p.bereich), safeString(p.thema)
-          ];
-        });
-        await fetchSheets({
-          action: 'update',
-          spreadsheetId: config.spreadsheetId,
-          range: `'${config.sheetNameProgram}'!A2:R`,
-          values: legacyRows,
-        }, token, config.curationApiUrl);
-      } catch (legacyErr) {
-        console.warn('Legacy Programm_Export sync failed (non-critical):', legacyErr);
-      }
+
 
       setStatus({ loading: false, error: null });
       setLocalChanges(false);
@@ -2613,27 +2551,44 @@ function App({ authenticatedUser }) {
                     <h2 className="text-lg font-bold text-slate-800 mb-4">📋 Meine Sessions ({mySessions.length})</h2>
                     <div className="space-y-3">
                       {mySessions.map((session, i) => {
-                        const isFixed = (session.status || '').toLowerCase() === 'fixiert';
+                        const statusLower = (session.status || '').toLowerCase();
+                        const isFixed = statusLower === 'fixiert' || statusLower.includes('fixiert');
+                        const isAccepted = statusLower === 'akzeptiert' || statusLower.includes('akzeptiert');
+                        const isVorschlag = !isFixed && !isAccepted;
                         const stageName = data.stages.find(s => s.id === session.stage)?.name || session.stage;
+                        const showSchedule = !isVorschlag; // hide stage/time for Vorschlag
                         return (
-                          <div key={session.id || i} className={`border rounded-lg p-4 ${isFixed ? 'border-green-200 bg-green-50/30' : 'border-slate-200'}`}>
+                          <div key={session.id || i} className={`border rounded-lg p-4 ${isFixed ? 'border-green-200 bg-green-50/30' : isAccepted ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200'}`}>
                             <div className="flex items-start justify-between gap-2">
                               <h3 className="font-bold text-sm text-slate-800">{session.title || 'Ohne Titel'}</h3>
-                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${isFixed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                                {isFixed ? '✓ Fixiert' : session.status || 'Vorläufig'}
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${isFixed ? 'bg-green-100 text-green-700' :
+                                  isAccepted ? 'bg-blue-100 text-blue-700' :
+                                    'bg-amber-100 text-amber-700'
+                                }`}>
+                                {isFixed ? '✓ Fixiert' : isAccepted ? '✓ Akzeptiert' : session.status || 'Vorschlag'}
                               </span>
                             </div>
                             <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500">
-                              {stageName && <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
+                              {showSchedule && stageName && <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
                               {session.format && <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">{session.format}</span>}
-                              {session.startTime && session.startTime !== '-' && (
-                                <span className={`flex items-center gap-1 ${isFixed ? 'text-green-700 font-bold' : 'text-amber-600 italic'}`}>
-                                  🕐 {session.startTime} {!isFixed && '(vorläufig)'}
+                              {showSchedule && session.start && session.start !== '-' && (
+                                <span className={`flex items-center gap-1 ${isFixed ? 'text-green-700 font-bold' : 'text-blue-600 italic'}`}>
+                                  🕐 {session.start} – {session.end || ''} {!isFixed && '(Planungsstand)'}
                                 </span>
                               )}
                               {session.duration && <span>{session.duration} min</span>}
                               {session.speakers && <span>🎤 {session.speakers}</span>}
                             </div>
+                            {isAccepted && (
+                              <p className="mt-2 text-[10px] text-blue-500 italic">
+                                ℹ️ Zeiten und Bühne entsprechen dem aktuellen Planungsstand und können sich noch ändern.
+                              </p>
+                            )}
+                            {isVorschlag && (
+                              <p className="mt-2 text-[10px] text-slate-400 italic">
+                                Bühne und Zeiten werden nach der Kuration zugewiesen.
+                              </p>
+                            )}
                           </div>
                         );
                       })}
@@ -2807,7 +2762,7 @@ function App({ authenticatedUser }) {
                     className="w-full border rounded p-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <div className="grid grid-cols-2 gap-2">
-                    <div><label className="text-xs">Prog Sheet</label><input className="w-full border p-2 rounded" value={config.sheetNameProgram} onChange={e => setConfig({ ...config, sheetNameProgram: e.target.value })} /></div>
+
                     <div><label className="text-xs">Stages Sheet</label><input className="w-full border p-2 rounded" value={config.sheetNameStages} onChange={e => setConfig({ ...config, sheetNameStages: e.target.value })} /></div>
                   </div>
                   <label className="block text-xs mt-2">n8n Webhook Base URL</label>
