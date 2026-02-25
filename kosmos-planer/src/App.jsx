@@ -489,7 +489,7 @@ const parsePlannerBatch = (batch, config) => {
       const speakerDisplay = speakerNames || speakerIds || submitterName;
 
       return {
-        id: `EINR-${String(i + 1).padStart(4, '0')}`,
+        id: safeString(r[22]) || `EINR-${String(i + 1).padStart(4, '0')}`, // Col W = Session_ID
         rowIndex: i + 2,
         timestamp: safeString(r[0]),
         submitterEmail,
@@ -536,7 +536,7 @@ const parsePlannerBatch = (batch, config) => {
       const speakerDisplay = speakerNames || speakerIds || safeString(r[2]);
 
       return {
-        id: `EINR-${String(i + 1).padStart(4, '0')}`,
+        id: safeString(r[22]) || `EINR-${String(i + 1).padStart(4, '0')}`, // Col W = Session_ID
         rowIndex: i + 2,
         title: safeString(r[4]),
         status: safeString(r[3]) || '5_Vorschlag',
@@ -969,7 +969,7 @@ function App({ authenticatedUser }) {
       // index 3: placeholder (kept for valRanges index compatibility)
       ranges.push(`'${config.sheetNameStages}'!A1:A1`);
 
-      ranges.push(`'Master_Einreichungen'!A2:V`);          // index 4: Submissions + Planning (A-O submission, P-V planning)
+      ranges.push(`'Master_Einreichungen'!A2:W`);          // index 4: Submissions + Planning (A-O submission, P-V planning, W=Session_ID)
       ranges.push(`'Config_Themen'!A2:D`);                 // index 5: Bereiche/Themen/Tags/Formate
       ranges.push(`'Master_Ratings'!A2:F`);                 // index 6: Ratings
       ranges.push(`'Config_Users'!A2:C`);                   // index 7: Users (email, role, name)
@@ -2562,8 +2562,8 @@ function App({ authenticatedUser }) {
                             <div className="flex items-start justify-between gap-2">
                               <h3 className="font-bold text-sm text-slate-800">{session.title || 'Ohne Titel'}</h3>
                               <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${isFixed ? 'bg-green-100 text-green-700' :
-                                  isAccepted ? 'bg-blue-100 text-blue-700' :
-                                    'bg-amber-100 text-amber-700'
+                                isAccepted ? 'bg-blue-100 text-blue-700' :
+                                  'bg-amber-100 text-amber-700'
                                 }`}>
                                 {isFixed ? '✓ Fixiert' : isAccepted ? '✓ Akzeptiert' : session.status || 'Vorschlag'}
                               </span>

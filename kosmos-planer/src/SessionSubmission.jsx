@@ -100,6 +100,8 @@ const SessionSubmission = ({
             const timestamp = new Date().toISOString();
             const speakerIds = form.selectedSpeakers.map(s => s.id).join(', ');
             const speakerNames = form.selectedSpeakers.map(s => s.fullName).join(', ');
+            // Generate unique Session_ID for new submissions
+            const sessionId = `S-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
 
             const row = [
                 timestamp,           // A: Zeitstempel
@@ -139,11 +141,11 @@ const SessionSubmission = ({
                 if (!ok2) throw new Error(err2);
                 setStatus({ loading: false, error: null, success: `Session "${form.titel}" aktualisiert!` });
             } else {
-                // Append new row
+                // Append new row (A-O submission data, P-V empty planning cols, W=Session_ID)
                 const { ok, error } = await fetchSheets({
                     action: 'append', spreadsheetId,
-                    range: `'Master_Einreichungen'!A2:O`,
-                    values: [row],
+                    range: `'Master_Einreichungen'!A2:W`,
+                    values: [[...row, '', '', '', '', '', '', '', sessionId]],
                 }, accessToken, apiUrl);
                 if (!ok) throw new Error(error || 'Fehler beim Speichern');
                 setStatus({ loading: false, error: null, success: `Session "${form.titel}" erfolgreich eingereicht!` });
