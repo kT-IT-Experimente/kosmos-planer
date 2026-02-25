@@ -2414,13 +2414,44 @@ function App({ authenticatedUser }) {
                     source: 'Planner'
                   }))
               ]}
-              metadata={curationData.metadata}
+              metadata={{ ...curationData.metadata, ...data.configThemen }}
               userRole={effectiveRole}
               userEmail={authenticatedUser.email || ''}
               ratings={data.ratings}
               speakers={data.speakers}
               users={curationData.users || []}
               onUpdateMetadata={handleUpdateCurationMetadata}
+              onAddTag={async (newTag) => {
+                if (!config.curationApiUrl) return;
+                try {
+                  const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
+                  // Find the row to write: next empty row in column C
+                  // Config_Themen rows start at row 2, tags are in column C
+                  const existingTags = data.configThemen.tags || [];
+                  const tagRow = existingTags.length + 2; // row 2 is first data row
+                  const { ok, error } = await fetchSheets({
+                    action: 'update',
+                    spreadsheetId: config.spreadsheetId,
+                    range: `'Config_Themen'!C${tagRow}`,
+                    values: [[newTag]],
+                  }, token, config.curationApiUrl);
+                  if (!ok) throw new Error(error);
+                  // Optimistic: add tag to local config
+                  setData(prev => ({
+                    ...prev,
+                    configThemen: {
+                      ...prev.configThemen,
+                      tags: [...prev.configThemen.tags, newTag]
+                    }
+                  }));
+                  setToast({ msg: `Tag "${newTag}" hinzugefügt`, type: 'success' });
+                  setTimeout(() => setToast(null), 2000);
+                } catch (e) {
+                  console.error('Tag add failed:', e);
+                  setToast({ msg: 'Tag konnte nicht gespeichert werden', type: 'error' });
+                  setTimeout(() => setToast(null), 3000);
+                }
+              }}
               onSaveRating={async (sessionId, score, kommentar) => {
                 if (!config.curationApiUrl) return;
                 try {

@@ -2,13 +2,13 @@ import React, { useState, useMemo } from 'react';
 import {
     Search, ChevronDown, ChevronUp, Star, MessageSquare,
     Users, AlertCircle, LayoutDashboard, Send, Clock, Globe,
-    FileText, X, User
+    FileText, X, User, Tag, Plus
 } from 'lucide-react';
 
 const CurationDashboard = ({
     sessions = [], metadata = {}, userRole = 'GUEST', userEmail = '',
     ratings = {}, speakers = [], users = [],
-    onUpdateMetadata, onSaveRating
+    onUpdateMetadata, onSaveRating, onAddTag
 }) => {
     const [searchQuery, setSearchQuery] = useState('');
     const [filters, setFilters] = useState({ bereich: '', thema: '', status: '', format: '' });
@@ -376,6 +376,61 @@ const CurationDashboard = ({
                                             </div>
                                         </div>
                                     )}
+
+                                    {/* TAG PICKER — Curators + Admins */}
+                                    <div className="px-5 pt-3">
+                                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-tighter mb-2 flex items-center gap-1.5">
+                                            <Tag className="w-3 h-3" /> Tags
+                                        </h4>
+                                        <div className="flex flex-wrap gap-1.5 mb-2">
+                                            {(session.tags || '').split(',').filter(t => t.trim()).map(tag => (
+                                                <span key={tag.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[10px] font-bold">
+                                                    {tag.trim()}
+                                                    <button onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const currentTags = (session.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+                                                        const newTags = currentTags.filter(t => t !== tag.trim()).join(', ');
+                                                        onUpdateMetadata(session.id, 'tags', newTags);
+                                                    }} className="hover:text-red-600 transition-colors">
+                                                        <X className="w-2.5 h-2.5" />
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-2 items-center">
+                                            <div className="relative flex-1">
+                                                <input
+                                                    type="text"
+                                                    list={`tags-list-${session.id}`}
+                                                    placeholder="Tag hinzufügen..."
+                                                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-violet-100"
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' && e.target.value.trim()) {
+                                                            e.stopPropagation();
+                                                            const newTag = e.target.value.trim();
+                                                            const currentTags = (session.tags || '').split(',').map(t => t.trim()).filter(Boolean);
+                                                            if (!currentTags.includes(newTag)) {
+                                                                const updatedTags = [...currentTags, newTag].join(', ');
+                                                                onUpdateMetadata(session.id, 'tags', updatedTags);
+                                                                // If it's a new tag not in config, add it
+                                                                if (!config.tags?.includes(newTag) && onAddTag) {
+                                                                    onAddTag(newTag);
+                                                                }
+                                                            }
+                                                            e.target.value = '';
+                                                        }
+                                                    }}
+                                                />
+                                                <datalist id={`tags-list-${session.id}`}>
+                                                    {(config.tags || []).filter(t => {
+                                                        const currentTags = (session.tags || '').split(',').map(x => x.trim());
+                                                        return !currentTags.includes(t);
+                                                    }).map(t => <option key={t} value={t} />)}
+                                                </datalist>
+                                            </div>
+                                        </div>
+                                    </div>
 
                                     {/* RATING — combined stars + comment + submit */}
                                     <div className="px-5 pt-4 pb-2">
