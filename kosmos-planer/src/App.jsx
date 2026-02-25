@@ -412,6 +412,25 @@ function StageColumn({ stage, children, height }) {
 
 // --- APP COMPONENT ---
 
+// Normalize legacy Programm_Export status values to canonical format
+const normalizeStatus = (raw) => {
+  const s = (raw || '').trim();
+  const lower = s.toLowerCase();
+  if (!s) return 'Vorschlag';
+  if (lower === 'fixiert') return 'Fixiert';
+  if (lower === 'akzeptiert' || lower === '1_zusage' || lower.startsWith('1_')) return 'Akzeptiert';
+  if (lower === '2_planung' || lower.startsWith('2_')) return 'Akzeptiert';
+  if (lower === '3_absage' || lower.startsWith('3_')) return 'Abgelehnt';
+  if (lower === '4_wartend' || lower.startsWith('4_')) return 'Vorschlag';
+  if (lower === '5_vorschlag' || lower.startsWith('5_')) return 'Vorschlag';
+  if (lower === 'vorschlag') return 'Vorschlag';
+  if (lower === 'abgelehnt') return 'Abgelehnt';
+  return s; // keep unknown values as-is
+};
+
+// Auto-generate a short unique Session ID
+const generateSessionId = () => `S-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+
 const parsePlannerBatch = (batch, config) => {
   const valRanges = batch.valueRanges;
   if (!valRanges || valRanges.length < 3) return { speakers: [], moderators: [], stages: [], program: [] };
@@ -489,7 +508,7 @@ const parsePlannerBatch = (batch, config) => {
       const speakerDisplay = speakerNames || speakerIds || submitterName;
 
       return {
-        id: safeString(r[22]) || `EINR-${String(i + 1).padStart(4, '0')}`, // Col W = Session_ID
+        id: safeString(r[22]) || generateSessionId(), // Col W = Session_ID, auto-generate if missing
         rowIndex: i + 2,
         timestamp: safeString(r[0]),
         submitterEmail,
@@ -505,7 +524,7 @@ const parsePlannerBatch = (batch, config) => {
         speakerIds,
         speakers: speakerDisplay,
         notes: safeString(r[14]),
-        status: safeString(r[3]) || 'Vorschlag',
+        status: normalizeStatus(r[3]),
         source: 'Einreichung'
       };
     });
@@ -536,10 +555,10 @@ const parsePlannerBatch = (batch, config) => {
       const speakerDisplay = speakerNames || speakerIds || safeString(r[2]);
 
       return {
-        id: safeString(r[22]) || `EINR-${String(i + 1).padStart(4, '0')}`, // Col W = Session_ID
+        id: safeString(r[22]) || generateSessionId(), // Col W = Session_ID, auto-generate if missing
         rowIndex: i + 2,
         title: safeString(r[4]),
-        status: safeString(r[3]) || '5_Vorschlag',
+        status: normalizeStatus(r[3]),
         partner: (safeString(r[18]) === 'TRUE' || safeString(r[18]) === 'P') ? 'TRUE' : 'FALSE', // Col S
         format: safeString(r[7]) || 'Talk',
         stage: stage,
@@ -903,7 +922,7 @@ function App({ authenticatedUser }) {
       });
     });
 
-    const confirmedSessionStatus = ['1_Zusage', 'Akzeptiert', 'Fixiert'];
+    const confirmedSessionStatus = ['Akzeptiert', 'Fixiert'];
     const confirmedSpeakerStatus = ['zusage'];
 
     data.program.forEach(s => {
@@ -1147,7 +1166,7 @@ function App({ authenticatedUser }) {
     const newProgramItems = mockSessions.map(s => ({
       id: s.id,
       title: s.title,
-      status: '5_Vorschlag',
+      status: 'Vorschlag',
       format: s.format,
       stage: INBOX_ID,
       start: '-',
@@ -1769,9 +1788,9 @@ function App({ authenticatedUser }) {
     try {
       const token = authenticatedUser.accessToken;
 
-      // --- Solution A: Write planning columns P-V to Master_Einreichungen ---
-      // Build rows for columns P-V aligned to rowIndex
-      // P=Bühne, Q=Startzeit, R=Endzeit, S=Partner, T=Stage_Dispo, U=Tags, V=Moderators
+      // --- Solution A: Write planning columns P-W to Master_Einreichungen ---
+      // Build rows for columns P-W aligned to rowIndex
+      // P=Bühne, Q=Startzeit, R=Endzeit, S=Partner, T=Stage_Dispo, U=Tags, V=Moderators, W=Session_ID
       const maxRow = Math.max(...data.program.map(p => p.rowIndex || 2), 2);
       const planningRows = [];
       for (let row = 2; row <= maxRow; row++) {
@@ -1785,17 +1804,18 @@ function App({ authenticatedUser }) {
             p.partner === 'TRUE' ? 'TRUE' : '',               // S: Partner
             safeString(p.stageDispo),                          // T: Stage_Dispo
             safeString(p.tags),                                // U: Tags
-            modsStr                                            // V: Moderators
+            modsStr,                                           // V: Moderators
+            safeString(p.id)                                   // W: Session_ID
           ]);
         } else {
-          planningRows.push(['', '', '', '', '', '', '']);
+          planningRows.push(['', '', '', '', '', '', '', '']);
         }
       }
 
       const { ok, error } = await fetchSheets({
         action: 'update',
         spreadsheetId: config.spreadsheetId,
-        range: `'Master_Einreichungen'!P2:V`,
+        range: `'Master_Einreichungen'!P2:W`,
         values: planningRows,
       }, token, config.curationApiUrl);
 
