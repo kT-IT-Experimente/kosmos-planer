@@ -2467,7 +2467,7 @@ function App({ authenticatedUser }) {
                   ? data.speakers
                   : data.speakers.filter(s => {
                     const st = (s.status || '').toLowerCase();
-                    return st === 'cfp' || st.includes('dummy') || st === 'aktiv';
+                    return st === 'cfp' || st.includes('cfp_dummy');
                   })
                 }
                 metadata={data.configThemen || curationData.metadata}
