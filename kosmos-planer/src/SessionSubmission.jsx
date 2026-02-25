@@ -26,17 +26,19 @@ const SessionSubmission = ({
     const [showSpeakerPicker, setShowSpeakerPicker] = useState(false);
     const [status, setStatus] = useState({ loading: false, error: null, success: null });
     const [editingSubmission, setEditingSubmission] = useState(null);
+    const [editForm, setEditForm] = useState({});
+    const [editSaving, setEditSaving] = useState(false);
     const [showMySubmissions, setShowMySubmissions] = useState(true);
 
     const filteredSpeakers = useMemo(() => {
-        if (!speakerSearch.trim()) return speakers.slice(0, 20);
+        if (!speakerSearch.trim()) return speakers;
         const q = speakerSearch.toLowerCase();
         return speakers.filter(s =>
             (s.fullName || '').toLowerCase().includes(q) ||
             (s.organisation || '').toLowerCase().includes(q) ||
             (s.id || '').toLowerCase().includes(q) ||
             (s.email || '').toLowerCase().includes(q)
-        ).slice(0, 20);
+        );
     }, [speakers, speakerSearch]);
 
     const handleChange = (field, value) => {
@@ -114,6 +116,47 @@ const SessionSubmission = ({
             if (onSuccess) onSuccess();
         } catch (err) {
             setStatus({ loading: false, error: err.message, success: null });
+        }
+    };
+
+    const startEditing = (sub) => {
+        setEditingSubmission(sub.id);
+        setEditForm({
+            titel: sub.title || '',
+            kurzbeschreibung: sub.shortDescription || '',
+            beschreibung: sub.description || '',
+            notizen: sub.notes || ''
+        });
+    };
+
+    const handleEditSave = async (sub, rowIdx) => {
+        if (!fetchSheets || !spreadsheetId || !apiUrl) return;
+        setEditSaving(true);
+        try {
+            // Row in sheet = index + 2 (1-indexed + header)
+            const rowNum = rowIdx + 2;
+            // Update columns E (Title), F (Kurzbeschreibung), G (Beschreibung), O (Notizen)
+            const { ok: ok1, error: err1 } = await fetchSheets({
+                action: 'update',
+                spreadsheetId,
+                range: `'Master_Einreichungen'!E${rowNum}:G${rowNum}`,
+                values: [[editForm.titel, editForm.kurzbeschreibung, editForm.beschreibung]],
+            }, accessToken, apiUrl);
+            if (!ok1) throw new Error(err1);
+            // Update notes column O
+            const { ok: ok2, error: err2 } = await fetchSheets({
+                action: 'update',
+                spreadsheetId,
+                range: `'Master_Einreichungen'!O${rowNum}`,
+                values: [[editForm.notizen]],
+            }, accessToken, apiUrl);
+            if (!ok2) throw new Error(err2);
+            setEditingSubmission(null);
+            if (onSuccess) onSuccess();
+        } catch (err) {
+            console.error('Edit save error:', err);
+        } finally {
+            setEditSaving(false);
         }
     };
 
@@ -332,7 +375,6 @@ const SessionSubmission = ({
                                         <div className="flex items-start gap-3">
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-1">
-                                                    <span className="font-mono text-[9px] text-slate-300">{sub.id}</span>
                                                     <h3 className="font-bold text-slate-800 text-sm">{sub.title}</h3>
                                                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${sub.status === 'Akzeptiert' ? 'bg-green-100 text-green-700' :
                                                         sub.status === 'Abgelehnt' ? 'bg-red-100 text-red-700' :
@@ -346,21 +388,50 @@ const SessionSubmission = ({
                                                     {sub.language && <span className="flex items-center gap-0.5"><Globe className="w-3 h-3" />{sub.language}</span>}
                                                     {sub.speakers && <span>🎤 {sub.speakers}</span>}
                                                 </div>
-                                                {sub.shortDescription && (
+                                                {!isEditing && sub.shortDescription && (
                                                     <p className="text-xs text-slate-500 mt-1 line-clamp-2">{sub.shortDescription}</p>
                                                 )}
                                             </div>
-                                            <button onClick={() => setEditingSubmission(isEditing ? null : sub.id)}
+                                            <button onClick={() => isEditing ? setEditingSubmission(null) : startEditing(sub)}
                                                 className="text-xs text-indigo-600 hover:text-indigo-800 font-bold shrink-0">
                                                 {isEditing ? 'Schließen' : 'Bearbeiten'}
                                             </button>
                                         </div>
 
                                         {isEditing && (
-                                            <div className="mt-3 pt-3 border-t border-slate-100 text-xs text-slate-500">
-                                                <p className="italic">Bearbeitungsfunktion wird in einem zukünftigen Update aktiviert.</p>
-                                                <p className="mt-1">Beschreibung: {sub.description || '—'}</p>
-                                                {sub.notes && <p className="mt-1 text-amber-600">Notizen: {sub.notes}</p>}
+                                            <div className="mt-3 pt-3 border-t border-slate-100 space-y-3">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Titel</label>
+                                                    <input type="text" value={editForm.titel}
+                                                        onChange={e => setEditForm(p => ({ ...p, titel: e.target.value }))}
+                                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Kurzbeschreibung</label>
+                                                    <input type="text" value={editForm.kurzbeschreibung}
+                                                        onChange={e => setEditForm(p => ({ ...p, kurzbeschreibung: e.target.value }))}
+                                                        maxLength={200}
+                                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Beschreibung</label>
+                                                    <textarea value={editForm.beschreibung}
+                                                        onChange={e => setEditForm(p => ({ ...p, beschreibung: e.target.value }))}
+                                                        rows={3} maxLength={2000}
+                                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 resize-none" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Notizen</label>
+                                                    <textarea value={editForm.notizen}
+                                                        onChange={e => setEditForm(p => ({ ...p, notizen: e.target.value }))}
+                                                        rows={2}
+                                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 resize-none" />
+                                                </div>
+                                                <button onClick={() => handleEditSave(sub, mySubmissions.indexOf(sub))}
+                                                    disabled={editSaving}
+                                                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium py-2 px-4 rounded-lg text-sm flex items-center justify-center gap-2">
+                                                    {editSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Speichern...</> : 'Änderungen speichern'}
+                                                </button>
                                             </div>
                                         )}
                                     </div>
