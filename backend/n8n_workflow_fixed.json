@@ -2161,7 +2161,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const jwt = require('jsonwebtoken');\nconst SECRET = '537f8c4ff1959fdc1d54ce852607f2c30f08607925a39e61be189d3d58e29ff1';\nconst authHeader = $('Webhook (POST /api/data)').first().json.headers?.authorization || '';\nconst token = authHeader.replace(/^Bearer\\\\s+/i, '').trim();\nif (!token) return [{ json: { error: 'No token' } }];\ntry {\n  const decoded = jwt.verify(token, SECRET);\n  if (decoded.email) return [{ json: { email: decoded.email, role: decoded.role || 'TEILNEHMENDE', authType: 'magic' } }];\n} catch(e) {}\nreturn [{ json: { error: 'Invalid token' } }];"
+        "jsCode": "const jwt = require('jsonwebtoken');\nconst SECRET = '537f8c4ff1959fdc1d54ce852607f2c30f08607925a39e61be189d3d58e29ff1';\nconst authHeader = $('Webhook (POST /api/data)').first().json.headers?.authorization || '';\nconst parts = authHeader.split(' ');\nconst token = parts.length > 1 ? parts[parts.length - 1] : parts[0] || '';\nif (!token) return [{ json: { error: 'No token' } }];\ntry {\n  const decoded = jwt.verify(token, SECRET);\n  if (decoded.email) return [{ json: { email: decoded.email, role: decoded.role || 'TEILNEHMENDE', authType: 'magic' } }];\n} catch(e) {\n  // Token invalid or expired\n}\nreturn [{ json: { error: 'Invalid token' } }];"
       },
       "id": "magic-jwt-data",
       "name": "Verify Magic JWT (Data)",
@@ -2174,7 +2174,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const jwt = require('jsonwebtoken');\nconst SECRET = '537f8c4ff1959fdc1d54ce852607f2c30f08607925a39e61be189d3d58e29ff1';\nconst token = $('Webhook (POST /auth/verify)').first().json.body?.token || '';\nif (!token) return [{ json: { error: 'No token' } }];\ntry {\n  const decoded = jwt.verify(token, SECRET);\n  if (decoded.email) return [{ json: { email: decoded.email, role: decoded.role || 'TEILNEHMENDE', authType: 'magic' } }];\n} catch(e) {}\nreturn [{ json: { error: 'Invalid token' } }];"
+        "jsCode": "const jwt = require('jsonwebtoken');\nconst SECRET = '537f8c4ff1959fdc1d54ce852607f2c30f08607925a39e61be189d3d58e29ff1';\nconst token = $('Webhook (POST /auth/verify)').first().json.body?.token || '';\nif (!token) return [{ json: { error: 'No token' } }];\ntry {\n  const decoded = jwt.verify(token, SECRET);\n  if (decoded.email) return [{ json: { email: decoded.email, role: decoded.role || 'TEILNEHMENDE', authType: 'magic' } }];\n} catch(e) {\n  // Token invalid or expired\n}\nreturn [{ json: { error: 'Invalid token' } }];"
       },
       "id": "magic-jwt-auth",
       "name": "Verify Magic JWT (Auth)",
@@ -2187,7 +2187,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const jwt = require('jsonwebtoken');\nconst SECRET = '537f8c4ff1959fdc1d54ce852607f2c30f08607925a39e61be189d3d58e29ff1';\nconst authHeader = $('Webhook (POST /api/rating)').first().json.headers?.authorization || '';\nconst token = authHeader.replace(/^Bearer\\\\s+/i, '').trim();\nif (!token) return [{ json: { error: 'No token' } }];\ntry {\n  const decoded = jwt.verify(token, SECRET);\n  if (decoded.email) return [{ json: { email: decoded.email, role: decoded.role || 'TEILNEHMENDE', authType: 'magic' } }];\n} catch(e) {}\nreturn [{ json: { error: 'Invalid token' } }];"
+        "jsCode": "const jwt = require('jsonwebtoken');\nconst SECRET = '537f8c4ff1959fdc1d54ce852607f2c30f08607925a39e61be189d3d58e29ff1';\nconst authHeader = $('Webhook (POST /api/rating)').first().json.headers?.authorization || '';\nconst parts = authHeader.split(' ');\nconst token = parts.length > 1 ? parts[parts.length - 1] : parts[0] || '';\nif (!token) return [{ json: { error: 'No token' } }];\ntry {\n  const decoded = jwt.verify(token, SECRET);\n  if (decoded.email) return [{ json: { email: decoded.email, role: decoded.role || 'TEILNEHMENDE', authType: 'magic' } }];\n} catch(e) {\n  // Token invalid or expired\n}\nreturn [{ json: { error: 'Invalid token' } }];"
       },
       "id": "magic-jwt-rating",
       "name": "Verify Magic JWT (Rating)",
@@ -2200,7 +2200,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const jwt = require('jsonwebtoken');\nconst SECRET = '537f8c4ff1959fdc1d54ce852607f2c30f08607925a39e61be189d3d58e29ff1';\nconst authHeader = $('Webhook (POST /api/save)').first().json.headers?.authorization || '';\nconst token = authHeader.replace(/^Bearer\\\\s+/i, '').trim();\nif (!token) return [{ json: { error: 'No token' } }];\ntry {\n  const decoded = jwt.verify(token, SECRET);\n  if (decoded.email) return [{ json: { email: decoded.email, role: decoded.role || 'TEILNEHMENDE', authType: 'magic' } }];\n} catch(e) {}\nreturn [{ json: { error: 'Invalid token' } }];"
+        "jsCode": "const jwt = require('jsonwebtoken');\nconst SECRET = '537f8c4ff1959fdc1d54ce852607f2c30f08607925a39e61be189d3d58e29ff1';\nconst authHeader = $('Webhook (POST /api/save)').first().json.headers?.authorization || '';\nconst parts = authHeader.split(' ');\nconst token = parts.length > 1 ? parts[parts.length - 1] : parts[0] || '';\nif (!token) return [{ json: { error: 'No token' } }];\ntry {\n  const decoded = jwt.verify(token, SECRET);\n  if (decoded.email) return [{ json: { email: decoded.email, role: decoded.role || 'TEILNEHMENDE', authType: 'magic' } }];\n} catch(e) {\n  // Token invalid or expired\n}\nreturn [{ json: { error: 'Invalid token' } }];"
       },
       "id": "magic-jwt-save",
       "name": "Verify Magic JWT (Save)",
