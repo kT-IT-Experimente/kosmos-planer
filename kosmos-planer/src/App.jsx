@@ -127,7 +127,7 @@ async function fetchSheets(body, token, n8nBaseUrl) {
   }
 
   const cleanBaseUrl = n8nBaseUrl.replace(/\/$/, '').replace(/\/api$/, '');
-  const endpoint = body.action === 'batchGet' ? '/api/data' : '/api/save';
+  const endpoint = '/api/data'; // ALL operations go through /api/data (has proper role-based checks)
   const reqUrl = `${cleanBaseUrl}${endpoint}`;
 
   let lastError = null;
