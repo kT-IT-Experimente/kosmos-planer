@@ -1708,7 +1708,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Upsert user in Config_Users: append if new, update role if existing\nconst data = $input.first().json;\nconst isNew = data.needsCreation;\nconst rowIndex = data.rowIndex;\nconst email = data.email;\nconst role = data.role;\n\nif (isNew) {\n  // Will be handled by the next HTTP node for append\n  return [{ json: { action: 'append', email, role } }];\n} else {\n  // Update existing row's role column (column B)\n  return [{ json: { action: 'update', email, role, rowIndex } }];\n}"
+        "jsCode": "// Upsert user in Config_Users: append if new, update role if existing\nconst data = $input.first().json;\nconst isNew = data.needsCreation;\nconst rowIndex = data.rowIndex;\nconst email = data.email;\nconst role = data.role;\nconst spreadsheetId = '1u12ILaBSj5B3Iy3yh6DYyanSIp7UQjimOBw61yYVmME';\n\nif (isNew) {\n  // Append new user row\n  const range = encodeURIComponent(\"Config_Users!A:C\");\n  return [{ json: {\n    action: 'append',\n    url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values/' + range + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS',\n    values: [[email, role || 'TEILNEHMENDE', '']]\n  } }];\n} else {\n  // Update existing row's role column (column B)\n  const range = encodeURIComponent(\"Config_Users!B\" + rowIndex);\n  return [{ json: {\n    action: 'update',\n    url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values/' + range + '?valueInputOption=USER_ENTERED',\n    values: [[role || 'TEILNEHMENDE']]\n  } }];\n}\n"
       },
       "id": "a060d0b2-0e9b-47d0-858b-7604a467496a",
       "name": "Create User in Config_Users",
@@ -2300,13 +2300,13 @@
     },
     {
       "parameters": {
-        "method": "=={{ $json.action === 'append' ? 'POST' : 'PUT' }}",
-        "url": "=={{ $json.action === 'append' ? 'https://sheets.googleapis.com/v4/spreadsheets/1u12ILaBSj5B3Iy3yh6DYyanSIp7UQjimOBw61yYVmME/values/Config_Users!A:B:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS' : 'https://sheets.googleapis.com/v4/spreadsheets/1u12ILaBSj5B3Iy3yh6DYyanSIp7UQjimOBw61yYVmME/values/Config_Users!B' + $json.rowIndex + '?valueInputOption=USER_ENTERED' }}",
+        "method": "={{ $json.action === 'append' ? 'POST' : 'PUT' }}",
+        "url": "={{ $json.url }}",
         "authentication": "predefinedCredentialType",
         "nodeCredentialType": "googleSheetsOAuth2Api",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ $json.action === 'append' ? JSON.stringify({ values: [[$json.email, $json.role]] }) : JSON.stringify({ values: [[$json.role]] }) }}",
+        "jsonBody": "={{ JSON.stringify({ values: $json.values }) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",

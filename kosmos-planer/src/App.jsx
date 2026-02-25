@@ -1722,7 +1722,7 @@ function App({ authenticatedUser }) {
 
       setStatus({ loading: false, error: null });
       setLocalChanges(false);
-      setToast({ msg: `${result.updatedCells || 0} Zellen gespeichert!`, type: "success" });
+      setToast({ msg: 'Programm gespeichert!', type: "success" });
       setTimeout(() => setToast(null), 3000);
 
     } catch (e) {
