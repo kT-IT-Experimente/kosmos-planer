@@ -600,6 +600,7 @@ const parsePlannerBatch = (batch, config) => {
     themen: [...new Set(configRows.map(r => safeString(r[1])).filter(Boolean))],
     tags: [...new Set(configRows.map(r => safeString(r[2])).filter(Boolean))],
     formate: [...new Set(configRows.map(r => safeString(r[3])).filter(Boolean))],
+    maxSubmissions: parseInt(configRows.find(r => safeString(r[4]))?.[4]) || 10,
   };
 
   // --- Parse Master_Ratings (valRanges[6]) ---
@@ -2471,6 +2472,7 @@ function App({ authenticatedUser }) {
                   })
                 }
                 metadata={data.configThemen || curationData.metadata}
+                maxSubmissions={(data.configThemen || {}).maxSubmissions || 10}
                 submitterEmail={authenticatedUser.email}
                 submitterName={mySpeakerRecord?.fullName || authenticatedUser.name || ''}
                 mySubmissions={mySubmissions}

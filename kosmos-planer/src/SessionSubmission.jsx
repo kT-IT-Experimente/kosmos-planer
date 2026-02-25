@@ -9,26 +9,21 @@ import { Send, AlertCircle, CheckCircle2, Loader2, UserPlus, Search, X, Edit3, C
 const SessionSubmission = ({
     speakers = [], metadata = {}, submitterEmail = '', submitterName = '',
     mySubmissions = [], mySessions = [], fetchSheets, spreadsheetId, apiUrl, accessToken,
-    onSuccess, onRegisterSpeaker
+    maxSubmissions = 10, onSuccess, onRegisterSpeaker
 }) => {
-    const [form, setForm] = useState({
-        titel: '',
-        kurzbeschreibung: '',
-        beschreibung: '',
-        format: '',
-        thema: '',
-        bereich: '',
-        sprache: 'DE',
-        dauer: 60,
-        selectedSpeakers: []
-    });
+    const emptyForm = {
+        titel: '', kurzbeschreibung: '', beschreibung: '', format: '',
+        thema: '', bereich: '', sprache: 'DE', dauer: 60, notizen: '', selectedSpeakers: []
+    };
+    const [form, setForm] = useState(emptyForm);
     const [speakerSearch, setSpeakerSearch] = useState('');
     const [showSpeakerPicker, setShowSpeakerPicker] = useState(false);
     const [status, setStatus] = useState({ loading: false, error: null, success: null });
-    const [editingSubmission, setEditingSubmission] = useState(null);
-    const [editForm, setEditForm] = useState({});
-    const [editSaving, setEditSaving] = useState(false);
+    const [editingSubmission, setEditingSubmission] = useState(null); // null = new, sub.id = editing
     const [showMySubmissions, setShowMySubmissions] = useState(true);
+
+    const isEditing = editingSubmission !== null;
+    const canSubmitNew = mySubmissions.length < maxSubmissions;
 
     const filteredSpeakers = useMemo(() => {
         if (!speakerSearch.trim()) return speakers;
@@ -57,6 +52,34 @@ const SessionSubmission = ({
         handleChange('selectedSpeakers', form.selectedSpeakers.filter(s => s.id !== id));
     };
 
+    // Load submission into the main form for editing
+    const startEditing = (sub) => {
+        // Resolve speaker IDs to speaker objects
+        const speakerIds = (sub.speakerIds || '').split(',').map(s => s.trim()).filter(Boolean);
+        const resolvedSpeakers = speakerIds.map(id => speakers.find(s => s.id === id)).filter(Boolean);
+        setForm({
+            titel: sub.title || '',
+            kurzbeschreibung: sub.shortDescription || '',
+            beschreibung: sub.description || '',
+            format: sub.format || '',
+            thema: sub.thema || '',
+            bereich: sub.bereich || '',
+            sprache: sub.language || 'DE',
+            dauer: parseInt(sub.duration) || 60,
+            notizen: sub.notes || '',
+            selectedSpeakers: resolvedSpeakers
+        });
+        setEditingSubmission(sub.id);
+        setStatus({ loading: false, error: null, success: null });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const cancelEditing = () => {
+        setForm(emptyForm);
+        setEditingSubmission(null);
+        setStatus({ loading: false, error: null, success: null });
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         if (!fetchSheets || !spreadsheetId || !apiUrl) {
@@ -82,7 +105,7 @@ const SessionSubmission = ({
                 timestamp,           // A: Zeitstempel
                 submitterEmail,      // B: Submitter_Email
                 submitterName,       // C: Submitter_Name
-                'Vorschlag',         // D: Status
+                isEditing ? undefined : 'Vorschlag', // D: Status (keep existing for edits)
                 form.titel,          // E: Session_Titel
                 form.kurzbeschreibung, // F: Kurzbeschreibung
                 form.beschreibung,   // G: Beschreibung
@@ -93,70 +116,44 @@ const SessionSubmission = ({
                 String(form.dauer),  // L: Dauer
                 speakerIds,          // M: Speaker_IDs
                 speakerNames,        // N: Speaker_Names
-                ''                   // O: Notizen
+                form.notizen         // O: Notizen
             ];
 
-            const { ok, error } = await fetchSheets({
-                action: 'append',
-                spreadsheetId,
-                range: `'Master_Einreichungen'!A2:O`,
-                values: [row],
-            }, accessToken, apiUrl);
+            if (isEditing) {
+                // Find the submission being edited to get its actual sheet row
+                const editSub = mySubmissions.find(s => s.id === editingSubmission);
+                if (!editSub) throw new Error('Einreichung nicht gefunden');
+                const rowNum = editSub.rowIndex; // sheet row number from parsed data
+                // Update columns A (timestamp), E-O (data) — skip D (status)
+                const { ok: ok1, error: err1 } = await fetchSheets({
+                    action: 'update', spreadsheetId,
+                    range: `'Master_Einreichungen'!A${rowNum}`,
+                    values: [[timestamp]],
+                }, accessToken, apiUrl);
+                if (!ok1) throw new Error(err1);
+                const { ok: ok2, error: err2 } = await fetchSheets({
+                    action: 'update', spreadsheetId,
+                    range: `'Master_Einreichungen'!E${rowNum}:O${rowNum}`,
+                    values: [[form.titel, form.kurzbeschreibung, form.beschreibung, form.format, form.thema, form.bereich, form.sprache, String(form.dauer), speakerIds, speakerNames, form.notizen]],
+                }, accessToken, apiUrl);
+                if (!ok2) throw new Error(err2);
+                setStatus({ loading: false, error: null, success: `Session "${form.titel}" aktualisiert!` });
+            } else {
+                // Append new row
+                const { ok, error } = await fetchSheets({
+                    action: 'append', spreadsheetId,
+                    range: `'Master_Einreichungen'!A2:O`,
+                    values: [row],
+                }, accessToken, apiUrl);
+                if (!ok) throw new Error(error || 'Fehler beim Speichern');
+                setStatus({ loading: false, error: null, success: `Session "${form.titel}" erfolgreich eingereicht!` });
+            }
 
-            if (!ok) throw new Error(error || 'Fehler beim Speichern');
-
-            setStatus({
-                loading: false, error: null,
-                success: `Session "${form.titel}" erfolgreich eingereicht!`
-            });
-            setForm({
-                titel: '', kurzbeschreibung: '', beschreibung: '', format: '',
-                thema: '', bereich: '', sprache: 'DE', dauer: 60, selectedSpeakers: []
-            });
-            if (onSuccess) onSuccess();
-        } catch (err) {
-            setStatus({ loading: false, error: err.message, success: null });
-        }
-    };
-
-    const startEditing = (sub) => {
-        setEditingSubmission(sub.id);
-        setEditForm({
-            titel: sub.title || '',
-            kurzbeschreibung: sub.shortDescription || '',
-            beschreibung: sub.description || '',
-            notizen: sub.notes || ''
-        });
-    };
-
-    const handleEditSave = async (sub, rowIdx) => {
-        if (!fetchSheets || !spreadsheetId || !apiUrl) return;
-        setEditSaving(true);
-        try {
-            // Row in sheet = index + 2 (1-indexed + header)
-            const rowNum = rowIdx + 2;
-            // Update columns E (Title), F (Kurzbeschreibung), G (Beschreibung), O (Notizen)
-            const { ok: ok1, error: err1 } = await fetchSheets({
-                action: 'update',
-                spreadsheetId,
-                range: `'Master_Einreichungen'!E${rowNum}:G${rowNum}`,
-                values: [[editForm.titel, editForm.kurzbeschreibung, editForm.beschreibung]],
-            }, accessToken, apiUrl);
-            if (!ok1) throw new Error(err1);
-            // Update notes column O
-            const { ok: ok2, error: err2 } = await fetchSheets({
-                action: 'update',
-                spreadsheetId,
-                range: `'Master_Einreichungen'!O${rowNum}`,
-                values: [[editForm.notizen]],
-            }, accessToken, apiUrl);
-            if (!ok2) throw new Error(err2);
+            setForm(emptyForm);
             setEditingSubmission(null);
             if (onSuccess) onSuccess();
         } catch (err) {
-            console.error('Edit save error:', err);
-        } finally {
-            setEditSaving(false);
+            setStatus({ loading: false, error: err.message, success: null });
         }
     };
 
@@ -164,15 +161,35 @@ const SessionSubmission = ({
 
     return (
         <div className="max-w-3xl mx-auto space-y-6">
-            {/* Submit Form */}
-            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+            {/* Submit / Edit Form */}
+            <div className={`bg-white rounded-xl shadow-sm border ${isEditing ? 'border-amber-300' : 'border-slate-200'} p-6`}>
                 <div className="flex items-center gap-3 mb-6">
-                    <Send className="w-6 h-6 text-indigo-600" />
-                    <div>
-                        <h2 className="text-xl font-bold text-slate-800">Session einreichen</h2>
-                        <p className="text-xs text-slate-400">Eingereicht von: {submitterName || submitterEmail}</p>
+                    {isEditing ? <Edit3 className="w-6 h-6 text-amber-600" /> : <Send className="w-6 h-6 text-indigo-600" />}
+                    <div className="flex-1">
+                        <h2 className="text-xl font-bold text-slate-800">
+                            {isEditing ? 'Session bearbeiten' : 'Session einreichen'}
+                        </h2>
+                        <p className="text-xs text-slate-400">
+                            {isEditing
+                                ? `Bearbeitung von "${form.titel}"`
+                                : `Eingereicht von: ${submitterName || submitterEmail}`}
+                        </p>
                     </div>
+                    {isEditing && (
+                        <button onClick={cancelEditing}
+                            className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-slate-200 rounded-lg text-slate-600 font-medium">
+                            Abbrechen
+                        </button>
+                    )}
                 </div>
+
+                {/* Show limit info for new submissions */}
+                {!isEditing && !canSubmitNew && (
+                    <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                        <p className="text-sm text-amber-800">Du hast die maximale Anzahl von {maxSubmissions} Einreichungen erreicht. Du kannst bestehende Sessions bearbeiten.</p>
+                    </div>
+                )}
 
                 <form onSubmit={handleSubmit} className="space-y-5">
                     {/* Title */}
@@ -221,10 +238,7 @@ const SessionSubmission = ({
                             <label className="block text-xs font-medium text-slate-500 mb-1">Dauer (Minuten)</label>
                             <select value={form.dauer} onChange={e => handleChange('dauer', parseInt(e.target.value))}
                                 className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500">
-                                <option value={30}>30 min</option>
-                                <option value={45}>45 min</option>
-                                <option value={60}>60 min</option>
-                                <option value={90}>90 min</option>
+                                {[15, 30, 45, 60, 90, 120].map(d => <option key={d} value={d}>{d} min</option>)}
                             </select>
                         </div>
                     </div>
@@ -254,20 +268,29 @@ const SessionSubmission = ({
                         <label className="block text-xs font-medium text-slate-500 mb-1">Sprache</label>
                         <div className="flex gap-4">
                             {['DE', 'EN', 'Bilingual'].map(lang => (
-                                <label key={lang} className="flex items-center gap-1.5 cursor-pointer">
+                                <label key={lang} className="flex items-center gap-1.5 text-sm cursor-pointer">
                                     <input type="radio" name="sprache" value={lang} checked={form.sprache === lang}
-                                        onChange={e => handleChange('sprache', e.target.value)} className="text-indigo-600" />
-                                    <span className="text-sm text-slate-700">{lang}</span>
+                                        onChange={() => handleChange('sprache', lang)}
+                                        className="text-indigo-600 focus:ring-indigo-500" />
+                                    {lang}
                                 </label>
                             ))}
                         </div>
                     </div>
 
-                    {/* Speaker Selection */}
+                    {/* Notizen */}
+                    <div>
+                        <label className="block text-xs font-medium text-slate-500 mb-1">Notizen (intern)</label>
+                        <textarea value={form.notizen} onChange={e => handleChange('notizen', e.target.value)}
+                            placeholder="Interne Anmerkungen..." rows={2}
+                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 resize-none" />
+                    </div>
+
+                    {/* Speaker Picker */}
                     <div>
                         <label className="block text-xs font-medium text-slate-500 mb-1">Speaker*innen</label>
                         {form.selectedSpeakers.length > 0 && (
-                            <div className="flex flex-wrap gap-2 mb-2">
+                            <div className="flex flex-wrap gap-1.5 mb-2">
                                 {form.selectedSpeakers.map(s => (
                                     <span key={s.id}
                                         className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium ${isDummy(s)
@@ -307,44 +330,42 @@ const SessionSubmission = ({
                                             <span>
                                                 <strong>{s.fullName}</strong>
                                                 {s.organisation && <span className="text-slate-400 ml-1">({s.organisation})</span>}
-                                                {isDummy(s) && <span className="text-amber-600 ml-1">[Dummy]</span>}
+                                                {isDummy(s) && <span className="ml-1 text-[9px] bg-amber-100 text-amber-700 px-1 py-0.5 rounded">Dummy</span>}
                                             </span>
-                                            <span className="text-xs text-slate-400">{s.id}</span>
+                                            <span className="text-[9px] font-mono text-slate-300">{s.id}</span>
                                         </button>
                                     ))}
                                 </div>
                             )}
-                            {showSpeakerPicker && filteredSpeakers.length === 0 && speakerSearch && (
-                                <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-sm text-slate-500">
-                                    Keine Speaker gefunden. {onRegisterSpeaker && (
-                                        <button type="button" onClick={onRegisterSpeaker} className="text-indigo-600 underline ml-1">
-                                            Neuen Speaker anlegen
-                                        </button>
-                                    )}
+                            {showSpeakerPicker && filteredSpeakers.length === 0 && speakerSearch.trim() && (
+                                <div className="absolute z-50 mt-1 w-full bg-white border border-slate-200 rounded-lg shadow-lg p-3 text-center text-sm text-slate-400">
+                                    Keine Speaker gefunden.
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* Status Messages */}
+                    {/* Status messages */}
                     {status.error && (
-                        <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                            <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                            <span className="text-sm text-red-800">{status.error}</span>
+                        <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
+                            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
+                            <p className="text-sm text-red-800">{status.error}</p>
                         </div>
                     )}
                     {status.success && (
-                        <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                            <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                            <span className="text-sm text-green-800">{status.success}</span>
+                        <div className="flex items-center gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
+                            <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                            <p className="text-sm text-green-800">{status.success}</p>
                         </div>
                     )}
 
                     {/* Submit */}
-                    <button type="submit" disabled={status.loading}
-                        className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors">
+                    <button type="submit" disabled={status.loading || (!isEditing && !canSubmitNew)}
+                        className={`w-full ${isEditing ? 'bg-amber-600 hover:bg-amber-700 disabled:bg-amber-400' : 'bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400'} text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors`}>
                         {status.loading ? (
-                            <><Loader2 className="w-4 h-4 animate-spin" /> Wird eingereicht...</>
+                            <><Loader2 className="w-4 h-4 animate-spin" /> {isEditing ? 'Wird aktualisiert...' : 'Wird eingereicht...'}</>
+                        ) : isEditing ? (
+                            <><Edit3 className="w-4 h-4" /> Änderungen speichern</>
                         ) : (
                             <><Send className="w-4 h-4" /> Session einreichen</>
                         )}
@@ -356,22 +377,22 @@ const SessionSubmission = ({
                 )}
             </div>
 
-            {/* MY SUBMISSIONS — editable cards */}
+            {/* MY SUBMISSIONS — dashboard cards */}
             {mySubmissions.length > 0 && (
                 <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                     <button onClick={() => setShowMySubmissions(!showMySubmissions)}
                         className="flex items-center gap-2 w-full text-left">
                         <Edit3 className="w-5 h-5 text-indigo-600" />
-                        <h2 className="text-lg font-bold text-slate-800 flex-1">Meine Einreichungen ({mySubmissions.length})</h2>
+                        <h2 className="text-lg font-bold text-slate-800 flex-1">Meine Einreichungen ({mySubmissions.length}/{maxSubmissions})</h2>
                         {showMySubmissions ? <ChevronUp className="w-5 h-5 text-slate-400" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
                     </button>
 
                     {showMySubmissions && (
                         <div className="mt-4 space-y-3">
                             {mySubmissions.map(sub => {
-                                const isEditing = editingSubmission === sub.id;
+                                const isThis = editingSubmission === sub.id;
                                 return (
-                                    <div key={sub.id} className={`border rounded-lg p-4 transition-all ${isEditing ? 'border-indigo-200 bg-indigo-50/30' : 'border-slate-200 hover:border-slate-300'}`}>
+                                    <div key={sub.id} className={`border rounded-lg p-4 transition-all ${isThis ? 'border-amber-300 bg-amber-50/30' : 'border-slate-200 hover:border-slate-300'}`}>
                                         <div className="flex items-start gap-3">
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center gap-2 mb-1">
@@ -388,52 +409,15 @@ const SessionSubmission = ({
                                                     {sub.language && <span className="flex items-center gap-0.5"><Globe className="w-3 h-3" />{sub.language}</span>}
                                                     {sub.speakers && <span>🎤 {sub.speakers}</span>}
                                                 </div>
-                                                {!isEditing && sub.shortDescription && (
+                                                {sub.shortDescription && (
                                                     <p className="text-xs text-slate-500 mt-1 line-clamp-2">{sub.shortDescription}</p>
                                                 )}
                                             </div>
-                                            <button onClick={() => isEditing ? setEditingSubmission(null) : startEditing(sub)}
-                                                className="text-xs text-indigo-600 hover:text-indigo-800 font-bold shrink-0">
-                                                {isEditing ? 'Schließen' : 'Bearbeiten'}
+                                            <button onClick={() => isThis ? cancelEditing() : startEditing(sub)}
+                                                className={`text-xs font-bold shrink-0 ${isThis ? 'text-amber-600 hover:text-amber-800' : 'text-indigo-600 hover:text-indigo-800'}`}>
+                                                {isThis ? '✓ Wird bearbeitet' : 'Bearbeiten'}
                                             </button>
                                         </div>
-
-                                        {isEditing && (
-                                            <div className="mt-3 pt-3 border-t border-slate-100 space-y-3">
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Titel</label>
-                                                    <input type="text" value={editForm.titel}
-                                                        onChange={e => setEditForm(p => ({ ...p, titel: e.target.value }))}
-                                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Kurzbeschreibung</label>
-                                                    <input type="text" value={editForm.kurzbeschreibung}
-                                                        onChange={e => setEditForm(p => ({ ...p, kurzbeschreibung: e.target.value }))}
-                                                        maxLength={200}
-                                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Beschreibung</label>
-                                                    <textarea value={editForm.beschreibung}
-                                                        onChange={e => setEditForm(p => ({ ...p, beschreibung: e.target.value }))}
-                                                        rows={3} maxLength={2000}
-                                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 resize-none" />
-                                                </div>
-                                                <div>
-                                                    <label className="block text-xs font-medium text-slate-500 mb-1">Notizen</label>
-                                                    <textarea value={editForm.notizen}
-                                                        onChange={e => setEditForm(p => ({ ...p, notizen: e.target.value }))}
-                                                        rows={2}
-                                                        className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 resize-none" />
-                                                </div>
-                                                <button onClick={() => handleEditSave(sub, mySubmissions.indexOf(sub))}
-                                                    disabled={editSaving}
-                                                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium py-2 px-4 rounded-lg text-sm flex items-center justify-center gap-2">
-                                                    {editSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Speichern...</> : 'Änderungen speichern'}
-                                                </button>
-                                            </div>
-                                        )}
                                     </div>
                                 );
                             })}
