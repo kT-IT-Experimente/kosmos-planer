@@ -1654,7 +1654,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Check if user exists in Config_Users, determine role\nconst nonceData = $('Check Nonce (One-Time)').first().json;\nconst email = (nonceData.email || '').toLowerCase().trim();\nconst tokenRole = nonceData.role;\n\nconst rows = $input.all().map(item => item.json);\n\n// Search for email in Config_Users (check Email/A column + all values for robustness)\nconst existingUser = rows.find(r => {\n  const emailCol = (r['Email'] || r['A'] || r['email'] || '').toLowerCase().trim();\n  if (emailCol === email) return true;\n  // Fallback: check all values\n  return Object.values(r).some(v => String(v || '').toLowerCase().trim() === email);\n});\n\nconst VALID_ROLES = ['ADMIN','CURATOR','REVIEWER','SPEAKER','SPRECHERIN','TEILNEHMENDE','PRODUCTION','PARTNER','BAND','GUEST'];\n\nif (existingUser) {\n  // Find the role value\n  const roleCol = existingUser['Role'] || existingUser['B'] || existingUser['role'] || '';\n  const roleVal = VALID_ROLES.find(r => r === String(roleCol).toUpperCase().trim()) || tokenRole || 'TEILNEHMENDE';\n  return [{ json: {\n    email,\n    role: roleVal,\n    isNewUser: false,\n    needsCreation: false\n  }}];\n} else {\n  return [{ json: {\n    email,\n    role: tokenRole || 'TEILNEHMENDE',\n    isNewUser: true,\n    needsCreation: true\n  }}];\n}"
+        "jsCode": "// Check if user exists in Config_Users, merge roles if exists\nconst nonceData = $('Check Nonce (One-Time)').first().json;\nconst email = (nonceData.email || '').toLowerCase().trim();\nconst tokenRole = (nonceData.role || 'TEILNEHMENDE').toUpperCase().trim();\n\nconst rows = $input.all().map(item => item.json);\n\n// Find existing user by email\nconst existingUser = rows.find(r => {\n  const emailCol = (r['Email'] || r['A'] || r['email'] || '').toLowerCase().trim();\n  if (emailCol === email) return true;\n  return Object.values(r).some(v => String(v || '').toLowerCase().trim() === email);\n});\n\n// Find the row index for potential updates\nlet existingRowIndex = -1;\nfor (let i = 0; i < rows.length; i++) {\n  const emailCol = (rows[i]['Email'] || rows[i]['A'] || rows[i]['email'] || '').toLowerCase().trim();\n  if (emailCol === email || Object.values(rows[i]).some(v => String(v || '').toLowerCase().trim() === email)) {\n    existingRowIndex = i + 2; // 1-indexed + header\n    break;\n  }\n}\n\nif (existingUser) {\n  // Parse existing roles (may be comma-separated)\n  const roleCol = existingUser['Role'] || existingUser['B'] || existingUser['role'] || '';\n  const existingRoles = roleCol.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);\n  \n  // Merge: add tokenRole if not already present\n  let mergedRoles = [...existingRoles];\n  if (tokenRole && !mergedRoles.includes(tokenRole)) {\n    mergedRoles.push(tokenRole);\n  }\n  const finalRole = mergedRoles.join(',');\n  \n  // Check if we need to update the role in the sheet\n  const needsRoleUpdate = finalRole !== roleCol.toUpperCase().trim();\n  \n  return [{ json: {\n    email,\n    role: finalRole,\n    isNewUser: false,\n    needsCreation: false,\n    needsRoleUpdate,\n    rowIndex: existingRowIndex\n  }}];\n} else {\n  return [{ json: {\n    email,\n    role: tokenRole,\n    isNewUser: true,\n    needsCreation: true,\n    needsRoleUpdate: false,\n    rowIndex: -1\n  }}];\n}"
       },
       "id": "9661fd1f-aba2-4abb-aa3a-0aa7d72cfb4d",
       "name": "Check User Exists",
@@ -1668,10 +1668,30 @@
     {
       "parameters": {
         "conditions": {
-          "boolean": [
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "combinator": "or",
+          "conditions": [
             {
-              "value1": "={{ $json.needsCreation }}",
-              "value2": true
+              "id": "needs-creation",
+              "leftValue": "={{ $json.needsCreation }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            },
+            {
+              "id": "needs-role-update",
+              "leftValue": "={{ $json.needsRoleUpdate }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
             }
           ]
         },
@@ -1688,55 +1708,12 @@
     },
     {
       "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "1u12ILaBSj5B3Iy3yh6DYyanSIp7UQjimOBw61yYVmME"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "Config_Users"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Email": "={{ $json.email }}",
-            "Role": "={{ $json.role }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "Email",
-              "displayName": "Email",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            },
-            {
-              "id": "Role",
-              "displayName": "Role",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true,
-              "removed": false
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
+        "jsCode": "// Upsert user in Config_Users: append if new, update role if existing\nconst data = $input.first().json;\nconst isNew = data.needsCreation;\nconst rowIndex = data.rowIndex;\nconst email = data.email;\nconst role = data.role;\n\nif (isNew) {\n  // Will be handled by the next HTTP node for append\n  return [{ json: { action: 'append', email, role } }];\n} else {\n  // Update existing row's role column (column B)\n  return [{ json: { action: 'update', email, role, rowIndex } }];\n}"
       },
       "id": "a060d0b2-0e9b-47d0-858b-7604a467496a",
       "name": "Create User in Config_Users",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.5,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         384,
         2400
@@ -2311,6 +2288,32 @@
         1072,
         1084
       ]
+    },
+    {
+      "parameters": {
+        "method": "=={{ $json.action === 'append' ? 'POST' : 'PUT' }}",
+        "url": "=={{ $json.action === 'append' ? 'https://sheets.googleapis.com/v4/spreadsheets/1u12ILaBSj5B3Iy3yh6DYyanSIp7UQjimOBw61yYVmME/values/Config_Users!A:B:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS' : 'https://sheets.googleapis.com/v4/spreadsheets/1u12ILaBSj5B3Iy3yh6DYyanSIp7UQjimOBw61yYVmME/values/Config_Users!B' + $json.rowIndex + '?valueInputOption=USER_ENTERED' }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsOAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.action === 'append' ? JSON.stringify({ values: [[$json.email, $json.role]] }) : JSON.stringify({ values: [[$json.role]] }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2060,
+        2220
+      ],
+      "id": "write-config-user-001",
+      "name": "Write Config_Users",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "XHAaj2jW66uJmJCY",
+          "name": "Google Sheets account"
+        }
+      }
     }
   ],
   "pinData": {
@@ -2877,7 +2880,7 @@
       "main": [
         [
           {
-            "node": "Respond Verified",
+            "node": "Write Config_Users",
             "type": "main",
             "index": 0
           }
@@ -3079,6 +3082,17 @@
         [
           {
             "node": "Respond Write OK",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Write Config_Users": {
+      "main": [
+        [
+          {
+            "node": "Respond Verified",
             "type": "main",
             "index": 0
           }

@@ -1227,22 +1227,37 @@ function App({ authenticatedUser }) {
   };
 
   // Effective role: derived from Config_Users list (sheet source of truth)
-  // Falls back to curationData.userRole (from n8n auth) if not found in users list
-  const effectiveRole = (() => {
+  // Role priority (highest first) — used to pick the "primary" display role
+  const ROLE_PRIORITY = ['ADMIN', 'CURATOR', 'REVIEWER', 'PRODUCTION', 'SPEAKER', 'SPRECHERIN', 'TEILNEHMENDE', 'PARTNER', 'BAND', 'GUEST'];
+
+  // Parse all roles from comma-separated string
+  const userRoles = (() => {
     const email = authenticatedUser.email?.toLowerCase() || '';
-    // 1. Check Config_Users for explicit role assignment
+    // 1. Check Config_Users for explicit role assignment (may be comma-separated)
     const fromUsers = curationData.users.find(u => u.email.toLowerCase() === email);
-    if (fromUsers) return fromUsers.role;
-    // 2. Check n8n-assigned role
-    if (curationData.userRole && curationData.userRole !== 'GUEST') return curationData.userRole;
+    let roles = [];
+    if (fromUsers) {
+      roles = fromUsers.role.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
+    }
+    // 2. Add n8n-assigned role if not already present
+    if (curationData.userRole && curationData.userRole !== 'GUEST') {
+      const nRoles = curationData.userRole.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
+      nRoles.forEach(r => { if (!roles.includes(r)) roles.push(r); });
+    }
     // 3. Auto-detect: is user a registered speaker?
     const isSpeaker = data.speakers.some(s => s.email?.toLowerCase() === email);
+    if (isSpeaker && !roles.includes('SPEAKER') && !roles.includes('SPRECHERIN')) roles.push('SPRECHERIN');
     // 4. Auto-detect: has user submitted sessions?
     const hasSubmissions = data.submissions.some(s => s.submitterEmail?.toLowerCase() === email);
-    if (hasSubmissions) return 'TEILNEHMENDE';
-    if (isSpeaker) return 'SPEAKER';
-    return 'GUEST';
+    if (hasSubmissions && !roles.includes('TEILNEHMENDE')) roles.push('TEILNEHMENDE');
+    return roles.length > 0 ? roles : ['GUEST'];
   })();
+
+  // Primary display role (highest priority)
+  const effectiveRole = ROLE_PRIORITY.find(r => userRoles.includes(r)) || userRoles[0] || 'GUEST';
+
+  // Permission check: does user have ANY of the specified roles?
+  const hasRole = (...roles) => roles.some(r => userRoles.includes(r));
 
   // Find current user's speaker record (for profile)
   const mySpeakerRecord = useMemo(() => {
@@ -1278,7 +1293,7 @@ function App({ authenticatedUser }) {
       return;
     }
     // TEILNEHMENDE → Profile first if no speaker record, otherwise SUBMIT
-    if (effectiveRole === 'TEILNEHMENDE' || effectiveRole === 'SPRECHERIN') {
+    if (hasRole('TEILNEHMENDE', 'SPRECHERIN')) {
       if (!mySpeakerRecord) {
         setViewMode('PROFILE');
       } else {
@@ -1289,12 +1304,12 @@ function App({ authenticatedUser }) {
     }
     // Wait for data to determine role-based default
     if (!data.speakers.length) return;
-    if (effectiveRole === 'SPEAKER') { setViewMode('PROFILE'); setInitialRedirectDone(true); }
+    if (hasRole('SPEAKER')) { setViewMode('PROFILE'); setInitialRedirectDone(true); }
     else { setInitialRedirectDone(true); }
   }, [effectiveRole, data.speakers, mySpeakerRecord, initialRedirectDone, authenticatedUser.isNewUser]);
 
   const handleUpdateUserRole = async (email, newRole) => {
-    if (effectiveRole !== 'ADMIN') {
+    if (!hasRole('ADMIN')) {
       setToast({ msg: 'Nur Admins können Rollen ändern.', type: 'error' });
       setTimeout(() => setToast(null), 3000);
       return;
@@ -1313,7 +1328,7 @@ function App({ authenticatedUser }) {
   };
 
   const handleAddUser = async (email, role) => {
-    if (effectiveRole !== 'ADMIN') {
+    if (!hasRole('ADMIN')) {
       setToast({ msg: 'Nur Admins können Nutzer hinzufügen.', type: 'error' });
       setTimeout(() => setToast(null), 3000);
       return;
@@ -1336,7 +1351,7 @@ function App({ authenticatedUser }) {
   };
 
   const handleDeleteUser = async (email) => {
-    if (effectiveRole !== 'ADMIN') {
+    if (!hasRole('ADMIN')) {
       setToast({ msg: 'Nur Admins können Nutzer entfernen.', type: 'error' });
       setTimeout(() => setToast(null), 3000);
       return;
@@ -1361,7 +1376,7 @@ function App({ authenticatedUser }) {
 
   // --- STAGE MANAGEMENT ---
   const handleSaveStages = async (updatedStages) => {
-    if (effectiveRole !== 'ADMIN') {
+    if (!hasRole('ADMIN')) {
       setToast({ msg: 'Nur Admins können Bühnen bearbeiten.', type: 'error' });
       setTimeout(() => setToast(null), 3000);
       return;
@@ -1391,7 +1406,7 @@ function App({ authenticatedUser }) {
 
   // --- CONFIG_THEMEN MANAGEMENT ---
   const handleSaveConfigThemen = async (updatedConfig) => {
-    if (effectiveRole !== 'ADMIN') {
+    if (!hasRole('ADMIN')) {
       setToast({ msg: 'Nur Admins können Themen bearbeiten.', type: 'error' });
       setTimeout(() => setToast(null), 3000);
       return;
@@ -1434,7 +1449,7 @@ function App({ authenticatedUser }) {
   const [openCallClosed, setOpenCallClosed] = useState(false);
 
   const handleToggleOpenCall = async () => {
-    if (effectiveRole !== 'ADMIN') {
+    if (!hasRole('ADMIN')) {
       setToast({ msg: 'Nur Admins können den Open Call steuern.', type: 'error' });
       setTimeout(() => setToast(null), 3000);
       return;
@@ -2107,16 +2122,16 @@ function App({ authenticatedUser }) {
                             <div className="flex-1 min-w-0">
                               <p className="font-bold text-slate-800 truncate">{authenticatedUser.name || 'User'}</p>
                               <p className="text-xs text-slate-500 truncate">{authenticatedUser.email}</p>
-                              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${effectiveRole === 'ADMIN' ? 'bg-red-100 text-red-700' :
-                                effectiveRole === 'CURATOR' ? 'bg-purple-100 text-purple-700' :
-                                  effectiveRole === 'REVIEWER' ? 'bg-blue-100 text-blue-700' :
-                                    effectiveRole === 'PRODUCTION' ? 'bg-orange-100 text-orange-700' :
-                                      effectiveRole === 'SPEAKER' ? 'bg-emerald-100 text-emerald-700' :
-                                        effectiveRole === 'TEILNEHMENDE' || effectiveRole === 'SPRECHERIN' ? 'bg-cyan-100 text-cyan-700' :
-                                          effectiveRole === 'PARTNER' ? 'bg-amber-100 text-amber-700' :
-                                            effectiveRole === 'BAND' ? 'bg-pink-100 text-pink-700' :
+                              <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${hasRole('ADMIN') ? 'bg-red-100 text-red-700' :
+                                hasRole('CURATOR') ? 'bg-purple-100 text-purple-700' :
+                                  hasRole('REVIEWER') ? 'bg-blue-100 text-blue-700' :
+                                    hasRole('PRODUCTION') ? 'bg-orange-100 text-orange-700' :
+                                      hasRole('SPEAKER') ? 'bg-emerald-100 text-emerald-700' :
+                                        hasRole('TEILNEHMENDE', 'SPRECHERIN') ? 'bg-cyan-100 text-cyan-700' :
+                                          hasRole('PARTNER') ? 'bg-amber-100 text-amber-700' :
+                                            hasRole('BAND') ? 'bg-pink-100 text-pink-700' :
                                               'bg-slate-100 text-slate-600'
-                                }`}>{effectiveRole}</span>
+                                }`}>{userRoles.join(', ')}</span>
                             </div>
                           </div>
                         </div>
@@ -2255,7 +2270,7 @@ function App({ authenticatedUser }) {
                       })}
                     </div>
                     <div className="flex min-w-full">
-                      {data.stages.filter(s => effectiveRole === 'ADMIN' || !s.hidden).map(stage => {
+                      {data.stages.filter(s => hasRole('ADMIN') || !s.hidden).map(stage => {
                         const stageSessions = data.program.filter(p => p.stage === stage.id);
                         return (
                           <StageColumn key={stage.id} stage={stage} height={timelineHeight}>
@@ -2455,36 +2470,49 @@ function App({ authenticatedUser }) {
         {/* Submit View */}
         {viewMode === 'SUBMIT' && (
           <div className="flex-1 overflow-y-auto bg-slate-50 p-6 space-y-6">
-            {openCallClosed && effectiveRole !== 'ADMIN' ? (
+            {openCallClosed && !hasRole('ADMIN') ? (
               <div className="max-w-2xl mx-auto mt-20 text-center">
                 <div className="bg-red-50 border border-red-200 rounded-xl p-8">
                   <h2 className="text-xl font-bold text-red-700 mb-2">Open Call geschlossen</h2>
                   <p className="text-sm text-red-600">Der Open Call für Einreichungen ist derzeit geschlossen. Bitte wende dich an das Admin-Team, wenn du eine Session einreichen möchtest.</p>
                 </div>
               </div>
-            ) : effectiveRole === 'SPRECHERIN' ? (
+            ) : hasRole('SPRECHERIN') && !hasRole('ADMIN', 'TEILNEHMENDE') ? (
               /* SPRECHERIN: read-only session overview */
               <div className="max-w-3xl mx-auto space-y-6">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-start gap-2">
+                  <span className="text-amber-600 text-lg">⚠️</span>
+                  <p className="text-sm text-amber-800"><strong>Hinweis:</strong> Zeiten und Bühnen sind vorläufig, solange eine Session nicht den Status <strong className="text-green-700">fixiert</strong> hat. Erst dann sind die Angaben verbindlich.</p>
+                </div>
                 {mySessions.length > 0 ? (
                   <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
                     <h2 className="text-lg font-bold text-slate-800 mb-4">📋 Meine Sessions ({mySessions.length})</h2>
                     <div className="space-y-3">
-                      {mySessions.map((session, i) => (
-                        <div key={session.id || i} className="border border-slate-200 rounded-lg p-4">
-                          <h3 className="font-bold text-sm text-slate-800">{session.title || 'Ohne Titel'}</h3>
-                          <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-400">
-                            {session.stage && <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{session.stage}</span>}
-                            {session.format && <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">{session.format}</span>}
-                            {session.startTime && <span>🕐 {session.startTime}</span>}
-                            {session.speakers && <span>🎤 {session.speakers}</span>}
+                      {mySessions.map((session, i) => {
+                        const isFixed = (session.status || '').toLowerCase() === 'fixiert';
+                        const stageName = data.stages.find(s => s.id === session.stage)?.name || session.stage;
+                        return (
+                          <div key={session.id || i} className={`border rounded-lg p-4 ${isFixed ? 'border-green-200 bg-green-50/30' : 'border-slate-200'}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="font-bold text-sm text-slate-800">{session.title || 'Ohne Titel'}</h3>
+                              <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${isFixed ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                                {isFixed ? '✓ Fixiert' : session.status || 'Vorläufig'}
+                              </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500">
+                              {stageName && <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
+                              {session.format && <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">{session.format}</span>}
+                              {session.startTime && session.startTime !== '-' && (
+                                <span className={`flex items-center gap-1 ${isFixed ? 'text-green-700 font-bold' : 'text-amber-600 italic'}`}>
+                                  🕐 {session.startTime} {!isFixed && '(vorläufig)'}
+                                </span>
+                              )}
+                              {session.duration && <span>{session.duration} min</span>}
+                              {session.speakers && <span>🎤 {session.speakers}</span>}
+                            </div>
                           </div>
-                          {session.status && (
-                            <span className={`mt-2 inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${session.status === 'fixiert' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
-                              {session.status}
-                            </span>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ) : (
@@ -2495,7 +2523,7 @@ function App({ authenticatedUser }) {
               </div>
             ) : (
               <SessionSubmission
-                speakers={['ADMIN', 'CURATOR', 'REVIEWER'].includes(effectiveRole)
+                speakers={hasRole('ADMIN', 'CURATOR', 'REVIEWER')
                   ? data.speakers
                   : data.speakers.filter(s => {
                     const st = (s.status || '').toLowerCase();
@@ -2508,6 +2536,7 @@ function App({ authenticatedUser }) {
                 submitterName={mySpeakerRecord?.fullName || authenticatedUser.name || ''}
                 mySubmissions={mySubmissions}
                 mySessions={mySessions}
+                stages={data.stages}
                 fetchSheets={fetchSheets}
                 spreadsheetId={config.spreadsheetId}
                 apiUrl={config.curationApiUrl}
@@ -2552,42 +2581,44 @@ function App({ authenticatedUser }) {
 
       <div className="h-10 bg-slate-900 flex items-center justify-center gap-4 sm:gap-8 shrink-0 border-t border-slate-800 overflow-x-auto">
         {/* Planer: ADMIN, CURATOR, PRODUCTION */}
-        {['ADMIN', 'CURATOR', 'PRODUCTION'].includes(effectiveRole) && (
+        {/* Planer: ADMIN, CURATOR, PRODUCTION */}
+        {hasRole('ADMIN', 'CURATOR', 'PRODUCTION') && (
           <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PLANNER' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <Layout className="w-3.5 h-3.5" /> Planer
           </button>
         )}
 
         {/* Einreichung: ADMIN, TEILNEHMENDE, SPRECHERIN */}
-        {['ADMIN', 'TEILNEHMENDE', 'SPRECHERIN'].includes(effectiveRole) && (
+        {hasRole('ADMIN', 'TEILNEHMENDE', 'SPRECHERIN') && (
           <button onClick={() => setViewMode('SUBMIT')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SUBMIT' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <PlusCircle className="w-3.5 h-3.5" /> Einreichung
           </button>
         )}
 
         {/* Kuration: ADMIN, CURATOR, REVIEWER */}
-        {['ADMIN', 'CURATOR', 'REVIEWER'].includes(effectiveRole) && (
+        {/* Kuration: ADMIN, CURATOR, REVIEWER */}
+        {hasRole('ADMIN', 'CURATOR', 'REVIEWER') && (
           <button onClick={() => setViewMode('CURATION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'CURATION' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <LayoutDashboard className="w-3.5 h-3.5" /> Kuration
           </button>
         )}
 
         {/* Profil: SPEAKER, TEILNEHMENDE, SPRECHERIN (+ ADMIN for own) */}
-        {['ADMIN', 'SPEAKER', 'SPRECHERIN', 'TEILNEHMENDE'].includes(effectiveRole) && (
+        {hasRole('ADMIN', 'SPEAKER', 'SPRECHERIN', 'TEILNEHMENDE') && (
           <button onClick={() => setViewMode('PROFILE')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PROFILE' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <User className="w-3.5 h-3.5" /> Profil
           </button>
         )}
 
         {/* Admin: ADMIN only */}
-        {effectiveRole === 'ADMIN' && (
+        {hasRole('ADMIN') && (
           <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ADMIN' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <Shield className="w-3.5 h-3.5" /> Admin
           </button>
         )}
 
         {/* Production: ADMIN, PRODUCTION */}
-        {['ADMIN', 'PRODUCTION'].includes(effectiveRole) && (
+        {hasRole('ADMIN', 'PRODUCTION') && (
           <button onClick={() => setViewMode('PRODUCTION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PRODUCTION' ? 'text-orange-400' : 'text-slate-500 hover:text-white'}`}>
             🎛️ Produktion
           </button>
@@ -2603,112 +2634,114 @@ function App({ authenticatedUser }) {
       </div>
 
       {/* Settings Modal */}
-      {showSettings && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white p-6 rounded-xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
-            <h2 className="font-bold text-lg mb-4">Einstellungen</h2>
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-4">
-                <div><label className="text-xs block">Start (Std)</label><input type="number" className="border p-2 w-full rounded" value={config.startHour} onChange={e => setConfig({ ...config, startHour: parseInt(e.target.value) || 9 })} /></div>
-                <div><label className="text-xs block">Ende (Std)</label><input type="number" className="border p-2 w-full rounded" value={config.endHour} onChange={e => setConfig({ ...config, endHour: parseInt(e.target.value) || 22 })} /></div>
-                <div><label className="text-xs block">Puffer (Min)</label><input type="number" className="border p-2 w-full rounded" value={config.bufferMin} onChange={e => setConfig({ ...config, bufferMin: parseInt(e.target.value) || 0 })} /></div>
-              </div>
-              <div className="space-y-2">
-                <h3 className="text-xs font-bold uppercase text-slate-500">Sheet Config</h3>
-                <label className="block text-xs">n8n API Base URL (z.B. https://n8n.domain.com/webhook)</label>
-                <input
-                  type="text"
-                  value={config.curationApiUrl}
-                  onChange={e => setConfig({ ...config, curationApiUrl: e.target.value })}
-                  placeholder="https://n8n.deine-domain.com/webhook"
-                  className="w-full border rounded p-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                />
-                <div className="grid grid-cols-2 gap-2">
-                  <div><label className="text-xs">Prog Sheet</label><input className="w-full border p-2 rounded" value={config.sheetNameProgram} onChange={e => setConfig({ ...config, sheetNameProgram: e.target.value })} /></div>
-                  <div><label className="text-xs">Stages Sheet</label><input className="w-full border p-2 rounded" value={config.sheetNameStages} onChange={e => setConfig({ ...config, sheetNameStages: e.target.value })} /></div>
+      {
+        showSettings && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white p-6 rounded-xl w-full max-w-lg overflow-y-auto max-h-[90vh]">
+              <h2 className="font-bold text-lg mb-4">Einstellungen</h2>
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  <div><label className="text-xs block">Start (Std)</label><input type="number" className="border p-2 w-full rounded" value={config.startHour} onChange={e => setConfig({ ...config, startHour: parseInt(e.target.value) || 9 })} /></div>
+                  <div><label className="text-xs block">Ende (Std)</label><input type="number" className="border p-2 w-full rounded" value={config.endHour} onChange={e => setConfig({ ...config, endHour: parseInt(e.target.value) || 22 })} /></div>
+                  <div><label className="text-xs block">Puffer (Min)</label><input type="number" className="border p-2 w-full rounded" value={config.bufferMin} onChange={e => setConfig({ ...config, bufferMin: parseInt(e.target.value) || 0 })} /></div>
                 </div>
-                <label className="block text-xs mt-2">n8n Webhook Base URL</label>
-                <input className="w-full border p-2 rounded text-xs font-mono" placeholder="https://n8n.deine-domain.de/webhook" value={config.n8nBaseUrl} onChange={e => setConfig({ ...config, n8nBaseUrl: e.target.value })} />
-              </div>
-              <div className="space-y-2 border-t pt-2">
-                <h3 className="text-xs font-bold uppercase text-slate-500">Auth</h3>
-
-                <div className={`p-2 rounded border text-xs mb-2 ${config.googleClientId === localStorage.getItem('kosmos_server_client_id') ? 'bg-green-50 border-green-200 text-green-800' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
-                  {config.googleClientId === localStorage.getItem('kosmos_server_client_id') ? (
-                    <div className="flex items-center gap-2">
-                      <CheckCircle2 className="w-4 h-4" />
-                      <div>
-                        <strong>Managed Mode (Server)</strong>
-                        <div className="text-[10px] opacity-75">Nutzt den zentral konfigurierten Google Client.</div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <Settings className="w-4 h-4" />
-                      <div>
-                        <strong>Custom Mode (Eigener Client)</strong>
-                        <div className="text-[10px] opacity-75">Nutzt deinen eigenen Google Client ID (Implicit Flow).</div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <input className="flex-1 border p-2 rounded text-xs font-mono" placeholder="Client ID (Optional: Eigener Client)" value={config.googleClientId} onChange={e => setConfig({ ...config, googleClientId: e.target.value })} />
-                  {config.googleClientId !== localStorage.getItem('kosmos_server_client_id') && (
-                    <button
-                      onClick={() => setConfig({ ...config, googleClientId: localStorage.getItem('kosmos_server_client_id') || '' })}
-                      className="px-2 py-2 bg-slate-100 border rounded text-[10px] hover:bg-slate-200"
-                      title="Zurück zum Server-Standard"
-                    >
-                      Reset
-                    </button>
-                  )}
-                </div>
-
-                {config.googleClientId !== localStorage.getItem('kosmos_server_client_id') && (
-                  <div className="text-[10px] text-slate-500 mt-1 bg-slate-50 p-2 rounded">
-                    <strong>Setup Info für Custom Client:</strong><br />
-                    1. Authorized Javascript Origin: <code>{window.location.origin}</code><br />
-                    2. Authorized Redirect URI: <code>{window.location.origin}</code><br />
-                    (Implicit Flow benötigt kein Backend)
+                <div className="space-y-2">
+                  <h3 className="text-xs font-bold uppercase text-slate-500">Sheet Config</h3>
+                  <label className="block text-xs">n8n API Base URL (z.B. https://n8n.domain.com/webhook)</label>
+                  <input
+                    type="text"
+                    value={config.curationApiUrl}
+                    onChange={e => setConfig({ ...config, curationApiUrl: e.target.value })}
+                    placeholder="https://n8n.deine-domain.com/webhook"
+                    className="w-full border rounded p-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <div><label className="text-xs">Prog Sheet</label><input className="w-full border p-2 rounded" value={config.sheetNameProgram} onChange={e => setConfig({ ...config, sheetNameProgram: e.target.value })} /></div>
+                    <div><label className="text-xs">Stages Sheet</label><input className="w-full border p-2 rounded" value={config.sheetNameStages} onChange={e => setConfig({ ...config, sheetNameStages: e.target.value })} /></div>
                   </div>
-                )}
-
-                <input className="w-full border p-2 rounded text-xs font-mono" placeholder="API Key (optional)" value={config.googleApiKey} onChange={e => setConfig({ ...config, googleApiKey: e.target.value })} />
-                <div className="mt-2 bg-yellow-50 p-2 rounded border border-yellow-200">
-                  <label className="text-xs font-bold block mb-1 text-yellow-800 flex items-center gap-1"><Key className="w-3 h-3" /> Access Token (Manuell / Notfall)</label>
-                  <input className="w-full border p-2 rounded text-xs font-mono" placeholder="Nur als Notfall-Fallback..." value={config.manualToken} onChange={e => setConfig({ ...config, manualToken: e.target.value })} />
-                  <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 underline block mt-1">Token via Playground generieren (Scope: https://www.googleapis.com/auth/spreadsheets)</a>
+                  <label className="block text-xs mt-2">n8n Webhook Base URL</label>
+                  <input className="w-full border p-2 rounded text-xs font-mono" placeholder="https://n8n.deine-domain.de/webhook" value={config.n8nBaseUrl} onChange={e => setConfig({ ...config, n8nBaseUrl: e.target.value })} />
                 </div>
+                <div className="space-y-2 border-t pt-2">
+                  <h3 className="text-xs font-bold uppercase text-slate-500">Auth</h3>
 
-                <div className="flex items-center gap-2 pt-4 border-t mt-4">
-                  <button
-                    onClick={generateMockCurationData}
-                    className="text-[10px] bg-slate-800 text-white px-3 py-2 rounded hover:bg-slate-700 flex items-center gap-2 transition-all font-bold uppercase tracking-wider shadow-sm"
-                  >
-                    <LayoutDashboard className="w-3.5 h-3.5" /> Mock-Daten laden (Test)
-                  </button>
-                  <p className="text-[9px] text-slate-400 italic flex-1">Fügt temporäre Sessions hinzu, um das Dashboard zu testen.</p>
+                  <div className={`p-2 rounded border text-xs mb-2 ${config.googleClientId === localStorage.getItem('kosmos_server_client_id') ? 'bg-green-50 border-green-200 text-green-800' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
+                    {config.googleClientId === localStorage.getItem('kosmos_server_client_id') ? (
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="w-4 h-4" />
+                        <div>
+                          <strong>Managed Mode (Server)</strong>
+                          <div className="text-[10px] opacity-75">Nutzt den zentral konfigurierten Google Client.</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <Settings className="w-4 h-4" />
+                        <div>
+                          <strong>Custom Mode (Eigener Client)</strong>
+                          <div className="text-[10px] opacity-75">Nutzt deinen eigenen Google Client ID (Implicit Flow).</div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <input className="flex-1 border p-2 rounded text-xs font-mono" placeholder="Client ID (Optional: Eigener Client)" value={config.googleClientId} onChange={e => setConfig({ ...config, googleClientId: e.target.value })} />
+                    {config.googleClientId !== localStorage.getItem('kosmos_server_client_id') && (
+                      <button
+                        onClick={() => setConfig({ ...config, googleClientId: localStorage.getItem('kosmos_server_client_id') || '' })}
+                        className="px-2 py-2 bg-slate-100 border rounded text-[10px] hover:bg-slate-200"
+                        title="Zurück zum Server-Standard"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
+
+                  {config.googleClientId !== localStorage.getItem('kosmos_server_client_id') && (
+                    <div className="text-[10px] text-slate-500 mt-1 bg-slate-50 p-2 rounded">
+                      <strong>Setup Info für Custom Client:</strong><br />
+                      1. Authorized Javascript Origin: <code>{window.location.origin}</code><br />
+                      2. Authorized Redirect URI: <code>{window.location.origin}</code><br />
+                      (Implicit Flow benötigt kein Backend)
+                    </div>
+                  )}
+
+                  <input className="w-full border p-2 rounded text-xs font-mono" placeholder="API Key (optional)" value={config.googleApiKey} onChange={e => setConfig({ ...config, googleApiKey: e.target.value })} />
+                  <div className="mt-2 bg-yellow-50 p-2 rounded border border-yellow-200">
+                    <label className="text-xs font-bold block mb-1 text-yellow-800 flex items-center gap-1"><Key className="w-3 h-3" /> Access Token (Manuell / Notfall)</label>
+                    <input className="w-full border p-2 rounded text-xs font-mono" placeholder="Nur als Notfall-Fallback..." value={config.manualToken} onChange={e => setConfig({ ...config, manualToken: e.target.value })} />
+                    <a href="https://developers.google.com/oauthplayground" target="_blank" rel="noreferrer" className="text-[10px] text-blue-600 underline block mt-1">Token via Playground generieren (Scope: https://www.googleapis.com/auth/spreadsheets)</a>
+                  </div>
+
+                  <div className="flex items-center gap-2 pt-4 border-t mt-4">
+                    <button
+                      onClick={generateMockCurationData}
+                      className="text-[10px] bg-slate-800 text-white px-3 py-2 rounded hover:bg-slate-700 flex items-center gap-2 transition-all font-bold uppercase tracking-wider shadow-sm"
+                    >
+                      <LayoutDashboard className="w-3.5 h-3.5" /> Mock-Daten laden (Test)
+                    </button>
+                    <p className="text-[9px] text-slate-400 italic flex-1">Fügt temporäre Sessions hinzu, um das Dashboard zu testen.</p>
+                  </div>
                 </div>
               </div>
-            </div>
-            <div className="flex justify-end gap-2 mt-4">
-              <button onClick={() => setShowSettings(false)} className="px-4 py-2 border rounded">Abbrechen</button>
-              <button onClick={() => {
-                Object.keys(config).forEach(k => {
-                  if (config[k]) {
-                    localStorage.setItem(`kosmos_${k}`, config[k]);
-                  } else {
-                    localStorage.removeItem(`kosmos_${k}`);
-                  }
-                });
-                window.location.reload();
-              }} className="px-4 py-2 bg-blue-600 text-white rounded">Speichern & Reload</button>
+              <div className="flex justify-end gap-2 mt-4">
+                <button onClick={() => setShowSettings(false)} className="px-4 py-2 border rounded">Abbrechen</button>
+                <button onClick={() => {
+                  Object.keys(config).forEach(k => {
+                    if (config[k]) {
+                      localStorage.setItem(`kosmos_${k}`, config[k]);
+                    } else {
+                      localStorage.removeItem(`kosmos_${k}`);
+                    }
+                  });
+                  window.location.reload();
+                }} className="px-4 py-2 bg-blue-600 text-white rounded">Speichern & Reload</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       <SessionModal
         isOpen={isModalOpen} onClose={() => { setIsModalOpen(false); setEditingSession(null); }}
@@ -2717,7 +2750,7 @@ function App({ authenticatedUser }) {
         speakersList={data.speakers} moderatorsList={data.moderators}
         configThemen={data.configThemen}
       />
-    </div>
+    </div >
   );
 }
 

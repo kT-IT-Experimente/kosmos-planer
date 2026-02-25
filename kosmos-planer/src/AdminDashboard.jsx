@@ -191,19 +191,32 @@ export default function AdminDashboard({
                                     <tr key={user.email} className="hover:bg-slate-50 transition-colors">
                                         <td className="py-4 px-2 font-medium text-slate-700">{user.email}</td>
                                         <td className="py-4 px-2">
-                                            <select
-                                                value={user.role}
-                                                onChange={(e) => onUpdateUserRole(user.email, e.target.value)}
-                                                className={`text-xs font-bold py-1 px-2 rounded border-none focus:ring-2 focus:ring-indigo-500 cursor-pointer
-                                                    ${user.role === 'ADMIN' ? 'bg-red-50 text-red-700' :
-                                                        user.role === 'CURATOR' ? 'bg-blue-50 text-blue-700' :
-                                                            'bg-slate-100 text-slate-600'}`}
-                                            >
-                                                <option value="ADMIN">ADMIN</option>
-                                                <option value="CURATOR">CURATOR</option>
-                                                <option value="REVIEWER">REVIEWER</option>
-                                                <option value="GUEST">GUEST</option>
-                                            </select>
+                                            <div className="flex flex-wrap gap-1">
+                                                {['ADMIN', 'CURATOR', 'REVIEWER', 'SPRECHERIN', 'TEILNEHMENDE', 'SPEAKER', 'PRODUCTION', 'PARTNER', 'BAND', 'GUEST'].map(role => {
+                                                    const userRolesArr = (user.role || '').split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
+                                                    const hasThis = userRolesArr.includes(role);
+                                                    return (
+                                                        <button key={role} onClick={() => {
+                                                            let newRoles;
+                                                            if (hasThis) {
+                                                                newRoles = userRolesArr.filter(r => r !== role);
+                                                                if (newRoles.length === 0) newRoles = ['GUEST'];
+                                                            } else {
+                                                                newRoles = [...userRolesArr.filter(r => r !== 'GUEST'), role];
+                                                            }
+                                                            onUpdateUserRole(user.email, newRoles.join(','));
+                                                        }}
+                                                            className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-all cursor-pointer ${hasThis
+                                                                ? role === 'ADMIN' ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
+                                                                    : role === 'CURATOR' ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
+                                                                        : role === 'REVIEWER' ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
+                                                                            : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300'
+                                                                : 'bg-slate-50 text-slate-300 hover:bg-slate-100'}`}>
+                                                            {role}
+                                                        </button>
+                                                    );
+                                                })}
+                                            </div>
                                         </td>
                                         <td className="py-4 px-2 text-right flex items-center gap-1 justify-end">
                                             {onInviteUser && (
@@ -231,8 +244,12 @@ export default function AdminDashboard({
                                             <option value="ADMIN">ADMIN</option>
                                             <option value="CURATOR">CURATOR</option>
                                             <option value="REVIEWER">REVIEWER</option>
+                                            <option value="SPRECHERIN">SPRECHERIN</option>
                                             <option value="TEILNEHMENDE">TEILNEHMENDE</option>
                                             <option value="SPEAKER">SPEAKER</option>
+                                            <option value="PRODUCTION">PRODUCTION</option>
+                                            <option value="PARTNER">PARTNER</option>
+                                            <option value="BAND">BAND</option>
                                             <option value="GUEST">GUEST</option>
                                         </select>
                                     </td>
