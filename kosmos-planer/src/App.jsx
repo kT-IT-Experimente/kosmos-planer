@@ -313,7 +313,11 @@ function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConfl
         <div className="flex items-center gap-2 text-[9px] text-slate-400 pt-1 border-t border-black/5 mt-1">
           <span className="font-mono text-slate-300 text-[8px]">{session.id}</span>
           {session.language && <span className="flex items-center gap-0.5 ml-auto font-bold text-slate-500">{session.language.toUpperCase()}</span>}
-          {session.partner && session.partner !== 'FALSE' && <span className="flex items-center gap-0.5 truncate text-blue-600 font-bold bg-blue-50 px-1 rounded border border-blue-100"><Flag className="w-2.5 h-2.5" /> {session.partner}</span>}
+          {session.partner && session.partner !== 'FALSE' && (() => {
+            const isPending = session.partner.startsWith('pending:');
+            const displayName = isPending ? session.partner.replace(/^pending:/, '') : session.partner;
+            return <span className={`flex items-center gap-0.5 truncate font-bold px-1 rounded border ${isPending ? 'text-amber-600 bg-amber-50 border-amber-200' : 'text-blue-600 bg-blue-50 border-blue-100'}`}><Flag className="w-2.5 h-2.5" /> {isPending ? '⏳' : ''}{displayName}</span>;
+          })()}
           {session.notes && (
             <div
               className="ml-1 text-blue-500 cursor-help"
@@ -1306,14 +1310,14 @@ function App({ authenticatedUser }) {
     });
   }, [data.program, mySpeakerRecord]);
 
-  // My org sessions (sessions where partner field matches my org name)
+  // My org sessions (sessions where partner field matches my org name, including pending)
   const myOrgSessions = useMemo(() => {
     if (!myOrgRecord) return [];
     const orgName = myOrgRecord.name?.toLowerCase() || '';
     if (!orgName) return [];
     return data.program.filter(session => {
       const partner = (session.partner || '').toLowerCase();
-      return partner === orgName;
+      return partner === orgName || partner === `pending:${orgName}`;
     });
   }, [data.program, myOrgRecord]);
 
@@ -3031,6 +3035,12 @@ function App({ authenticatedUser }) {
                       <div>
                         <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Logo URL</label>
                         <input name="orgLogoUrl" defaultValue={myOrgRecord?.logoUrl || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" placeholder="https://..." />
+                        {myOrgRecord?.logoUrl && (
+                          <div className="mt-2 flex items-center gap-3">
+                            <img src={myOrgRecord.logoUrl} alt="Logo" className="w-16 h-16 rounded-lg object-cover border border-slate-200" />
+                            <span className="text-[10px] text-slate-400">Aktuelle Vorschau</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
@@ -3052,6 +3062,106 @@ function App({ authenticatedUser }) {
                       <button type="button" onClick={() => setViewMode('ORG_SESSIONS')} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition-colors">Abbrechen</button>
                     </div>
                   </form>
+                </div>
+
+                {/* Linked Sessions below profile form */}
+                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mt-6">
+                  <h2 className="text-lg font-bold text-slate-800 mb-4">📄 Verknüpfte Sessions ({myOrgSessions.length})</h2>
+                  {myOrgSessions.length > 0 ? (
+                    <div className="space-y-3">
+                      {myOrgSessions.map((session, i) => {
+                        const isPending = (session.partner || '').startsWith('pending:');
+                        const statusLower = (session.status || '').toLowerCase();
+                        const isFixed = statusLower === 'fixiert';
+                        const isAccepted = statusLower === 'akzeptiert';
+                        const stageName = data.stages.find(s => s.id === session.stage)?.name || '';
+                        return (
+                          <div key={session.id || i} className={`border rounded-lg p-4 ${isPending ? 'border-amber-200 bg-amber-50/30' : isFixed ? 'border-green-200 bg-green-50/30' : isAccepted ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200'}`}>
+                            <div className="flex items-start justify-between gap-2">
+                              <h3 className="font-bold text-sm text-slate-800">{session.title || 'Ohne Titel'}</h3>
+                              <div className="flex items-center gap-2 shrink-0">
+                                {isPending && (
+                                  <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-700">⏳ Bestätigung ausstehend</span>
+                                )}
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${isFixed ? 'bg-green-100 text-green-700' : isAccepted ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+                                  {session.status || 'Vorschlag'}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500">
+                              {stageName && <span className="bg-slate-100 px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
+                              {session.format && <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">{session.format}</span>}
+                              {session.start && session.start !== '-' && <span>🕐 {session.start} – {session.end || ''}</span>}
+                              {session.speakers && <span>🎤 {session.speakers}</span>}
+                            </div>
+                            {isPending && (
+                              <div className="flex gap-2 mt-3">
+                                <button
+                                  onClick={async () => {
+                                    const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
+                                    const confirmedName = myOrgRecord.name;
+                                    const sessionIdx = data.program.findIndex(p => p.id === session.id);
+                                    if (sessionIdx < 0) return;
+                                    const rowIndex = data.program[sessionIdx].rowIndex;
+                                    try {
+                                      const { ok, error } = await fetchSheets({
+                                        action: 'update', spreadsheetId: config.spreadsheetId,
+                                        range: `'Master_Einreichungen'!S${rowIndex}`,
+                                        values: [[confirmedName]]
+                                      }, token, config.curationApiUrl);
+                                      if (!ok) throw new Error(error);
+                                      setData(prev => ({
+                                        ...prev,
+                                        program: prev.program.map(p => p.id === session.id ? { ...p, partner: confirmedName } : p)
+                                      }));
+                                      setToast({ msg: `✓ Zuordnung bestätigt: ${session.title}`, type: 'success' });
+                                      setTimeout(() => setToast(null), 3000);
+                                    } catch (e) {
+                                      setToast({ msg: `Fehler: ${e.message}`, type: 'error' });
+                                      setTimeout(() => setToast(null), 3000);
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-green-600 text-white rounded-lg text-xs font-bold hover:bg-green-700 transition-colors"
+                                >
+                                  ✓ Bestätigen
+                                </button>
+                                <button
+                                  onClick={async () => {
+                                    const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
+                                    const sessionIdx = data.program.findIndex(p => p.id === session.id);
+                                    if (sessionIdx < 0) return;
+                                    const rowIndex = data.program[sessionIdx].rowIndex;
+                                    try {
+                                      const { ok, error } = await fetchSheets({
+                                        action: 'update', spreadsheetId: config.spreadsheetId,
+                                        range: `'Master_Einreichungen'!S${rowIndex}`,
+                                        values: [['']]
+                                      }, token, config.curationApiUrl);
+                                      if (!ok) throw new Error(error);
+                                      setData(prev => ({
+                                        ...prev,
+                                        program: prev.program.map(p => p.id === session.id ? { ...p, partner: '' } : p)
+                                      }));
+                                      setToast({ msg: `Zuordnung abgelehnt: ${session.title}`, type: 'info' });
+                                      setTimeout(() => setToast(null), 3000);
+                                    } catch (e) {
+                                      setToast({ msg: `Fehler: ${e.message}`, type: 'error' });
+                                      setTimeout(() => setToast(null), 3000);
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 bg-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"
+                                >
+                                  ✗ Ablehnen
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-slate-400 text-center">Noch keine Sessions verknüpft.</p>
+                  )}
                 </div>
               </div>
             ) : (
@@ -3136,9 +3246,8 @@ function App({ authenticatedUser }) {
       </div>
 
       <div className="h-10 bg-slate-900 flex items-center justify-center gap-4 sm:gap-8 shrink-0 border-t border-slate-800 overflow-x-auto">
-        {/* Planer: ADMIN, CURATOR, PRODUCTION */}
-        {/* Planer: ADMIN, CURATOR, PRODUCTION */}
-        {hasRole('ADMIN', 'CURATOR', 'PRODUCTION') && (
+        {/* Planer: ADMIN, CURATOR, REVIEWER, PRODUCTION */}
+        {hasRole('ADMIN', 'CURATOR', 'REVIEWER', 'PRODUCTION') && (
           <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PLANNER' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
             <Layout className="w-3.5 h-3.5" /> Planer
           </button>
@@ -3324,6 +3433,7 @@ function App({ authenticatedUser }) {
         speakersList={data.speakers} moderatorsList={data.moderators}
         configThemen={data.configThemen}
         organisations={data.organisations || []}
+        userRole={effectiveRole}
       />
     </div >
   );

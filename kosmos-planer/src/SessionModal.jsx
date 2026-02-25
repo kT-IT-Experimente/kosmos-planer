@@ -5,7 +5,7 @@ import { INBOX_ID, generateId, timeToMinutes } from './utils';
 // Fallback lists in case Config_Themen has not yet loaded
 const FALLBACK_FORMATE = ['Talk', 'Panel', 'Workshop', 'Vortrag', 'Keynote', 'Lightning Talk'];
 
-function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList, configThemen = { bereiche: [], themen: [], tags: [], formate: [] }, organisations = [] }) {
+function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedStages, speakersList, moderatorsList, configThemen = { bereiche: [], themen: [], tags: [], formate: [] }, organisations = [], userRole = '' }) {
     const [formData, setFormData] = useState({
         id: '', title: '', start: '10:00', duration: 60, stage: INBOX_ID,
         status: '5_Vorschlag', format: '', bereich: '', thema: '',
@@ -150,15 +150,33 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
                             </div>
                             <div>
                                 <label className={labelStd}>Organisation / Partner</label>
-                                <select className={inputStd} value={formData.partner || ''} onChange={e => setFormData({ ...formData, partner: e.target.value })}>
+                                <select className={inputStd} value={(formData.partner || '').replace(/^pending:/, '')} onChange={e => {
+                                    const val = e.target.value;
+                                    // Admin assigns directly (confirmed). Curator/Reviewer assign as pending.
+                                    if (val && !val.startsWith('pending:')) {
+                                        const isAdmin = userRole === 'ADMIN';
+                                        setFormData({ ...formData, partner: isAdmin ? val : `pending:${val}` });
+                                    } else {
+                                        setFormData({ ...formData, partner: val });
+                                    }
+                                }}>
                                     <option value="">— keine —</option>
-                                    {organisations.filter(o => o.status === 'bestätigt' || o.name === formData.partner).map(o => (
-                                        <option key={o.email} value={o.name}>{o.name}</option>
-                                    ))}
-                                    {formData.partner && !organisations.some(o => o.name === formData.partner) && (
+                                    {organisations.map(o => {
+                                        const currentPartner = (formData.partner || '').replace(/^pending:/, '');
+                                        const isSelected = currentPartner === o.name;
+                                        return (
+                                            <option key={o.email} value={o.name}>
+                                                {o.status === 'bestätigt' ? '✓' : '⏳'} {o.name}
+                                            </option>
+                                        );
+                                    })}
+                                    {formData.partner && !organisations.some(o => o.name === (formData.partner || '').replace(/^pending:/, '')) && (
                                         <option value={formData.partner}>{formData.partner} (manuell)</option>
                                     )}
                                 </select>
+                                {(formData.partner || '').startsWith('pending:') && (
+                                    <p className="text-amber-600 text-[10px] mt-1">⏳ Zuordnung wartet auf Bestätigung der Organisation</p>
+                                )}
                             </div>
                         </div>
 
