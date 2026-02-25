@@ -471,42 +471,96 @@ const parsePlannerBatch = (batch, config) => {
   });
 
   // --- Parse Master_Einreichungen (valRanges[4]) ---
-  // NEW columns: A=Zeitstempel, B=Submitter_Email, C=Submitter_Name, D=Status,
+  // Columns A-O: Submission data
+  //   A=Zeitstempel, B=Submitter_Email, C=Submitter_Name, D=Status,
   //   E=Session_Titel, F=Kurzbeschreibung, G=Beschreibung, H=Format, I=Thema,
   //   J=Bereich, K=Sprache, L=Dauer, M=Speaker_IDs, N=Speaker_Names, O=Notizen
+  // Columns P-V: Planning data (Solution A — single source of truth)
+  //   P=Bühne, Q=Startzeit, R=Endzeit, S=Partner, T=Stage_Dispo, U=Tags, V=Moderators
   let submissions = [];
+  let pr = []; // program items built from the same data
   if (valRanges[4] && valRanges[4].values) {
-    submissions = valRanges[4].values
-      .filter(r => safeString(r[4])) // Must have a title (col E)
-      .map((r, i) => {
-        const submitterEmail = safeString(r[1]);
-        const submitterName = safeString(r[2]);
-        const speakerIds = safeString(r[12]);
-        const speakerNames = safeString(r[13]);
-        // Resolve display names from speaker IDs or fallback to speaker names column
-        const speakerDisplay = speakerNames || speakerIds || submitterName;
+    const einreichRows = valRanges[4].values.filter(r => safeString(r[4])); // Must have a title (col E)
+    submissions = einreichRows.map((r, i) => {
+      const submitterEmail = safeString(r[1]);
+      const submitterName = safeString(r[2]);
+      const speakerIds = safeString(r[12]);
+      const speakerNames = safeString(r[13]);
+      const speakerDisplay = speakerNames || speakerIds || submitterName;
 
-        return {
-          id: `EINR-${String(i + 1).padStart(4, '0')}`,
-          rowIndex: i + 2, // sheet row (1-indexed header + 1-indexed data)
-          timestamp: safeString(r[0]),
-          submitterEmail,
-          submitterName,
-          title: safeString(r[4]),
-          shortDescription: safeString(r[5]),
-          description: safeString(r[6]),
-          format: safeString(r[7]) || 'Talk',
-          thema: safeString(r[8]),
-          bereich: safeString(r[9]),
-          language: safeString(r[10]),
-          duration: parseInt(r[11]) || 60,
-          speakerIds,
-          speakers: speakerDisplay,
-          notes: safeString(r[14]),
-          status: safeString(r[3]) || 'Vorschlag',
-          source: 'Einreichung'
-        };
-      });
+      return {
+        id: `EINR-${String(i + 1).padStart(4, '0')}`,
+        rowIndex: i + 2,
+        timestamp: safeString(r[0]),
+        submitterEmail,
+        submitterName,
+        title: safeString(r[4]),
+        shortDescription: safeString(r[5]),
+        description: safeString(r[6]),
+        format: safeString(r[7]) || 'Talk',
+        thema: safeString(r[8]),
+        bereich: safeString(r[9]),
+        language: safeString(r[10]),
+        duration: parseInt(r[11]) || 60,
+        speakerIds,
+        speakers: speakerDisplay,
+        notes: safeString(r[14]),
+        status: safeString(r[3]) || 'Vorschlag',
+        source: 'Einreichung'
+      };
+    });
+
+    // Build program items from the same rows (using planning columns P-V)
+    pr = einreichRows.map((r, i) => {
+      const dur = parseInt(r[11]) || 60;
+      const rawStage = safeString(r[15]); // Col P = Bühne
+      let stage = INBOX_ID;
+      if (rawStage) {
+        const matchById = st.find(s => s.id === rawStage);
+        if (matchById) { stage = matchById.id; }
+        else {
+          const matchByName = st.find(s => s.name === rawStage);
+          if (matchByName) { stage = matchByName.id; }
+        }
+      }
+      const rawStart = safeString(r[16]) || '-'; // Col Q = Startzeit
+      let finalStart = rawStart;
+      if (finalStart.length > 5 && (finalStart.includes('.') || finalStart.includes(' '))) {
+        finalStart = '-';
+      } else if (finalStart && !finalStart.includes(':')) {
+        finalStart = '-';
+      }
+
+      const speakerNames = safeString(r[13]);
+      const speakerIds = safeString(r[12]);
+      const speakerDisplay = speakerNames || speakerIds || safeString(r[2]);
+
+      return {
+        id: `EINR-${String(i + 1).padStart(4, '0')}`,
+        rowIndex: i + 2,
+        title: safeString(r[4]),
+        status: safeString(r[3]) || '5_Vorschlag',
+        partner: (safeString(r[18]) === 'TRUE' || safeString(r[18]) === 'P') ? 'TRUE' : 'FALSE', // Col S
+        format: safeString(r[7]) || 'Talk',
+        stage: stage,
+        start: finalStart,
+        duration: dur,
+        end: calculateEndTime(finalStart, dur),
+        speakers: speakerDisplay,
+        moderators: safeString(r[21]), // Col V = Moderators
+        language: safeString(r[10]),
+        notes: safeString(r[14]),
+        stageDispo: safeString(r[19]), // Col T = Stage_Dispo
+        shortDescription: safeString(r[5]),
+        description: safeString(r[6]),
+        bereich: safeString(r[9]),
+        thema: safeString(r[8]),
+        tags: safeString(r[20]), // Col U = Tags
+        submitterEmail: safeString(r[1]),
+        submitterName: safeString(r[2]),
+        source: 'Einreichung'
+      };
+    });
   }
 
   const sp = Array.from(speakerMap.values());
@@ -529,67 +583,39 @@ const parsePlannerBatch = (batch, config) => {
 
   if (st.length === 0) st.push({ id: 'main', name: 'Main Stage', capacity: 200, maxMics: 4 });
 
-  let pr = [];
-  if (valRanges[3] && valRanges[3].values) {
+  // NOTE: program items (pr) are now built from Master_Einreichungen above (Solution A)
+  // Legacy Programm_Export (valRanges[3]) is no longer used as primary source.
+  // If Master_Einreichungen had no data but Programm_Export does, fall back:
+  if (pr.length === 0 && valRanges[3] && valRanges[3].values && valRanges[3].values.length > 0) {
     pr = valRanges[3].values
-      .filter(r => safeString(r[0]) || safeString(r[1])) // Skip completely empty rows
+      .filter(r => safeString(r[0]) || safeString(r[1]))
       .map((r, i) => {
         const dur = parseInt(r[8]) || 60;
         const start = safeString(r[6]) || '-';
         const rawStage = safeString(r[5]);
         let stage = INBOX_ID;
-
         if (rawStage) {
           const matchById = st.find(s => s.id === rawStage);
-          if (matchById) {
-            stage = matchById.id;
-          } else {
-            const matchByName = st.find(s => s.name === rawStage);
-            if (matchByName) {
-              stage = matchByName.id;
-            }
-          }
+          if (matchById) { stage = matchById.id; }
+          else { const matchByName = st.find(s => s.name === rawStage); if (matchByName) { stage = matchByName.id; } }
         }
-
-        // Fix for mixed-up creation time and start time.
-        // If r[6] has a date format (longer than 5 chars, contains '.'), it is the creation time.
-        // The real start time might be in r[7].
         let finalStart = start;
-        const possibleStart = safeString(r[7]);
-        if (finalStart.length > 5 && (finalStart.includes('.') || finalStart.includes(' '))) {
-          if (possibleStart.includes(':') && possibleStart.length <= 5) {
-            finalStart = possibleStart;
-          } else {
-            finalStart = '-';
-          }
-        } else if (finalStart && !finalStart.includes(':')) {
-          finalStart = '-';
-        }
-
+        if (finalStart.length > 5 && (finalStart.includes('.') || finalStart.includes(' '))) { finalStart = '-'; }
+        else if (finalStart && !finalStart.includes(':')) { finalStart = '-'; }
         const rawId = safeString(r[0]);
         const id = (rawId && rawId.length > 1) ? rawId : generateId();
-
         return {
-          id: id,
-          title: safeString(r[1]),
-          status: safeString(r[2]) || '5_Vorschlag',
+          id, title: safeString(r[1]), status: safeString(r[2]) || '5_Vorschlag',
           partner: (safeString(r[3]) === 'TRUE' || safeString(r[3]) === 'P') ? 'TRUE' : 'FALSE',
-          format: safeString(r[4]) || 'Talk',
-          stage: stage,
-          start: finalStart,
-          duration: dur,
-          end: calculateEndTime(finalStart, dur),
-          speakers: safeString(r[9]),
-          moderators: safeString(r[10]),
-          language: safeString(r[11]),
-          notes: safeString(r[12]), // Internal curation notes
-          stageDispo: safeString(r[13]),
-          shortDescription: safeString(r[14]),
-          description: safeString(r[15]),
-          bereich: safeString(r[16]),  // Col Q
-          thema: safeString(r[17])     // Col R
+          format: safeString(r[4]) || 'Talk', stage, start: finalStart, duration: dur,
+          end: calculateEndTime(finalStart, dur), speakers: safeString(r[9]),
+          moderators: safeString(r[10]), language: safeString(r[11]), notes: safeString(r[12]),
+          stageDispo: safeString(r[13]), shortDescription: safeString(r[14]),
+          description: safeString(r[15]), bereich: safeString(r[16]), thema: safeString(r[17]),
+          source: 'Programm_Export_Legacy'
         };
       });
+    if (import.meta.env.DEV) console.log('[parsePlannerBatch] Using legacy Programm_Export fallback:', pr.length, 'items');
   }
 
   // --- Parse Config_Themen (valRanges[5]) ---
@@ -980,7 +1006,7 @@ function App({ authenticatedUser }) {
         ranges.push(`'${config.sheetNameStages}'!A1:A1`);  // index 3: placeholder (1 cell)
       }
 
-      ranges.push(`'Master_Einreichungen'!A2:O`);          // index 4: Submissions (always)
+      ranges.push(`'Master_Einreichungen'!A2:V`);          // index 4: Submissions + Planning (A-O submission, P-V planning)
       ranges.push(`'Config_Themen'!A2:D`);                 // index 5: Bereiche/Themen/Tags/Formate
       ranges.push(`'Master_Ratings'!A2:F`);                 // index 6: Ratings
       ranges.push(`'Config_Users'!A2:C`);                   // index 7: Users (email, role, name)
@@ -1778,44 +1804,65 @@ function App({ authenticatedUser }) {
   const handleSync = async () => {
     setStatus({ loading: true, error: null });
     try {
-      // Use the access token from AuthGate
       const token = authenticatedUser.accessToken;
 
-      const rows = data.program.map(p => {
-        const speakersStr = Array.isArray(p.speakers) ? p.speakers.join(', ') : (p.speakers || '');
-        const modsStr = Array.isArray(p.moderators) ? p.moderators.join(', ') : (p.moderators || '');
+      // --- Solution A: Write planning columns P-V to Master_Einreichungen ---
+      // Build rows for columns P-V aligned to rowIndex
+      // P=Bühne, Q=Startzeit, R=Endzeit, S=Partner, T=Stage_Dispo, U=Tags, V=Moderators
+      const maxRow = Math.max(...data.program.map(p => p.rowIndex || 2), 2);
+      const planningRows = [];
+      for (let row = 2; row <= maxRow; row++) {
+        const p = data.program.find(item => item.rowIndex === row);
+        if (p) {
+          const modsStr = Array.isArray(p.moderators) ? p.moderators.join(', ') : (p.moderators || '');
+          planningRows.push([
+            p.stage === INBOX_ID ? '' : safeString(p.stage),  // P: Bühne
+            p.start === '-' ? '' : p.start,                   // Q: Startzeit
+            p.start === '-' ? '' : calculateEndTime(p.start, p.duration), // R: Endzeit
+            p.partner === 'TRUE' ? 'TRUE' : '',               // S: Partner
+            safeString(p.stageDispo),                          // T: Stage_Dispo
+            safeString(p.tags),                                // U: Tags
+            modsStr                                            // V: Moderators
+          ]);
+        } else {
+          planningRows.push(['', '', '', '', '', '', '']);
+        }
+      }
 
-        return [
-          safeString(p.id),
-          safeString(p.title),
-          safeString(p.status),
-          p.partner === 'TRUE' ? 'TRUE' : 'FALSE',
-          safeString(p.format),
-          p.stage === INBOX_ID ? '' : safeString(p.stage),
-          p.start === '-' ? '' : p.start,
-          p.start === '-' ? '' : calculateEndTime(p.start, p.duration),
-          p.duration || 60,
-          speakersStr,
-          modsStr,
-          safeString(p.language),
-          safeString(p.notes),
-          safeString(p.stageDispo),
-          safeString(p.shortDescription),
-          safeString(p.description),
-          safeString(p.bereich),  // Col Q
-          safeString(p.thema)     // Col R
-        ];
-      });
-
-      const { ok, data: result, error } = await fetchSheets({
+      const { ok, error } = await fetchSheets({
         action: 'update',
         spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameProgram}'!A2:R`,
-        values: rows,
+        range: `'Master_Einreichungen'!P2:V`,
+        values: planningRows,
       }, token, config.curationApiUrl);
 
-      if (!ok) {
-        throw new Error(error || 'Sheets API Fehler');
+      if (!ok) throw new Error(error || 'Sheets API Fehler');
+
+      // --- Also update legacy Programm_Export for backward compatibility ---
+      try {
+        const legacyRows = data.program.map(p => {
+          const speakersStr = Array.isArray(p.speakers) ? p.speakers.join(', ') : (p.speakers || '');
+          const modsStr = Array.isArray(p.moderators) ? p.moderators.join(', ') : (p.moderators || '');
+          return [
+            safeString(p.id), safeString(p.title), safeString(p.status),
+            p.partner === 'TRUE' ? 'TRUE' : 'FALSE', safeString(p.format),
+            p.stage === INBOX_ID ? '' : safeString(p.stage),
+            p.start === '-' ? '' : p.start,
+            p.start === '-' ? '' : calculateEndTime(p.start, p.duration),
+            p.duration || 60, speakersStr, modsStr,
+            safeString(p.language), safeString(p.notes), safeString(p.stageDispo),
+            safeString(p.shortDescription), safeString(p.description),
+            safeString(p.bereich), safeString(p.thema)
+          ];
+        });
+        await fetchSheets({
+          action: 'update',
+          spreadsheetId: config.spreadsheetId,
+          range: `'${config.sheetNameProgram}'!A2:R`,
+          values: legacyRows,
+        }, token, config.curationApiUrl);
+      } catch (legacyErr) {
+        console.warn('Legacy Programm_Export sync failed (non-critical):', legacyErr);
       }
 
       setStatus({ loading: false, error: null });
@@ -2394,25 +2441,7 @@ function App({ authenticatedUser }) {
             <CurationDashboard
               sessions={[
                 ...curationData.sessions,
-                ...data.submissions,
-                ...data.program
-                  .filter(p => (p.status || '').includes('Vorschlag') || (p.status || '').includes('Vorgeschlagen'))
-                  .filter(p => !data.submissions.some(s => s.title === p.title))
-                  .map(p => ({
-                    id: p.id,
-                    title: p.title,
-                    speakers: p.speakers,
-                    status: 'Vorschlag',
-                    format: p.format,
-                    description: p.description,
-                    shortDescription: p.shortDescription,
-                    notes: p.notes,
-                    language: p.language,
-                    duration: p.duration,
-                    bereich: p.bereich || '',
-                    thema: p.thema || '',
-                    source: 'Planner'
-                  }))
+                ...data.submissions
               ]}
               metadata={{ ...curationData.metadata, ...data.configThemen }}
               userRole={effectiveRole}
