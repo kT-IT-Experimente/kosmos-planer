@@ -489,6 +489,22 @@ const parsePlannerBatch = (batch, config) => {
     }
   });
 
+  // --- Parse Moderators (valRanges[1]) and Stages (valRanges[2]) ---
+  // Must be parsed BEFORE Master_Einreichungen so program builder can reference stages
+  const mo = (valRanges[1].values || []).filter(r => r[0]).map((r, i) => ({ id: `mod-${i}`, fullName: safeString(r[1]), status: safeString(r[0]) }));
+
+  const st = (valRanges[2].values || [])
+    .map((r, i) => ({
+      id: safeString(r[0]) || `st-${i}`,
+      name: safeString(r[1]),
+      capacity: safeString(r[2]),
+      maxMics: parseInt(r[4]) || 4,
+      hidden: safeString(r[5]).toUpperCase() === 'TRUE'
+    }))
+    .filter(s => s.name && s.name.toLowerCase() !== 'inbox');
+
+  if (st.length === 0) st.push({ id: 'main', name: 'Main Stage', capacity: 200, maxMics: 4 });
+
   // --- Parse Master_Einreichungen (valRanges[4]) ---
   // Columns A-O: Submission data
   //   A=Zeitstempel, B=Submitter_Email, C=Submitter_Name, D=Status,
@@ -588,19 +604,7 @@ const parsePlannerBatch = (batch, config) => {
     sp.forEach(s => console.log(`  Speaker: "${s.fullName}" status="${s.status}" id="${s.id}"`));
   }
 
-  const mo = (valRanges[1].values || []).filter(r => r[0]).map((r, i) => ({ id: `mod-${i}`, fullName: safeString(r[1]), status: safeString(r[0]) }));
 
-  const st = (valRanges[2].values || [])
-    .map((r, i) => ({
-      id: safeString(r[0]) || `st-${i}`,
-      name: safeString(r[1]),
-      capacity: safeString(r[2]),
-      maxMics: parseInt(r[4]) || 4,
-      hidden: safeString(r[5]).toUpperCase() === 'TRUE'
-    }))
-    .filter(s => s.name && s.name.toLowerCase() !== 'inbox');
-
-  if (st.length === 0) st.push({ id: 'main', name: 'Main Stage', capacity: 200, maxMics: 4 });
 
 
   // --- Parse Config_Themen (valRanges[5]) ---
