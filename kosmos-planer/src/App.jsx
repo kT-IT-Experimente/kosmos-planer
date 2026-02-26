@@ -449,14 +449,15 @@ const parsePlannerBatch = (batch, config) => {
   if (!valRanges || valRanges.length < 3) return { speakers: [], moderators: [], stages: [], program: [] };
 
   const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag', 'cfp', 'cfp_dummy'];
-  // 26_Kosmos_SprecherInnen columns (A-AG):
+  // 26_Kosmos_SprecherInnen columns (A-AJ):
   // A=Status_Einladung(0), B=Status_Backend(1), C=ID(2), D=Vorname(3), E=Nachname(4),
   // F=Pronomen(5), G=Organisation(6), H=Bio(7), I=Webseite(8), J=Update(9),
   // K=E-Mail(10), L=Telefon(11), M=Herkunft(12), N=Sprache(13),
-  // O=Registriert_am(14), P=Registriert_von(15), Q=Catering(16), R=Anreise(17),
-  // S=Hotel(18), T=Hotel_Nächte(19), U=Hotel_Daten(20), V=Honorar(21), W=(reserved 22),
-  // X-Z=(reserved 23-25), AA=Instagram(26), AB=LinkedIn(27), AC=Sonstige Social Media(28),
-  // AD=Zeitstempel(29), AE=Status_Vertrag(30), AF=Adresse(31), AG=Ehrenamtsvergütung(32)
+  // O=Registriert_am(14), P=Registriert_von(15), Q=Honorar_netto(16), R-V=(reserved 17-21),
+  // W=Hotel(22), X-Y=(reserved 23-24), Z=Briefing(25),
+  // AA=Instagram(26), AB=LinkedIn(27), AC=Sonstige Social Media(28),
+  // AD=Zeitstempel(29), AE=Status_Vertrag(30), AF=Adresse(31), AG=Ehrenamtsvergütung(32),
+  // AH=Catering(33), AI=Anreise_Am(34), AJ=Abreise_Am(35)
   const speakerMap = new Map();
   // Debug: log all status values to see what's in the sheet
   if (import.meta.env.DEV) {
@@ -502,15 +503,15 @@ const parsePlannerBatch = (batch, config) => {
         socialSonstiges: safeString(r[28]),
         telefon: safeString(r[11]),
         registeredBy: safeString(r[15]),
-        catering: safeString(r[16]),
-        anreise: safeString(r[17]),
-        hotel: safeString(r[18]),
-        hotelNaechte: safeString(r[19]),
-        hotelDaten: safeString(r[20]),
-        honorar: safeString(r[21]),
+        honorar: safeString(r[16]),
+        hotel: safeString(r[22]),
+        briefing: safeString(r[25]),
         vertragStatus: safeString(r[30]),
         adresse: safeString(r[31]),
-        ehrenamtsverguetung: safeString(r[32]).toLowerCase() === 'true'
+        ehrenamtsverguetung: safeString(r[32]).toLowerCase() === 'true',
+        catering: safeString(r[33]),
+        anreiseAm: safeString(r[34]),
+        abreiseAm: safeString(r[35])
       });
     }
   });
@@ -1030,7 +1031,7 @@ function App({ authenticatedUser }) {
       }
 
       const ranges = [
-        `'${config.sheetNameSpeakers}'!A2:AG`,       // index 0: Speakers (33 cols incl vertrag + ehrenamt)
+        `'${config.sheetNameSpeakers}'!A2:AJ`,       // index 0: Speakers (36 cols incl reise)
         `'${config.sheetNameMods}'!A2:C`,            // index 1: Moderators
         `'${config.sheetNameStages}'!A2:H`,          // index 2: Stages
       ];
@@ -1726,19 +1727,22 @@ function App({ authenticatedUser }) {
         newSpeaker.sprache || '',     // N
         registeredAm,                 // O
         authenticatedUser.email || '',// P
-        '', '', '', '', '', '', '', '', '', '', // Q-Z (financials/travel/briefing)
+        '', '', '', '', '', '', '', '', '', '', // Q-Z (Q=Honorar, W=Hotel, Z=Briefing, rest reserved)
         newSpeaker.instagram || '',   // AA - Instagram
         newSpeaker.linkedin || '',    // AB - LinkedIn
         newSpeaker.socialSonstiges || '', // AC - Sonstige Social Media
         registeredAm,                 // AD - Zeitstempel
         'nicht benötigt',              // AE - Status_Vertrag (default)
         safeAddr,                     // AF - Adresse
-        'FALSE'                       // AG - Ehrenamtsvergütung (default)
+        'FALSE',                      // AG - Ehrenamtsvergütung (default)
+        '',                           // AH - Catering
+        '',                           // AI - Anreise Am
+        ''                            // AJ - Abreise Am
       ];
       const { ok, error } = await fetchSheets({
         action: 'append',
         spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameSpeakers}'!A2:AG`,
+        range: `'${config.sheetNameSpeakers}'!A2:AJ`,
         values: [row],
       }, token, config.curationApiUrl);
       if (!ok) throw new Error(error || 'Registrierung fehlgeschlagen');
@@ -2895,7 +2899,7 @@ function App({ authenticatedUser }) {
               }, token, config.curationApiUrl);
               if (!ok) throw new Error(error);
               // Optimistic update
-              const fieldMap = { Q: 'catering', R: 'anreise', S: 'hotel', T: 'hotelNaechte', U: 'hotelDaten', V: 'honorar', AE: 'vertragStatus', AG: 'ehrenamtsverguetung' };
+              const fieldMap = { Q: 'honorar', W: 'hotel', Z: 'briefing', AE: 'vertragStatus', AG: 'ehrenamtsverguetung', AH: 'catering', AI: 'anreiseAm', AJ: 'abreiseAm' };
               const field = fieldMap[col];
               if (field) {
                 const parsedVal = col === 'AG' ? (value === 'TRUE') : value;
@@ -2942,12 +2946,12 @@ function App({ authenticatedUser }) {
                             <tr className="bg-slate-50 border-b border-slate-200">
                               <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Name</th>
                               <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Status</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Briefing</th>
                               <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Sessions</th>
                               <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Profil</th>
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Catering</th>
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Anreise</th>
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Hotel</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Reise</th>
                               <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Honorar</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Catering</th>
                               <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Vertrag</th>
                               <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Ehrenamt</th>
                             </tr>
@@ -2963,11 +2967,22 @@ function App({ authenticatedUser }) {
                               });
                               const isExpanded = expandedSpeakerId === spk.id;
                               const isAdmin = hasRole('ADMIN');
+                              // Calculate hotel nights from dates
+                              const calcNights = () => {
+                                if (!spk.anreiseAm || !spk.abreiseAm) return null;
+                                const a = new Date(spk.anreiseAm), b = new Date(spk.abreiseAm);
+                                if (isNaN(a) || isNaN(b)) return null;
+                                return Math.max(0, Math.round((b - a) / 86400000));
+                              };
+                              const nights = calcNights();
+                              // Briefing pills
+                              const briefingItems = (spk.briefing || '').split(',').map(s => s.trim()).filter(Boolean);
 
                               return (
                                 <React.Fragment key={spk.id || i}>
                                   <tr className={`border-b border-slate-100 hover:bg-slate-50/50 cursor-pointer ${isExpanded ? 'bg-purple-50/30' : ''}`}
                                     onClick={() => setExpandedSpeakerId(isExpanded ? null : spk.id)}>
+                                    {/* Name */}
                                     <td className="py-2 px-3">
                                       <div className="font-bold text-slate-800 text-xs">{spk.fullName || '—'}</div>
                                       <div className="text-[10px] text-slate-400">{spk.email}</div>
@@ -2975,6 +2990,7 @@ function App({ authenticatedUser }) {
                                         <div className="text-[9px] text-amber-600 font-bold mt-0.5">🤖 Dummy · erstellt von {spk.registeredBy}</div>
                                       )}
                                     </td>
+                                    {/* Status */}
                                     <td className="py-2 px-3">
                                       <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${isDummy ? 'bg-amber-100 text-amber-700' :
                                         (spk.status || '').toLowerCase().includes('fixiert') ? 'bg-green-100 text-green-700' :
@@ -2982,11 +2998,42 @@ function App({ authenticatedUser }) {
                                             'bg-slate-100 text-slate-600'
                                         }`}>{spk.status || '—'}</span>
                                     </td>
+                                    {/* Briefing */}
+                                    <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                                      {isAdmin ? (
+                                        <select value="" onChange={e => {
+                                          if (!e.target.value) return;
+                                          const cur = (spk.briefing || '').split(',').map(s => s.trim()).filter(Boolean);
+                                          if (!cur.includes(e.target.value)) {
+                                            updateSpeakerField(spk, 'Z', [...cur, e.target.value].join(', '));
+                                          }
+                                          e.target.value = '';
+                                        }} className="text-[9px] border rounded px-1 py-0.5 w-20">
+                                          <option value="">+ Briefing</option>
+                                          {['Anmeldungs Bestätigung', 'Gedultshinweis', 'Absagemail', 'Zusage Mail', 'Fixierungsmail',
+                                            'Vertragsinformationen', 'Rechnungslegung', 'Social Media Briefing', 'Produktionsbriefing',
+                                            'Änderungsmail', 'Änderungsmail - Live', 'Dankesmail', 'Archiev Hinweise', 'Zukunft'
+                                          ].filter(v => !briefingItems.includes(v)).map(v => <option key={v} value={v}>{v}</option>)}
+                                        </select>
+                                      ) : null}
+                                      {briefingItems.length > 0 ? (
+                                        <div className="flex flex-wrap gap-0.5 mt-0.5 max-w-[120px]">
+                                          {briefingItems.map((b, bi) => (
+                                            <span key={bi} className="inline-flex items-center gap-0.5 px-1 py-0 rounded bg-indigo-50 text-indigo-700 text-[8px] font-bold">
+                                              {b}
+                                              {isAdmin && <button onClick={(e) => { e.stopPropagation(); const upd = briefingItems.filter((_, x) => x !== bi).join(', '); updateSpeakerField(spk, 'Z', upd); }} className="text-indigo-400 hover:text-red-500 ml-0.5">×</button>}
+                                            </span>
+                                          ))}
+                                        </div>
+                                      ) : <span className="text-[9px] text-slate-400">—</span>}
+                                    </td>
+                                    {/* Sessions */}
                                     <td className="py-2 px-3">
                                       <span className={`text-xs font-bold ${spkSessions.length > 0 ? 'text-purple-600' : 'text-slate-400'}`}>
                                         {isExpanded ? '▼' : '▶'} {spkSessions.length}
                                       </span>
                                     </td>
+                                    {/* Profil */}
                                     <td className="py-2 px-3">
                                       {profileComplete ? (
                                         <span className="text-green-600 text-xs font-bold">✓</span>
@@ -2994,52 +3041,69 @@ function App({ authenticatedUser }) {
                                         <span className="text-amber-600 text-xs font-bold" title={`${!spk.bio ? 'Bio fehlt ' : ''}${!spk.telefon ? 'Tel fehlt ' : ''}${!spk.adresse ? 'Adresse fehlt' : ''}`}>⚠️</span>
                                       )}
                                     </td>
+                                    {/* Reise (Hotel + Anreise/Abreise + Nächte) */}
                                     <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
                                       {isAdmin ? (
-                                        <button onClick={() => updateSpeakerField(spk, 'Q', spk.catering === 'ja' ? 'nein' : 'ja')}
-                                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${spk.catering === 'ja' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
-                                          {spk.catering === 'ja' ? '✓ Ja' : '—'}
-                                        </button>
-                                      ) : (
-                                        <span className="text-[10px] text-slate-500">{spk.catering || '—'}</span>
-                                      )}
-                                    </td>
-                                    <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
-                                      {isAdmin ? (
-                                        <select value={spk.anreise || ''} onChange={e => updateSpeakerField(spk, 'R', e.target.value)}
-                                          className="text-[10px] border rounded px-1 py-0.5">
-                                          <option value="">—</option>
-                                          <option value="selbst">selbst</option>
-                                          <option value="gebucht">gebucht</option>
-                                        </select>
-                                      ) : (
-                                        <span className="text-[10px] text-slate-500">{spk.anreise || '—'}</span>
-                                      )}
-                                    </td>
-                                    <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
-                                      {isAdmin ? (
-                                        <div className="flex items-center gap-1">
-                                          <button onClick={() => updateSpeakerField(spk, 'S', spk.hotel === 'ja' ? 'nein' : 'ja')}
-                                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${spk.hotel === 'ja' ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
-                                            {spk.hotel === 'ja' ? '✓' : '—'}
-                                          </button>
-                                          {spk.hotel === 'ja' && (
-                                            <span className="text-[9px] text-slate-500">{spk.hotelNaechte || '?'} N.</span>
-                                          )}
+                                        <div className="space-y-1">
+                                          <input type="text" defaultValue={spk.hotel || ''} placeholder="Hotel"
+                                            onBlur={e => { if (e.target.value !== (spk.hotel || '')) updateSpeakerField(spk, 'W', e.target.value); }}
+                                            className="w-20 text-[9px] border rounded px-1 py-0.5" />
+                                          <div className="flex gap-0.5">
+                                            <input type="date" defaultValue={spk.anreiseAm || ''}
+                                              onBlur={e => { if (e.target.value !== (spk.anreiseAm || '')) updateSpeakerField(spk, 'AI', e.target.value); }}
+                                              className="text-[8px] border rounded px-0.5 py-0.5 w-[72px]" title="Anreise" />
+                                            <input type="date" defaultValue={spk.abreiseAm || ''}
+                                              onBlur={e => { if (e.target.value !== (spk.abreiseAm || '')) updateSpeakerField(spk, 'AJ', e.target.value); }}
+                                              className="text-[8px] border rounded px-0.5 py-0.5 w-[72px]" title="Abreise" />
+                                          </div>
+                                          {nights !== null && <div className="text-[8px] text-slate-500">{nights} Nächte</div>}
                                         </div>
                                       ) : (
-                                        <span className="text-[10px] text-slate-500">{spk.hotel || '—'} {spk.hotel === 'ja' && `(${spk.hotelNaechte || '?'}N)`}</span>
+                                        <div className="text-[9px] text-slate-500">
+                                          {spk.hotel ? <div>🏨 {spk.hotel}</div> : '—'}
+                                          {spk.anreiseAm && <div>{spk.anreiseAm} → {spk.abreiseAm || '?'}</div>}
+                                          {nights !== null && <div>{nights}N</div>}
+                                        </div>
                                       )}
                                     </td>
+                                    {/* Honorar (Q) */}
                                     <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
                                       {isAdmin ? (
                                         <input type="text" defaultValue={spk.honorar || ''} placeholder="€"
-                                          onBlur={e => { if (e.target.value !== (spk.honorar || '')) updateSpeakerField(spk, 'V', e.target.value); }}
+                                          onBlur={e => { if (e.target.value !== (spk.honorar || '')) updateSpeakerField(spk, 'Q', e.target.value); }}
                                           className="w-16 text-[10px] border rounded px-1 py-0.5" />
                                       ) : (
                                         <span className="text-[10px] text-slate-500">{spk.honorar || '—'}</span>
                                       )}
                                     </td>
+                                    {/* Catering (AH) - multi-select */}
+                                    <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                                      {isAdmin ? (
+                                        <div>
+                                          <select value="" onChange={e => {
+                                            if (!e.target.value) return;
+                                            const cur = (spk.catering || '').split(',').map(s => s.trim()).filter(Boolean);
+                                            if (!cur.includes(e.target.value)) {
+                                              updateSpeakerField(spk, 'AH', [...cur, e.target.value].join(', '));
+                                            }
+                                            e.target.value = '';
+                                          }} className="text-[9px] border rounded px-1 py-0.5 w-16">
+                                            <option value="">+ Meal</option>
+                                            {['Tag 1 - Mittag', 'Tag 1 - Abend', 'Tag 2 - Mittag', 'Tag 2 - Abend', 'Tag 3 - Mittag', 'Tag 3 - Abend', 'Tag 4 - Mittag', 'Tag 4 - Abend'
+                                            ].filter(v => !(spk.catering || '').includes(v)).map(v => <option key={v} value={v}>{v}</option>)}
+                                          </select>
+                                          {(spk.catering || '').split(',').map(s => s.trim()).filter(Boolean).map((c, ci) => (
+                                            <span key={ci} className="inline-flex items-center gap-0.5 px-1 py-0 rounded bg-orange-50 text-orange-700 text-[8px] font-bold mr-0.5 mt-0.5">
+                                              {c}
+                                              <button onClick={(e) => { e.stopPropagation(); const upd = (spk.catering || '').split(',').map(s => s.trim()).filter((_, x) => x !== ci).join(', '); updateSpeakerField(spk, 'AH', upd); }} className="text-orange-400 hover:text-red-500">×</button>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      ) : (
+                                        <span className="text-[9px] text-slate-500">{spk.catering || '—'}</span>
+                                      )}
+                                    </td>
+                                    {/* Vertrag (AE) */}
                                     <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
                                       {isAdmin ? (
                                         <select value={spk.vertragStatus || 'nicht benötigt'} onChange={e => updateSpeakerField(spk, 'AE', e.target.value)}
@@ -3063,6 +3127,7 @@ function App({ authenticatedUser }) {
                                           }`}>{spk.vertragStatus || 'nicht benötigt'}</span>
                                       )}
                                     </td>
+                                    {/* Ehrenamt (AG) */}
                                     <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
                                       {isAdmin ? (
                                         <button onClick={() => updateSpeakerField(spk, 'AG', spk.ehrenamtsverguetung ? 'FALSE' : 'TRUE')}
@@ -3082,16 +3147,6 @@ function App({ authenticatedUser }) {
                                           <div><strong>🏠 Adresse:</strong> {spk.adresse || '—'}</div>
                                           <div><strong>🌐 Webseite:</strong> {spk.webseite || '—'}</div>
                                           <div><strong>🗣️ Sprache:</strong> {spk.sprache || '—'}</div>
-                                          {spk.hotel === 'ja' && <div><strong>🏨 Hotel-Daten:</strong> {spk.hotelDaten || '—'}
-                                            {isAdmin && <input type="text" defaultValue={spk.hotelDaten || ''} placeholder="Daten..."
-                                              onBlur={e => { if (e.target.value !== (spk.hotelDaten || '')) updateSpeakerField(spk, 'U', e.target.value); }}
-                                              className="ml-2 w-32 border rounded px-1 py-0.5 text-[10px]" />}
-                                          </div>}
-                                          {spk.hotel === 'ja' && isAdmin && <div><strong>🏨 Nächte:</strong>
-                                            <input type="number" defaultValue={spk.hotelNaechte || ''} placeholder="0" min="0"
-                                              onBlur={e => { if (e.target.value !== (spk.hotelNaechte || '')) updateSpeakerField(spk, 'T', e.target.value); }}
-                                              className="ml-2 w-12 border rounded px-1 py-0.5 text-[10px]" />
-                                          </div>}
                                         </div>
                                         {spkSessions.length > 0 ? (
                                           <div className="space-y-2">
