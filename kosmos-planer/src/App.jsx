@@ -1156,7 +1156,7 @@ function App({ authenticatedUser }) {
 
     const fetchProductionData = async () => {
       try {
-        const token = authenticatedUser.accessToken;
+        const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
         const { ok, data: batch, error } = await fetchSheets({
           action: 'batchGet',
           spreadsheetId: PRODUCTION_SHEET_ID,
@@ -1198,7 +1198,7 @@ function App({ authenticatedUser }) {
 
   const handleLogout = () => {
     // Revoke the Google OAuth token if possible
-    const token = authenticatedUser?.accessToken;
+    const token = authenticatedUser?.accessToken || authenticatedUser?.magicToken || '';
     if (token && token !== 'mock_dev_token_123') {
       fetch(`https://accounts.google.com/o/oauth2/revoke?token=${token}`).catch(() => { });
     }
@@ -1264,7 +1264,7 @@ function App({ authenticatedUser }) {
       setToast({ msg: 'Nur Admins können Nutzerrollen ändern', type: 'error' });
       return;
     }
-    const token = authenticatedUser.accessToken;
+    const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
     // Normalize: deduplicate roles per user before writing
     const rows = updatedUsers.map(u => {
       const dedupedRole = [...new Set(u.role.split(',').map(r => r.trim().toUpperCase()).filter(Boolean))].join(',');
@@ -1469,7 +1469,7 @@ function App({ authenticatedUser }) {
     const prevStages = data.stages;
     setData(prev => ({ ...prev, stages: updatedStages }));
     try {
-      const token = authenticatedUser.accessToken;
+      const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
       const rows = updatedStages.map(s => [
         s.id, s.name, s.capacity || '', '', String(s.maxMics || 4), s.hidden ? 'TRUE' : ''
       ]);
@@ -1499,7 +1499,7 @@ function App({ authenticatedUser }) {
     const prevConfig = data.configThemen;
     setData(prev => ({ ...prev, configThemen: updatedConfig }));
     try {
-      const token = authenticatedUser.accessToken;
+      const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
       // Build rows: each row has [Bereich, Thema, Tag, Format]
       const maxLen = Math.max(
         updatedConfig.bereiche.length, updatedConfig.themen.length,
@@ -1543,7 +1543,7 @@ function App({ authenticatedUser }) {
     if (!window.confirm(newValue ? 'Open Call wirklich schließen? Keine neuen Einreichungen mehr möglich.' : 'Open Call wieder öffnen?')) return;
     setOpenCallClosed(newValue);
     try {
-      const token = authenticatedUser.accessToken;
+      const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
       const { ok, error } = await fetchSheets({
         action: 'update',
         spreadsheetId: config.spreadsheetId,
@@ -1866,7 +1866,7 @@ function App({ authenticatedUser }) {
     }
 
     try {
-      const token = authenticatedUser.accessToken;
+      const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
 
       // Optimistic local update (submissions = source of truth)
       setData(prev => ({
@@ -1960,7 +1960,7 @@ function App({ authenticatedUser }) {
   const handleSync = async () => {
     setStatus({ loading: true, error: null });
     try {
-      const token = authenticatedUser.accessToken;
+      const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
 
       // --- Solution A: Write planning columns O-W to Master_Einreichungen ---
       // Build rows for columns O-W aligned to rowIndex
@@ -2673,7 +2673,7 @@ function App({ authenticatedUser }) {
               onSaveRating={async (sessionId, score, kommentar) => {
                 if (!config.curationApiUrl) return;
                 try {
-                  const token = authenticatedUser.accessToken;
+                  const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
                   const timestamp = new Date().toISOString();
                   const reviewerEmail = authenticatedUser.email || '';
                   if (import.meta.env.DEV) console.log('[onSaveRating]', { sessionId, score, reviewerEmail });
@@ -2760,7 +2760,7 @@ function App({ authenticatedUser }) {
                 if (newSettings.maxSubmissions !== undefined) {
                   localStorage.setItem('kosmos_max_submissions', String(newSettings.maxSubmissions));
                   // Also persist to Config_Themen column E (single source of truth)
-                  const token = authenticatedUser.accessToken;
+                  const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
                   fetchSheets({
                     action: 'update',
                     spreadsheetId: config.spreadsheetId,
@@ -3625,7 +3625,7 @@ function App({ authenticatedUser }) {
           <div className="flex-1 overflow-y-auto bg-slate-50 p-6 space-y-6">
             <SpeakerRegistration
               n8nBaseUrl={config.n8nBaseUrl}
-              accessToken={authenticatedUser.accessToken}
+              accessToken={authenticatedUser.accessToken || authenticatedUser.magicToken || ''}
               registeredBy={authenticatedUser.email}
               onSuccess={() => setToast({ msg: 'Speaker registriert!', type: 'success' })}
             />
