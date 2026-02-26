@@ -31,7 +31,8 @@
           "value": "26_Kosmos_SprecherInnen",
           "mode": "name"
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "abfa22ef-23e5-4bf9-98c6-72fae8e7bc15",
       "name": "Read Speaker_DB",
@@ -42,9 +43,9 @@
         0
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "XHAaj2jW66uJmJCY",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "LvHMiivmZXgTlEwU",
+          "name": "Google Service Account account"
         }
       }
     },
@@ -250,7 +251,8 @@
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "b8fa2098-1bb8-443f-861c-5a018b17afd4",
       "name": "Write to Speaker_DB",
@@ -261,9 +263,9 @@
         272
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "XHAaj2jW66uJmJCY",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "LvHMiivmZXgTlEwU",
+          "name": "Google Service Account account"
         }
       }
     },
@@ -487,7 +489,8 @@
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "c738b405-abf1-4219-ab2a-a07964d86ebc",
       "name": "Write to Master_Einreichungen",
@@ -498,9 +501,9 @@
         528
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "XHAaj2jW66uJmJCY",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "LvHMiivmZXgTlEwU",
+          "name": "Google Service Account account"
         }
       }
     },
@@ -954,7 +957,8 @@
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "24526990-d79a-4b51-a8e1-21731b12127b",
       "name": "Append to Master_Ratings",
@@ -965,9 +969,9 @@
         -32
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "XHAaj2jW66uJmJCY",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "LvHMiivmZXgTlEwU",
+          "name": "Google Service Account account"
         }
       }
     },
@@ -1319,7 +1323,8 @@
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "69def101-656e-45bb-816c-5e59bc4a6386",
       "name": "Append to SprecherInnen",
@@ -1330,9 +1335,9 @@
         480
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "XHAaj2jW66uJmJCY",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "LvHMiivmZXgTlEwU",
+          "name": "Google Service Account account"
         }
       }
     },
@@ -1585,7 +1590,8 @@
           "mode": "name",
           "value": "Magic_Link_Tokens"
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "1af2eca2-9509-43bd-834a-467b2dee41f5",
       "name": "Read Magic_Link_Tokens",
@@ -1596,9 +1602,9 @@
         2608
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "XHAaj2jW66uJmJCY",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "LvHMiivmZXgTlEwU",
+          "name": "Google Service Account account"
         }
       },
       "onError": "continueRegularOutput"
@@ -1664,7 +1670,8 @@
           "cachedResultName": "Config_Users",
           "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1u12ILaBSj5B3Iy3yh6DYyanSIp7UQjimOBw61yYVmME/edit#gid=320344701"
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "c6fd8e07-40cd-4cb3-9bf2-e242048c5648",
       "name": "Read Config_Users",
@@ -1675,9 +1682,9 @@
         2512
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "XHAaj2jW66uJmJCY",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "LvHMiivmZXgTlEwU",
+          "name": "Google Service Account account"
         }
       },
       "onError": "continueRegularOutput"
@@ -1935,7 +1942,8 @@
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "342b78a2-fb30-4b83-9e2e-1c6151497b48",
       "name": "Store Nonce in Sheet",
@@ -1946,9 +1954,9 @@
         3120
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "XHAaj2jW66uJmJCY",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "LvHMiivmZXgTlEwU",
+          "name": "Google Service Account account"
         }
       },
       "onError": "continueRegularOutput"
@@ -2028,7 +2036,8 @@
           "cachedResultName": "Config_Users",
           "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1u12ILaBSj5B3Iy3yh6DYyanSIp7UQjimOBw61yYVmME/edit#gid=320344701"
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "d0833244-2399-4406-a147-0f98bb3b7e9b",
       "name": "Read Config_Users1",
@@ -2039,9 +2048,9 @@
         3232
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "XHAaj2jW66uJmJCY",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "LvHMiivmZXgTlEwU",
+          "name": "Google Service Account account"
         }
       },
       "onError": "continueRegularOutput"
@@ -2149,7 +2158,8 @@
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
         },
-        "options": {}
+        "options": {},
+        "authentication": "serviceAccount"
       },
       "id": "5b3fbce1-427e-4493-90e3-5ba97175bbe2",
       "name": "Mark Token USED",
@@ -2160,9 +2170,9 @@
         2384
       ],
       "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "XHAaj2jW66uJmJCY",
-          "name": "Google Sheets account"
+        "googleApi": {
+          "id": "LvHMiivmZXgTlEwU",
+          "name": "Google Service Account account"
         }
       },
       "alwaysOutputData": true,

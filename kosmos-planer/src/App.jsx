@@ -1962,9 +1962,9 @@ function App({ authenticatedUser }) {
     try {
       const token = authenticatedUser.accessToken;
 
-      // --- Solution A: Write planning columns P-W to Master_Einreichungen ---
-      // Build rows for columns P-W aligned to rowIndex
-      // P=Bühne, Q=Startzeit, R=Endzeit, S=Partner, T=Stage_Dispo, U=Tags, V=Moderators, W=Session_ID
+      // --- Solution A: Write planning columns O-W to Master_Einreichungen ---
+      // Build rows for columns O-W aligned to rowIndex
+      // O=Status, P=Bühne, Q=Startzeit, R=Endzeit, S=Partner, T=Stage_Dispo, U=Tags, V=Moderators, W=Session_ID
       const maxRow = Math.max(...data.program.map(p => p.rowIndex || 2), 2);
       const planningRows = [];
       for (let row = 2; row <= maxRow; row++) {
@@ -1972,6 +1972,7 @@ function App({ authenticatedUser }) {
         if (p) {
           const modsStr = Array.isArray(p.moderators) ? p.moderators.join(', ') : (p.moderators || '');
           planningRows.push([
+            safeString(p.status),                              // O: Status
             p.stage === INBOX_ID ? '' : safeString(p.stage),  // P: Bühne
             p.start === '-' ? '' : p.start,                   // Q: Startzeit
             p.start === '-' ? '' : calculateEndTime(p.start, p.duration), // R: Endzeit
@@ -1982,14 +1983,14 @@ function App({ authenticatedUser }) {
             safeString(p.id)                                   // W: Session_ID
           ]);
         } else {
-          planningRows.push(['', '', '', '', '', '', '', '']);
+          planningRows.push(['', '', '', '', '', '', '', '', '']); // 9 columns O-W
         }
       }
 
       const { ok, error } = await fetchSheets({
         action: 'update',
         spreadsheetId: config.spreadsheetId,
-        range: `'Master_Einreichungen'!P2:W`,
+        range: `'Master_Einreichungen'!O2:W`,
         values: planningRows,
       }, token, config.curationApiUrl);
 
