@@ -1699,6 +1699,12 @@ function App({ authenticatedUser }) {
         range: `'${config.sheetNameSpeakers}'!AF${rowNum}`,
         values: [['']],
       }, token, config.curationApiUrl);
+      // Clear ansprache (AK) — GDPR personal data
+      await fetchSheets({
+        action: 'update', spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!AK${rowNum}`,
+        values: [['']],
+      }, token, config.curationApiUrl);
       // 3) Remove from Config_Users — find row and clear it
       const email = authenticatedUser.email?.toLowerCase() || '';
       const configIdx = curationData.users.findIndex(u => u.email.toLowerCase() === email);
