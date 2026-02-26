@@ -57,6 +57,13 @@ function AuthGate({ onAuthSuccess }) {
             if (savedSession) {
                 try {
                     const session = JSON.parse(savedSession);
+                    // Check if Google token is expired (1h lifetime for implicit flow)
+                    if (session.accessToken && session.expiresAt && Date.now() > session.expiresAt) {
+                        console.log('[AuthGate] Google token expired, clearing session');
+                        localStorage.removeItem('kosmos_user_session');
+                        setLoading(false);
+                        return; // Show login page
+                    }
                     if (session.accessToken || session.magicToken) {
                         if (session.role && session.role !== 'GUEST') {
                             onAuthSuccess({
@@ -146,7 +153,9 @@ function AuthGate({ onAuthSuccess }) {
 
             localStorage.setItem('kosmos_user_session', JSON.stringify({
                 accessToken, email: userEmail, name: userInfo.name,
-                picture: userInfo.picture, role, authType: 'google', timestamp: Date.now()
+                picture: userInfo.picture, role, authType: 'google',
+                timestamp: Date.now(),
+                expiresAt: Date.now() + 3500 * 1000  // ~58 min (Google implicit token = 1h, with buffer)
             }));
 
             onAuthSuccess({

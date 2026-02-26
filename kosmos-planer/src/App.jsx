@@ -1058,14 +1058,18 @@ function App({ authenticatedUser }) {
       if (import.meta.env.DEV) console.log('[loadData] Result:', { ok, rangeCount: batch?.valueRanges?.length, error });
 
       if (!ok) {
-        if (resStatus === 401 || resStatus === 403) {
-          // Only force re-auth for Google users, not magic link users
+        // Detect expired Google token (n8n returns this from tokeninfo API)
+        const isTokenExpired = typeof error === 'string' &&
+          (error.toLowerCase().includes('invalid') || error.toLowerCase().includes('expired'));
+        if (resStatus === 401 || resStatus === 403 || isTokenExpired) {
+          // Force re-auth for Google users, not magic link users
           if (authenticatedUser.authType !== 'magic') {
+            localStorage.removeItem('kosmos_user_session');
             clearAuth();
             setIsAuthenticated(false);
             setAccessToken(null);
           }
-          setStatus({ loading: false, error: "Zugriff verweigert. Bitte erneut einloggen." });
+          setStatus({ loading: false, error: "Token abgelaufen. Bitte erneut einloggen." });
           return;
         }
         throw new Error(error || 'Sheets API Fehler');
