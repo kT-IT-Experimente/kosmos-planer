@@ -26,7 +26,7 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
     const [form, setForm] = useState({
         vorname: '',
         nachname: '',
-        pronomen: '',
+        geschlecht: '',
         organisation: '',
         bio: '',
         webseite: '',
@@ -38,6 +38,7 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
         socialSonstiges: '',
         telefon: '',
         adresse: '',
+        ansprache: '',
         auswaehlbar: true // toggle: visible as speaker in picker
     });
     const [saving, setSaving] = useState(false);
@@ -58,7 +59,7 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
         setForm({
             vorname: nameParts[0] || '',
             nachname: nameParts.slice(1).join(' ') || '',
-            pronomen: speaker.pronoun || '',
+            geschlecht: speaker.pronoun || '',
             organisation: speaker.organisation || '',
             bio: speaker.bio || '',
             webseite: speaker.webseite || '',
@@ -70,6 +71,7 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
             socialSonstiges: speaker.socialSonstiges || '',
             telefon: speaker.telefon || '',
             adresse: speaker.adresse || '',
+            ansprache: speaker.ansprache || '',
             auswaehlbar: !statusLower.includes('teilnehm') // CFP_Teilnehmerin = not selectable as speaker
         });
         setHasChanges(false);
@@ -99,7 +101,7 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                 await onRegister({
                     fullName: `${form.vorname} ${form.nachname}`.trim(),
                     email: userEmail,
-                    pronoun: form.pronomen,
+                    pronoun: form.geschlecht,
                     organisation: form.organisation,
                     bio: form.bio,
                     webseite: form.webseite,
@@ -111,13 +113,14 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                     socialSonstiges: form.socialSonstiges,
                     telefon: form.telefon,
                     adresse: form.adresse,
+                    ansprache: form.ansprache,
                     status: form.auswaehlbar ? 'CFP' : 'CFP_Teilnehmerin'
                 });
             } else if (onSave && speaker) {
                 await onSave({
                     ...speaker,
                     fullName: `${form.vorname} ${form.nachname}`.trim(),
-                    pronoun: form.pronomen,
+                    pronoun: form.geschlecht,
                     organisation: form.organisation,
                     bio: form.bio,
                     webseite: form.webseite,
@@ -129,6 +132,7 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                     socialSonstiges: form.socialSonstiges,
                     telefon: form.telefon,
                     adresse: form.adresse,
+                    ansprache: form.ansprache,
                     status: form.auswaehlbar
                         ? ((speaker.status || '').toLowerCase().includes('teilnehm') ? 'CFP' : speaker.status)
                         : 'CFP_Teilnehmerin'
@@ -194,11 +198,15 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                         </Field>
                     </div>
 
-                    {/* Pronomen + Organisation */}
+                    {/* Geschlecht + Organisation */}
                     <div className="grid grid-cols-2 gap-4">
-                        <Field label="Pronomen">
-                            <input type="text" value={form.pronomen} onChange={e => handleChange('pronomen', e.target.value)}
-                                placeholder="z.B. sie/ihr, er/ihm" className={inputCls} />
+                        <Field label="Geschlecht">
+                            <select value={form.geschlecht} onChange={e => handleChange('geschlecht', e.target.value)} className={inputCls}>
+                                <option value="">Bitte wählen</option>
+                                <option value="männlich">männlich</option>
+                                <option value="weiblich">weiblich</option>
+                                <option value="divers">divers</option>
+                            </select>
                         </Field>
                         <Field label="Organisation" icon={Building2}>
                             <input type="text" value={form.organisation} onChange={e => handleChange('organisation', e.target.value)} className={inputCls} />
@@ -239,15 +247,24 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
 
                     {/* Sprache + Herkunft */}
                     <div className="grid grid-cols-2 gap-4">
-                        <Field label="Sprache(n)" icon={Languages}>
-                            <input type="text" value={form.sprache} onChange={e => handleChange('sprache', e.target.value)}
-                                placeholder="z.B. Deutsch, Englisch" className={inputCls} />
+                        <Field label="Sprache" icon={Languages}>
+                            <select value={form.sprache} onChange={e => handleChange('sprache', e.target.value)} className={inputCls}>
+                                <option value="">Bitte wählen</option>
+                                <option value="Deutsch">Deutsch</option>
+                                <option value="Englisch">Englisch</option>
+                            </select>
                         </Field>
                         <Field label="Herkunft" icon={MapPin}>
                             <input type="text" value={form.herkunft} onChange={e => handleChange('herkunft', e.target.value)}
                                 placeholder="Stadt, Land" className={inputCls} />
                         </Field>
                     </div>
+
+                    {/* Wie möchte ich angesprochen werden */}
+                    <Field label="Wie möchte ich angesprochen werden?">
+                        <input type="text" value={form.ansprache} onChange={e => handleChange('ansprache', e.target.value)}
+                            placeholder="z.B. Frau Dr. Müller, Enrique, they/them..." className={inputCls} />
+                    </Field>
 
                     {/* Telefon + Adresse (Pflichtfelder) */}
                     <div className="grid grid-cols-2 gap-4">

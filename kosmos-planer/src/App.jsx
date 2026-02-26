@@ -457,7 +457,7 @@ const parsePlannerBatch = (batch, config) => {
   // W=Hotel(22), X-Y=(reserved 23-24), Z=Briefing(25),
   // AA=Instagram(26), AB=LinkedIn(27), AC=Sonstige Social Media(28),
   // AD=Zeitstempel(29), AE=Status_Vertrag(30), AF=Adresse(31), AG=Ehrenamtsvergütung(32),
-  // AH=Catering(33), AI=Anreise_Am(34), AJ=Abreise_Am(35)
+  // AH=Catering(33), AI=Anreise_Am(34), AJ=Abreise_Am(35), AK=Ansprache(36)
   const speakerMap = new Map();
   // Debug: log all status values to see what's in the sheet
   if (import.meta.env.DEV) {
@@ -511,7 +511,8 @@ const parsePlannerBatch = (batch, config) => {
         ehrenamtsverguetung: safeString(r[32]).toLowerCase() === 'true',
         catering: safeString(r[33]),
         anreiseAm: safeString(r[34]),
-        abreiseAm: safeString(r[35])
+        abreiseAm: safeString(r[35]),
+        ansprache: safeString(r[36])
       });
     }
   });
@@ -1031,7 +1032,7 @@ function App({ authenticatedUser }) {
       }
 
       const ranges = [
-        `'${config.sheetNameSpeakers}'!A2:AJ`,       // index 0: Speakers (36 cols incl reise)
+        `'${config.sheetNameSpeakers}'!A2:AK`,       // index 0: Speakers (37 cols incl ansprache)
         `'${config.sheetNameMods}'!A2:C`,            // index 1: Moderators
         `'${config.sheetNameStages}'!A2:H`,          // index 2: Stages
       ];
@@ -1642,6 +1643,12 @@ function App({ authenticatedUser }) {
         range: `'${config.sheetNameSpeakers}'!AF${rowNum}`,
         values: [[safeAddress]],
       }, token, config.curationApiUrl);
+      // Update ansprache (AK)
+      await fetchSheets({
+        action: 'update', spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!AK${rowNum}`,
+        values: [[updatedSpeaker.ansprache || '']],
+      }, token, config.curationApiUrl);
       // If speaker became invisible, remove from all linked sessions
       if (becameInvisible) {
         const removed = await removeSpeakerFromSessions(updatedSpeaker.id, updatedSpeaker.fullName, token);
@@ -1756,12 +1763,13 @@ function App({ authenticatedUser }) {
         'FALSE',                      // AG - Ehrenamtsvergütung (default)
         '',                           // AH - Catering
         '',                           // AI - Anreise Am
-        ''                            // AJ - Abreise Am
+        '',                           // AJ - Abreise Am
+        newSpeaker.ansprache || ''    // AK - Ansprache
       ];
       const { ok, error } = await fetchSheets({
         action: 'append',
         spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameSpeakers}'!A2:AJ`,
+        range: `'${config.sheetNameSpeakers}'!A2:AK`,
         values: [row],
       }, token, config.curationApiUrl);
       if (!ok) throw new Error(error || 'Registrierung fehlgeschlagen');
@@ -3017,31 +3025,13 @@ function App({ authenticatedUser }) {
                                             'bg-slate-100 text-slate-600'
                                         }`}>{spk.status || '—'}</span>
                                     </td>
-                                    {/* Briefing */}
-                                    <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
-                                      {isAdmin ? (
-                                        <select value="" onChange={e => {
-                                          if (!e.target.value) return;
-                                          const cur = (spk.briefing || '').split(',').map(s => s.trim()).filter(Boolean);
-                                          if (!cur.includes(e.target.value)) {
-                                            updateSpeakerField(spk, 'Z', [...cur, e.target.value].join(', '));
-                                          }
-                                          e.target.value = '';
-                                        }} className="text-[9px] border rounded px-1 py-0.5 w-20">
-                                          <option value="">+ Briefing</option>
-                                          {['Anmeldungs Bestätigung', 'Gedultshinweis', 'Absagemail', 'Zusage Mail', 'Fixierungsmail',
-                                            'Vertragsinformationen', 'Rechnungslegung', 'Social Media Briefing', 'Produktionsbriefing',
-                                            'Änderungsmail', 'Änderungsmail - Live', 'Dankesmail', 'Archiev Hinweise', 'Zukunft'
-                                          ].filter(v => !briefingItems.includes(v)).map(v => <option key={v} value={v}>{v}</option>)}
-                                        </select>
-                                      ) : null}
+                                    {/* Briefing (read-only status — set by mailing automation) */}
+                                    <td className="py-2 px-3">
                                       {briefingItems.length > 0 ? (
-                                        <div className="flex flex-wrap gap-0.5 mt-0.5 max-w-[120px]">
+                                        <div className="flex flex-wrap gap-0.5 max-w-[140px]">
+                                          <span className="text-[8px] text-slate-400 font-bold mr-1">{briefingItems.length}×</span>
                                           {briefingItems.map((b, bi) => (
-                                            <span key={bi} className="inline-flex items-center gap-0.5 px-1 py-0 rounded bg-indigo-50 text-indigo-700 text-[8px] font-bold">
-                                              {b}
-                                              {isAdmin && <button onClick={(e) => { e.stopPropagation(); const upd = briefingItems.filter((_, x) => x !== bi).join(', '); updateSpeakerField(spk, 'Z', upd); }} className="text-indigo-400 hover:text-red-500 ml-0.5">×</button>}
-                                            </span>
+                                            <span key={bi} className="px-1 py-0 rounded bg-indigo-50 text-indigo-700 text-[8px] font-bold">{b}</span>
                                           ))}
                                         </div>
                                       ) : <span className="text-[9px] text-slate-400">—</span>}
