@@ -187,12 +187,8 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
     return (
         <div className="flex flex-col h-full overflow-hidden k-panel-glass text-white border-white/10">
             {/* Header */}
-            <div className="bg-white/5 backdrop-blur-md border-b border-white/10 px-4 py-3 flex items-center justify-between shrink-0">
+            <div className="bg-white/5 backdrop-blur-md border-b border-indigo-200 px-4 py-3 flex items-center justify-between shrink-0">
                 <div>
-                    <h2 className="k-h2 flex items-center gap-2 mb-0">
-                        <Wrench className="w-5 h-5 text-[var(--k-accent-teal)]" />
-                        Produktions-Zeitplan
-                    </h2>
                     <p className="k-caption mt-0.5">
                         {equipmentSummary.sessionCount} Sessions • {equipmentSummary.confirmedCount} bestätigt • Peak: {equipmentSummary.peakWireless} Funk + {equipmentSummary.peakHeadset} Headset
                     </p>
@@ -241,8 +237,8 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                     /* ===== TIMELINE VIEW ===== */
                     <div className="flex min-w-fit">
                         {/* Time axis */}
-                        <div className="w-16 shrink-0 bg-indigo-50 border-r border-indigo-200 relative" style={{ height: timelineHeight + HEADER_HEIGHT }}>
-                            <div className="sticky top-0 bg-indigo-900 border-b border-indigo-700 text-center text-[10px] font-bold text-yellow-300/70 uppercase" style={{ height: HEADER_HEIGHT, lineHeight: `${HEADER_HEIGHT}px` }}>
+                        <div className="w-16 shrink-0 bg-slate-50 border-r border-slate-200 relative" style={{ height: timelineHeight + HEADER_HEIGHT }}>
+                            <div className="sticky top-0 bg-slate-100 border-b border-slate-300 text-center text-[10px] font-bold text-slate-600 uppercase" style={{ height: HEADER_HEIGHT, lineHeight: `${HEADER_HEIGHT}px` }}>
                                 Zeit
                             </div>
                             {hours.map(h => (
@@ -267,11 +263,11 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                                 >
                                     {/* Stage header */}
                                     <div
-                                        className="sticky top-0 z-10 bg-indigo-900 border-b border-indigo-700 p-2 text-center"
+                                        className="sticky top-0 z-10 bg-slate-100 border-b border-slate-300 p-2 text-center"
                                         style={{ height: HEADER_HEIGHT }}
                                     >
-                                        <div className="font-bold text-sm text-yellow-300 truncate">{stage.name}</div>
-                                        <div className="flex justify-center gap-3 text-[10px] text-yellow-300/50 font-mono mt-0.5">
+                                        <div className="font-bold text-sm text-slate-800 truncate">{stage.name}</div>
+                                        <div className="flex justify-center gap-3 text-[10px] text-slate-500 font-mono mt-0.5">
                                             <span className="flex items-center gap-0.5"><Mic2 className="w-3 h-3 text-[var(--k-accent-teal)]" /> {stage.maxMics || '?'}</span>
                                             <span className="flex items-center gap-0.5">{stageSess.length} Sessions</span>
                                         </div>
@@ -296,17 +292,17 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                                         return (
                                             <div
                                                 key={session.id}
-                                                className={`absolute left-1 right-1 rounded border px-2 py-1 overflow-hidden transition-all hover:shadow-[0_0_15px_rgba(45,212,191,0.2)] cursor-default z-10 ${isCanceled ? 'bg-red-900/30 border-red-500/40 text-red-200 opacity-60' : 'bg-[var(--k-accent-teal)]/10 border-[var(--k-accent-teal)]/40 hover:border-[var(--k-accent-teal)]'
+                                                className={`absolute left-1 right-1 rounded border-2 px-2 py-1 overflow-hidden transition-all hover:shadow-md cursor-default z-10 ${isCanceled ? 'bg-red-50 border-red-300 text-red-600 opacity-60' : 'bg-white border-indigo-300 hover:border-indigo-500 shadow-sm'
                                                     }`}
                                                 style={{ top, height }}
                                                 title={`${session.title}\n${session.start}–${session.end}\nFunk: ${session.micCountWireless} | Headset: ${session.micCountHeadset}\nDI: ${session.dIBoxes} | Audio: ${session.audioFeeds}\nVisuals: ${session.visuals}\n${session.specialRequirements ? 'Special: ' + session.specialRequirements : ''}`}
                                             >
                                                 <div className="flex items-center justify-between gap-1">
-                                                    <span className={`font-bold text-[10px] truncate leading-tight ${isCanceled ? 'text-red-300 line-through' : 'text-[var(--k-accent-teal)]'}`}>
+                                                    <span className={`font-bold text-[10px] truncate leading-tight ${isCanceled ? 'text-red-500 line-through' : 'text-indigo-900'}`}>
                                                         {isCanceled && <span className="text-red-500 mr-1">[ABGESAGT]</span>}
                                                         {session.title || 'Unbenannt'}
                                                     </span>
-                                                    <span className="text-[9px] font-mono text-white/40 shrink-0">{session.start}</span>
+                                                    <span className="text-[9px] font-mono text-slate-400 shrink-0">{session.start}</span>
                                                 </div>
 
                                                 {height > 35 && (

@@ -399,11 +399,11 @@ export default function AdminDashboard({
                                 <div className="flex flex-wrap gap-2 mb-3 min-h-[32px]">
                                     {(localThemen[key] || []).map(item => (
                                         <span key={item}
-                                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full
-                                                ${color === 'indigo' ? 'bg-indigo-100 text-indigo-800 border border-indigo-300' : ''}
-                                                ${color === 'emerald' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : ''}
-                                                ${color === 'amber' ? 'bg-amber-100 text-amber-800 border border-amber-300' : ''}
-                                                ${color === 'rose' ? 'bg-rose-100 text-rose-800 border border-rose-300' : ''}
+                                            className={`inline-flex items-center gap-1 text-xs font-bold px-2.5 py-1 rounded-full
+                                                ${color === 'indigo' ? 'bg-indigo-100 text-indigo-900 border border-indigo-400' : ''}
+                                                ${color === 'emerald' ? 'bg-emerald-100 text-emerald-900 border border-emerald-400' : ''}
+                                                ${color === 'amber' ? 'bg-amber-100 text-amber-900 border border-amber-400' : ''}
+                                                ${color === 'rose' ? 'bg-rose-100 text-rose-900 border border-rose-400' : ''}
                                             `}>
                                             {item}
                                             <button onClick={() => removeThemenItem(key, item)}
