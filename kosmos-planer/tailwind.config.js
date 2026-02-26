@@ -7,30 +7,34 @@ export default {
   theme: {
     extend: {
       colors: {
-        /* Kosmos 2026 CI — Override Tailwind Defaults */
+        /* ═══════════════════════════════════════════════
+           KOSMOS 2026 CI — Strict 3-Color System
+           Purple: #2E1A6E  |  Mint: #81C7A9  |  Yellow: #EDE556
+           ═══════════════════════════════════════════════ */
         indigo: {
-          50: '#E8F5EE',   // Lightest Mint (tag backgrounds)
-          100: '#D0EBDD',   // Light Mint (hover states)
-          200: '#B8E0CE',   // Soft Mint (borders, subtle bg)
-          300: '#81C7A9',   // Mint Green (accents)
-          400: '#5A4BAF',   // Medium Purple (readable text on white)
-          500: '#4A3D9F',   // Medium-Dark Purple (text, links)
-          600: '#351E8B',   // Deep Purple (buttons — white text)
-          700: '#2D1877',   // Dark Purple (button hover)
-          800: '#241363',   // Darker Purple (panels)
-          900: '#1C0F4F',   // Darkest Purple (headers)
+          50: '#F0EEF7',   // Lightest purple tint (subtle bg)
+          100: '#DDD8EC',   // Light purple (hover states)
+          200: '#B8AED4',   // Soft purple (borders)
+          300: '#8A7CB8',   // Medium-light purple
+          400: '#5C4A9C',   // Medium purple (readable text)
+          500: '#3D2A82',   // Primary purple (text, links)
+          600: '#2E1A6E',   // KOSMOS PURPLE (buttons, headings)
+          700: '#261558',   // Dark purple (hover)
+          800: '#1E1048',   // Darker purple
+          900: '#160B38',   // Darkest purple (headers)
         },
         slate: {
-          50: '#F8FAF9',   // Near-White (page background)
-          100: '#F1F5F0',   // Very Light (cards, stat boxes)
-          200: '#E2E8E4',   // Light Borders
-          300: '#CBD5CE',   // Medium Borders
-          400: '#6B7D73',   // Darker Muted text (WCAG AA on white)
-          500: '#4A5B52',   // Body text (good contrast)
-          600: '#38483F',   // Strong body text
-          700: '#2A3830',   // Emphasis text
-          800: '#1E2D24',   // Heading text
-          900: '#161616',   // Black (maximum contrast)
+          /* Text colors → all purple-tinted for CI consistency */
+          50: '#F5F3FA',   // Near-white with purple tint
+          100: '#EBE8F3',   // Very light purple bg
+          200: '#D5D0E3',   // Light purple borders
+          300: '#B8B0CE',   // Muted purple borders
+          400: '#6B5E8A',   // Muted purple text (readable)
+          500: '#4A3D6E',   // Body text (dark purple)
+          600: '#3A2E58',   // Strong body text
+          700: '#2E1A6E',   // === KOSMOS PURPLE (emphasis)
+          800: '#231452',   // Heading text
+          900: '#160B38',   // Near-black purple
         },
       },
       fontFamily: {
