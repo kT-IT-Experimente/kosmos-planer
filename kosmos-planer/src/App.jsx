@@ -2320,7 +2320,7 @@ function App({ authenticatedUser }) {
                   <Layout className="w-5 h-5" />
                 </button>
                 <div>
-                  <h1 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent">
+                  <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-700 to-indigo-500 bg-clip-text text-transparent">
                     {isMobile ? 'KOSMOS' : 'KOSMOS Planer'}
                   </h1>
                 </div>
@@ -2371,7 +2371,7 @@ function App({ authenticatedUser }) {
                 {curationData.userRole !== 'GUEST' && (
                   <button
                     onClick={handleSync}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-all ${localChanges ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md animate-pulse' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-all ${localChanges ? 'bg-indigo-600 hover:bg-indigo-700 text-yellow-300 shadow-md animate-pulse' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
                   >
                     <UploadCloud className="w-4 h-4" />
                     <span>Speichern</span>
@@ -2623,7 +2623,7 @@ function App({ authenticatedUser }) {
 
         {viewMode === 'CURATION' && (
           <div className="flex flex-col h-full overflow-hidden">
-            <header className="bg-slate-800 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
+            <header className="bg-indigo-900 text-yellow-300 px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
               <h1 className="font-bold flex items-center gap-2"><LayoutDashboard className="w-5 h-5" /> KOSMOS Curation Center</h1>
               <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
             </header>
@@ -3224,9 +3224,9 @@ function App({ authenticatedUser }) {
 
         {viewMode === 'PRODUCTION' && (
           <div className="flex flex-col h-full overflow-hidden">
-            <header className="bg-orange-800 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
+            <header className="bg-indigo-900 text-yellow-300 px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
               <h1 className="font-bold flex items-center gap-2">🎛️ Produktions-Timeline</h1>
-              <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-orange-700 hover:bg-orange-600 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
+              <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-indigo-700 hover:bg-indigo-600 text-yellow-300 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
             </header>
             <ProductionTimeline
               sessions={data.program}
@@ -3652,72 +3652,72 @@ function App({ authenticatedUser }) {
         )}
       </div>
 
-      <div className="h-10 bg-slate-900 flex items-center justify-center gap-4 sm:gap-8 shrink-0 border-t border-slate-800 overflow-x-auto">
+      <div className="h-10 bg-indigo-900 flex items-center justify-center gap-4 sm:gap-8 shrink-0 border-t border-indigo-800 overflow-x-auto">
         {/* Planer: ADMIN, CURATOR, REVIEWER, PRODUCTION */}
         {hasRole('ADMIN', 'CURATOR', 'REVIEWER', 'PRODUCTION') && (
-          <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PLANNER' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PLANNER' ? 'text-yellow-300' : 'text-indigo-300 hover:text-yellow-200'}`}>
             <Layout className="w-3.5 h-3.5" /> Planer
           </button>
         )}
 
         {/* Einreichung: ADMIN, TEILNEHMENDE, SPEAKER */}
         {hasRole('ADMIN', 'TEILNEHMENDE', 'SPEAKER') && (
-          <button onClick={() => setViewMode('SUBMIT')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SUBMIT' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('SUBMIT')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SUBMIT' ? 'text-yellow-300' : 'text-indigo-300 hover:text-yellow-200'}`}>
             <PlusCircle className="w-3.5 h-3.5" /> Einreichung
           </button>
         )}
 
         {/* Kuration: ADMIN, CURATOR only (not REVIEWER) */}
         {hasRole('ADMIN', 'CURATOR') && (
-          <button onClick={() => setViewMode('CURATION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'CURATION' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('CURATION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'CURATION' ? 'text-yellow-300' : 'text-indigo-300 hover:text-yellow-200'}`}>
             <LayoutDashboard className="w-3.5 h-3.5" /> Kuration
           </button>
         )}
 
         {/* Organisations: ADMIN, REVIEWER */}
         {hasRole('ADMIN', 'REVIEWER') && (
-          <button onClick={() => setViewMode('ORG_DASHBOARD')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ORG_DASHBOARD' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('ORG_DASHBOARD')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ORG_DASHBOARD' ? 'text-yellow-300' : 'text-indigo-300 hover:text-yellow-200'}`}>
             🏢 Organisationen
           </button>
         )}
 
         {/* SprecherInnen Dashboard: ADMIN, REVIEWER */}
         {hasRole('ADMIN', 'REVIEWER') && (
-          <button onClick={() => setViewMode('SPRECHERIN_DASHBOARD')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SPRECHERIN_DASHBOARD' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('SPRECHERIN_DASHBOARD')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SPRECHERIN_DASHBOARD' ? 'text-yellow-300' : 'text-indigo-300 hover:text-yellow-200'}`}>
             🎤 SprecherInnen
           </button>
         )}
 
         {/* Profil: SPEAKER, TEILNEHMENDE (+ ADMIN for own) */}
         {hasRole('ADMIN', 'SPEAKER', 'TEILNEHMENDE') && (
-          <button onClick={() => setViewMode('PROFILE')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PROFILE' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('PROFILE')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PROFILE' ? 'text-yellow-300' : 'text-indigo-300 hover:text-yellow-200'}`}>
             <User className="w-3.5 h-3.5" /> Profil
           </button>
         )}
 
         {/* Organisation: ORGANISATION role */}
         {hasRole('ORGANISATION') && (
-          <button onClick={() => setViewMode('ORG_SESSIONS')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ORG_SESSIONS' || viewMode === 'ORG_PROFILE' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('ORG_SESSIONS')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ORG_SESSIONS' || viewMode === 'ORG_PROFILE' ? 'text-yellow-300' : 'text-indigo-300 hover:text-yellow-200'}`}>
             🏢 Organisation
           </button>
         )}
 
         {/* Admin: ADMIN + REVIEWER (read-only) */}
         {hasRole('ADMIN', 'REVIEWER') && (
-          <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ADMIN' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ADMIN' ? 'text-yellow-300' : 'text-indigo-300 hover:text-yellow-200'}`}>
             <Shield className="w-3.5 h-3.5" /> Admin
           </button>
         )}
 
         {/* Production: ADMIN, PRODUCTION */}
         {hasRole('ADMIN', 'PRODUCTION') && (
-          <button onClick={() => setViewMode('PRODUCTION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PRODUCTION' ? 'text-orange-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('PRODUCTION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PRODUCTION' ? 'text-yellow-300' : 'text-indigo-300 hover:text-yellow-200'}`}>
             🎛️ Produktion
           </button>
         )}
 
         {/* Logout */}
-        <button onClick={handleLogout} className="flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap text-slate-500 hover:text-red-400" title="Abmelden">
+        <button onClick={handleLogout} className="flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap text-indigo-300 hover:text-red-400" title="Abmelden">
           <LogOut className="w-3.5 h-3.5" /> Logout
         </button>
 

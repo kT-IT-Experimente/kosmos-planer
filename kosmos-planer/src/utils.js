@@ -8,20 +8,20 @@ export const SNAP_MINUTES = 5;
 
 export const STATUS_COLORS = {
     'Vorschlag': 'border-yellow-400 bg-yellow-50',
-    'Eingeladen': 'border-orange-400 bg-orange-50 border-dashed',
+    'Eingeladen': 'border-indigo-400 bg-indigo-50 border-dashed',
     'Akzeptiert': 'border-green-500 bg-green-50',
     'Abgelehnt': 'border-red-300 bg-red-50/30',
     'Fixiert': 'border-red-500 bg-slate-100 ring-1 ring-red-500'
 };
 
 export const FORMAT_COLORS = {
-    'Talk': 'bg-blue-100 text-blue-900',
-    'Vortrag': 'bg-blue-100 text-blue-900',
-    'Panel': 'bg-purple-100 text-purple-900',
-    'Workshop': 'bg-orange-100 text-orange-900',
-    'Lightning Talk': 'bg-cyan-100 text-cyan-900',
-    'Pause': 'bg-gray-200 text-gray-700',
-    'Keynote': 'bg-pink-100 text-pink-900'
+    'Talk': 'bg-indigo-100 text-indigo-900',
+    'Vortrag': 'bg-indigo-100 text-indigo-900',
+    'Panel': 'bg-indigo-200 text-indigo-900',
+    'Workshop': 'bg-indigo-50 text-indigo-800',
+    'Lightning Talk': 'bg-slate-200 text-slate-800',
+    'Pause': 'bg-slate-100 text-slate-600',
+    'Keynote': 'bg-indigo-300 text-indigo-900'
 };
 
 // --- HELPER FUNCTIONS ---
