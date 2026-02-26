@@ -164,7 +164,7 @@ function AuthGate({ onAuthSuccess }) {
         if (window.location.pathname && window.location.pathname !== '/') redirectUri += window.location.pathname;
         const params = new URLSearchParams({
             client_id: clientId, redirect_uri: redirectUri, response_type: 'token',
-            scope: 'https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
+            scope: 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile',
             include_granted_scopes: 'true', prompt: 'select_account'
         });
         window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;

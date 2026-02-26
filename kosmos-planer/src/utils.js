@@ -1,5 +1,5 @@
 // --- KONSTANTEN ---
-export const SCOPES = 'https://www.googleapis.com/auth/spreadsheets';
+export const SCOPES = 'https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile';
 export const AUTH_STORAGE_KEY = 'kosmos_auth';
 export const INBOX_ID = 'Inbox';
 export const HEADER_HEIGHT = 64;
