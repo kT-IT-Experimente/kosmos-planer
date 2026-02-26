@@ -612,9 +612,15 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://oauth2.googleapis.com/tokeninfo?access_token=' + $json.headers.authorization.replace('Bearer ', '') }}",
-        "options": {
-          "allowUnauthorizedCerts": false
+        "url": "https://www.googleapis.com/oauth2/v3/userinfo",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.headers.authorization }}"
+            }
+          ]
         }
       },
       "id": "46f52aaf-2e8b-4869-b568-da7cf030ec99",
@@ -693,9 +699,15 @@
     },
     {
       "parameters": {
-        "url": "=https://oauth2.googleapis.com/tokeninfo?access_token={{ $json.body.token }}",
-        "options": {
-          "allowUnauthorizedCerts": false
+        "url": "https://www.googleapis.com/oauth2/v3/userinfo",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.headers.authorization }}"
+            }
+          ]
         }
       },
       "id": "667e5631-9c35-4247-9260-74a00c9f48de",
@@ -806,8 +818,16 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://oauth2.googleapis.com/tokeninfo?access_token=' + $json.headers.authorization.replace('Bearer ', '') }}",
-        "options": {}
+        "url": "https://www.googleapis.com/oauth2/v3/userinfo",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.headers.authorization }}"
+            }
+          ]
+        }
       },
       "id": "bce63254-7597-4bfe-9238-2ccf387b4179",
       "name": "Verify Google Token",
@@ -1414,8 +1434,16 @@
     },
     {
       "parameters": {
-        "url": "={{ 'https://oauth2.googleapis.com/tokeninfo?access_token=' + $json.headers.authorization.replace('Bearer ', '') }}",
-        "options": {}
+        "url": "https://www.googleapis.com/oauth2/v3/userinfo",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "={{ $json.headers.authorization }}"
+            }
+          ]
+        }
       },
       "id": "d520e00c-7d00-4798-b173-a4cc8eef028d",
       "name": "Verify Google Token3",
@@ -2209,7 +2237,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Route based on action + build RBAC lookup URL\n// RBAC: fetch Config_Users for role check, and target row email for ownership\nconst body = $('Webhook (POST /api/data)').first().json.body || {};\nconst action = (body.action || 'batchGet').toLowerCase();\nconst spreadsheetId = body.spreadsheetId;\n\n// Build RBAC lookup URL (always fetch Config_Users for role verification)\nlet rbacRanges = ['ranges=' + encodeURIComponent(\"'Config_Users'!A2:C\")];\n\n// For write operations to SprecherInnen, also fetch target row A:K for ownership check\nif (action !== 'batchget' && action !== 'get') {\n  const range = body.range || '';\n  const rangeLC = range.toLowerCase();\n  if (rangeLC.includes('sprecher') || rangeLC.includes('speaker')) {\n    const rowMatch = range.match(/[!].*?(\\d+)/);\n    if (rowMatch) {\n      const targetRow = rowMatch[1];\n      const sheetMatch = range.match(/^'?([^'!]+)'?!/);\n      const sheetName = sheetMatch ? sheetMatch[1] : '26_Kosmos_SprecherInnen';\n      rbacRanges.push('ranges=' + encodeURIComponent(\"'\" + sheetName + \"'!A\" + targetRow + \":K\" + targetRow));\n    }\n  }\n}\n\nconst rbacUrl = 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values:batchGet?' + rbacRanges.join('&');\n\nif (action === 'append') {\n  return [{ json: {\n    action: 'append', method: 'POST', spreadsheetId,\n    range: body.range, values: body.values || [], rbacUrl,\n    url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values/' + encodeURIComponent(body.range) + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS'\n  }}];\n} else if (action === 'update') {\n  return [{ json: {\n    action: 'update', method: 'PUT', spreadsheetId,\n    range: body.range, values: body.values || [], rbacUrl,\n    url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values/' + encodeURIComponent(body.range) + '?valueInputOption=USER_ENTERED'\n  }}];\n} else {\n  const ranges = body.ranges || [];\n  const rangeParams = ranges.map(r => 'ranges=' + encodeURIComponent(r)).join('&');\n  return [{ json: {\n    action: 'batchGet', method: 'GET', spreadsheetId, ranges, rbacUrl: '',\n    url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values:batchGet?' + rangeParams\n  }}];\n}\n"
+        "jsCode": "// Route based on action + build RBAC lookup URL\n// RBAC: fetch Config_Users for role check, and target row email for ownership\nconst body = $('Webhook (POST /api/data)').first().json.body || {};\nconst action = (body.action || 'batchGet').toLowerCase();\nconst spreadsheetId = body.spreadsheetId;\n\n// Build RBAC lookup URL (always fetch Config_Users for role verification)\nlet rbacRanges = ['ranges=' + encodeURIComponent(\"'Config_Users'!A2:C\")];\n\n// For write operations to SprecherInnen, also fetch target row A:K for ownership check\nif (action !== 'batchget' && action !== 'get') {\n  const range = body.range || '';\n  const rangeLC = range.toLowerCase();\n  if (rangeLC.includes('sprecher') || rangeLC.includes('speaker')) {\n    const rowMatch = range.match(/[!].*?(\\d+)/);\n    if (rowMatch) {\n      const targetRow = rowMatch[1];\n      const sheetMatch = range.match(/^'?([^'!]+)'?!/);\n      const sheetName = sheetMatch ? sheetMatch[1] : '26_Kosmos_SprecherInnen';\n      rbacRanges.push('ranges=' + encodeURIComponent(\"'\" + sheetName + \"'!A\" + targetRow + \":K\" + targetRow));\n    }\n  }\n}\n\nconst rbacUrl = 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values:batchGet?' + rbacRanges.join('&');\n\nif (action === 'append') {\n  return [{ json: {\n    action: 'append', method: 'POST', spreadsheetId,\n    range: body.range, values: body.values || [], rbacUrl,\n    url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values/' + encodeURIComponent(body.range) + ':append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS'\n  }}];\n} else if (action === 'update') {\n  return [{ json: {\n    action: 'update', method: 'PUT', spreadsheetId,\n    range: body.range, values: body.values || [], rbacUrl,\n    url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values/' + encodeURIComponent(body.range) + '?valueInputOption=USER_ENTERED'\n  }}];\n} else {\n  const ranges = body.ranges || [];\n  const rangeParams = ranges.map(r => 'ranges=' + encodeURIComponent(r)).join('&');\n  return [{ json: {\n    action: 'batchGet', method: 'GET', spreadsheetId, ranges, rbacUrl,\n    url: 'https://sheets.googleapis.com/v4/spreadsheets/' + spreadsheetId + '/values:batchGet?' + rangeParams\n  }}];\n}\n"
       },
       "id": "route-action-001",
       "name": "Route Action",
