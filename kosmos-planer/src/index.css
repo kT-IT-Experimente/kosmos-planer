@@ -192,19 +192,7 @@
   color: var(--k-purple) !important;
 }
 
-/* Preserve colored text for badges, status indicators, and buttons */
-.k-panel-glass [class*="bg-indigo"] {
-  color: var(--k-yellow) !important;
-}
-
-.k-panel-glass [class*="bg-red-6"] {
-  color: #fff !important;
-}
-
-.k-panel-glass [class*="bg-emerald"] {
-  color: #fff !important;
-}
-
+/* Preserve button text colors */
 .k-panel-glass .k-btn-primary {
   color: var(--k-yellow) !important;
 }
