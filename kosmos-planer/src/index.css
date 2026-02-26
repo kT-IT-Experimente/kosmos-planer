@@ -185,54 +185,79 @@
   color: var(--k-purple) !important;
 }
 
-/* Override text-white inside glass panels to dark purple */
-.k-panel-glass .text-white,
-.k-panel-glass.text-white {
+/* CATCH-ALL: Force ALL text inside glass panels to dark purple.
+   This covers text-white, text-white/40, text-white/60, etc. */
+.k-panel-glass,
+.k-panel-glass *:not(button):not([class*="bg-indigo"]):not([class*="bg-red"]):not([class*="bg-green"]):not([class*="bg-amber"]):not([class*="bg-emerald"]):not([class*="k-btn"]):not([class*="badge"]) {
   color: var(--k-purple) !important;
 }
 
-/* Dark sub-sections inside glass panels → light purple tint */
-.k-panel-glass .bg-black\/40,
-.k-panel-glass .bg-black\/30,
-.k-panel-glass .bg-black\/20,
-.k-panel-glass .bg-black\/50 {
-  background-color: rgba(46, 26, 110, 0.06) !important;
+/* Preserve colored text for badges, status indicators, and buttons */
+.k-panel-glass [class*="bg-indigo"] {
+  color: var(--k-yellow) !important;
 }
 
-/* White/10 borders inside panels → purple tint */
-.k-panel-glass .border-white\/10 {
-  border-color: rgba(46, 26, 110, 0.12) !important;
+.k-panel-glass [class*="bg-red-6"] {
+  color: #fff !important;
 }
 
-/* White/60 text inside panels → muted purple */
-.k-panel-glass [class*="text-white\/"] {
+.k-panel-glass [class*="bg-emerald"] {
+  color: #fff !important;
+}
+
+.k-panel-glass .k-btn-primary {
+  color: var(--k-yellow) !important;
+}
+
+/* Muted text (was text-white/40, text-white/50, etc.) → half-opacity purple */
+.k-panel-glass [class*="text-white/"] {
   color: rgba(46, 26, 110, 0.5) !important;
 }
 
-/* Divide white/10 → purple tint */
-.k-panel-glass .divide-white\/10>*+* {
+/* Dark sub-sections inside glass panels → light purple tint */
+.k-panel-glass [class*="bg-black"] {
+  background-color: rgba(46, 26, 110, 0.06) !important;
+}
+
+/* White-opacity borders inside panels → purple tint */
+.k-panel-glass [class*="border-white"] {
+  border-color: rgba(46, 26, 110, 0.12) !important;
+}
+
+/* Dividers inside panels */
+.k-panel-glass [class*="divide-white"]>*+* {
   border-color: rgba(46, 26, 110, 0.12) !important;
 }
 
 /* Speaker toggle and dark inputs inside content → lighter */
-.k-panel-glass .bg-slate-800\/95,
-.k-panel-glass .bg-slate-800 {
+.k-panel-glass [class*="bg-slate-8"] {
   background-color: rgba(46, 26, 110, 0.08) !important;
   color: var(--k-purple) !important;
 }
 
-/* Fix SpeakerProfile/Registration dark-mode elements */
-.bg-slate-800\/95 {
+/* Fix SpeakerProfile/Registration dark-mode toggle area */
+[class*="bg-slate-800"] {
   background-color: rgba(46, 26, 110, 0.08) !important;
   color: var(--k-purple) !important;
 }
 
-/* Black buttons → purple */
-button.bg-black,
-button[class*="bg-slate-900"],
-button[class*="bg-slate-800"] {
+/* Black buttons → purple with yellow text */
+button[class*="bg-black"],
+button[class*="bg-slate-9"],
+button[class*="bg-slate-8"] {
   background-color: var(--k-purple) !important;
   color: var(--k-yellow) !important;
+}
+
+/* Fix modal backdrop to still be dark */
+.fixed[class*="bg-black"] {
+  background-color: rgba(0, 0, 0, 0.8) !important;
+}
+
+/* Session cards in Einreichung — ensure dark text on light bg */
+[class*="bg-slate-50"],
+[class*="bg-slate-100"] {
+  color: var(--k-purple) !important;
 }
 
 /* Custom Scrollbar */

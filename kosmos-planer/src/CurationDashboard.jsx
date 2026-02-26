@@ -145,11 +145,8 @@ const CurationDashboard = ({
             {/* HEADER */}
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="k-h2 flex items-center gap-2">
-                        <LayoutDashboard className="text-[var(--k-accent-teal)] w-8 h-8" /> Curation Center
-                    </h2>
-                    <p className="k-caption mt-1 flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5" /> {userEmail} · <span className="font-bold text-white uppercase tracking-tighter">{userRole}</span>
+                    <p className="k-caption flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5" /> {userEmail} · <span className="font-bold uppercase tracking-tighter">{userRole}</span>
                     </p>
                 </div>
                 <span className="bg-[var(--k-accent-teal)]/20 text-[var(--k-accent-teal)] border border-[var(--k-accent-teal)]/50 px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm">

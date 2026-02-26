@@ -2786,7 +2786,7 @@ function App({ authenticatedUser }) {
           <div className="flex flex-col h-full overflow-hidden">
             <header className="bg-indigo-900 text-yellow-300 px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
               <h1 className="font-bold flex items-center gap-2">🏢 Organisations-Dashboard</h1>
-              <span className="text-xs text-blue-300">{(data.organisations || []).length} Organisationen</span>
+              <span className="text-xs text-yellow-300/70">{(data.organisations || []).length} Organisationen</span>
             </header>
             <div className="flex-1 overflow-auto p-4">
               <div className="max-w-5xl mx-auto">
