@@ -2625,7 +2625,7 @@ function App({ authenticatedUser }) {
           <div className="flex flex-col h-full overflow-hidden">
             <header className="bg-indigo-900 text-yellow-300 px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
               <h1 className="font-bold flex items-center gap-2"><LayoutDashboard className="w-5 h-5" /> KOSMOS Curation Center</h1>
-              <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
+              <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-indigo-700 hover:bg-indigo-600 text-yellow-300 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
             </header>
             <CurationDashboard
               sessions={[
@@ -2784,7 +2784,7 @@ function App({ authenticatedUser }) {
 
         {viewMode === 'ORG_DASHBOARD' && hasRole('ADMIN', 'REVIEWER') && (
           <div className="flex flex-col h-full overflow-hidden">
-            <header className="bg-blue-900 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
+            <header className="bg-indigo-900 text-yellow-300 px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
               <h1 className="font-bold flex items-center gap-2">🏢 Organisations-Dashboard</h1>
               <span className="text-xs text-blue-300">{(data.organisations || []).length} Organisationen</span>
             </header>

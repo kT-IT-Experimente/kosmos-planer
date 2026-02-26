@@ -172,6 +172,69 @@
   color: var(--k-yellow) !important;
 }
 
+/* ══════════════════════════════════════════════════════
+   WHITE MODE OVERRIDES — Glass panels, modals, content
+   Force all content areas to white mode with dark text.
+   Purple+Yellow only on header/footer menu bars.
+   ══════════════════════════════════════════════════════ */
+
+/* Glass panels → solid white, dark text */
+.k-panel-glass {
+  background-color: #FFFFFF !important;
+  border-color: rgba(46, 26, 110, 0.15) !important;
+  color: var(--k-purple) !important;
+}
+
+/* Override text-white inside glass panels to dark purple */
+.k-panel-glass .text-white,
+.k-panel-glass.text-white {
+  color: var(--k-purple) !important;
+}
+
+/* Dark sub-sections inside glass panels → light purple tint */
+.k-panel-glass .bg-black\/40,
+.k-panel-glass .bg-black\/30,
+.k-panel-glass .bg-black\/20,
+.k-panel-glass .bg-black\/50 {
+  background-color: rgba(46, 26, 110, 0.06) !important;
+}
+
+/* White/10 borders inside panels → purple tint */
+.k-panel-glass .border-white\/10 {
+  border-color: rgba(46, 26, 110, 0.12) !important;
+}
+
+/* White/60 text inside panels → muted purple */
+.k-panel-glass [class*="text-white\/"] {
+  color: rgba(46, 26, 110, 0.5) !important;
+}
+
+/* Divide white/10 → purple tint */
+.k-panel-glass .divide-white\/10>*+* {
+  border-color: rgba(46, 26, 110, 0.12) !important;
+}
+
+/* Speaker toggle and dark inputs inside content → lighter */
+.k-panel-glass .bg-slate-800\/95,
+.k-panel-glass .bg-slate-800 {
+  background-color: rgba(46, 26, 110, 0.08) !important;
+  color: var(--k-purple) !important;
+}
+
+/* Fix SpeakerProfile/Registration dark-mode elements */
+.bg-slate-800\/95 {
+  background-color: rgba(46, 26, 110, 0.08) !important;
+  color: var(--k-purple) !important;
+}
+
+/* Black buttons → purple */
+button.bg-black,
+button[class*="bg-slate-900"],
+button[class*="bg-slate-800"] {
+  background-color: var(--k-purple) !important;
+  color: var(--k-yellow) !important;
+}
+
 /* Custom Scrollbar */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
