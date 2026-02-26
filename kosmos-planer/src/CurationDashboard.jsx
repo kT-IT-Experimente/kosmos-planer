@@ -338,8 +338,8 @@ const CurationDashboard = ({
                                                     {showLong ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                                                 </button>
                                                 {showLong && (
-                                                    <div className="bg-black/30 border border-white/10 rounded-lg p-4 max-h-72 overflow-y-auto custom-scrollbar mb-2">
-                                                        <p className="k-body text-slate-300 leading-relaxed whitespace-pre-wrap">
+                                                    <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 max-h-72 overflow-y-auto custom-scrollbar mb-2">
+                                                        <p className="k-body text-slate-700 leading-relaxed whitespace-pre-wrap">
                                                             {session.description}
                                                         </p>
                                                     </div>
@@ -359,9 +359,9 @@ const CurationDashboard = ({
                                                     { field: 'thema', label: 'Thema', options: config.themen }
                                                 ].map(({ field, label, options }) => (
                                                     <div key={field} className="flex flex-col">
-                                                        <span className="text-[9px] font-bold text-[#161616]/40 uppercase tracking-widest mb-1">{label}</span>
+                                                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mb-1">{label}</span>
                                                         <select
-                                                            className="k-input p-1.5 text-xs bg-[#161616]"
+                                                            className="k-input p-1.5 text-xs"
                                                             value={session[field] || ''}
                                                             onChange={(e) => { onUpdateMetadata(session.id, field, e.target.value); }}
                                                         >
@@ -381,7 +381,7 @@ const CurationDashboard = ({
                                         </h4>
                                         <div className="flex flex-wrap gap-1.5 mb-2">
                                             {(session.tags || '').split(',').filter(t => t.trim()).map(tag => (
-                                                <span key={tag.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full text-[10px] font-bold">
+                                                <span key={tag.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-100 text-indigo-800 rounded-full text-[10px] font-bold border border-indigo-300">
                                                     {tag.trim()}
                                                     <button onClick={(e) => {
                                                         e.stopPropagation();
@@ -400,7 +400,7 @@ const CurationDashboard = ({
                                                     type="text"
                                                     list={`tags-list-${session.id}`}
                                                     placeholder="Tag hinzufügen..."
-                                                    className="k-input px-3 py-1.5 text-xs bg-[#161616]"
+                                                    className="k-input px-3 py-1.5 text-xs"
                                                     onClick={(e) => e.stopPropagation()}
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter' && e.target.value.trim()) {
@@ -441,18 +441,18 @@ const CurationDashboard = ({
                                                 {[1, 2, 3, 4, 5].map(star => (
                                                     <button key={star}
                                                         onClick={(e) => { e.stopPropagation(); setDraftScore(session.id, star); }}
-                                                        className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border ${activeScore >= star ? 'bg-amber-500/20 border-amber-500/50 text-amber-500' : 'bg-[#161616] border-slate-700 text-[#161616]/60 hover:border-amber-500/50 hover:text-amber-400'}`}>
+                                                        className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border ${activeScore >= star ? 'bg-amber-100 border-amber-400 text-amber-600' : 'bg-slate-100 border-slate-300 text-slate-400 hover:border-amber-400 hover:text-amber-500'}`}>
                                                         <Star className={`w-4 h-4 ${activeScore >= star ? 'fill-current' : ''}`} />
                                                     </button>
                                                 ))}
                                             </div>
                                             <div className="flex-1 relative">
-                                                <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#161616]/40" />
+                                                <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
                                                 <input type="text" placeholder="Kommentar zur Bewertung..."
                                                     value={draft.kommentar} onClick={(e) => e.stopPropagation()}
                                                     onChange={(e) => setDraftKommentar(session.id, e.target.value)}
                                                     onKeyDown={(e) => { if (e.key === 'Enter') submitRating(session.id); }}
-                                                    className="k-input pl-9 pr-4 py-2 text-xs bg-[#161616]" />
+                                                    className="k-input pl-9 pr-4 py-2 text-xs" />
                                             </div>
                                             <button onClick={(e) => { e.stopPropagation(); submitRating(session.id); }}
                                                 disabled={activeScore === 0 && !draft.kommentar.trim()}
