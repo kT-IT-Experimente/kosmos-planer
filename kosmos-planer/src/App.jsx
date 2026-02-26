@@ -1073,10 +1073,25 @@ function App({ authenticatedUser }) {
       const parsed = parsePlannerBatch(batch, config);
 
       // Parse users from Config_Users (index 7): A=Email, B=Role, C=Name
+      // IMPORTANT: Merge duplicate email rows to prevent role corruption
       const usersRows = (batch.valueRanges?.[7]?.values || []);
-      const parsedUsers = usersRows
-        .filter(r => r[0] && r[1]) // must have email and role
-        .map(r => ({ email: safeString(r[0]).trim(), role: safeString(r[1]).trim().toUpperCase(), name: safeString(r[2]) }));
+      const userMap = new Map();
+      usersRows.filter(r => r[0] && r[1]).forEach(r => {
+        const email = safeString(r[0]).trim().toLowerCase();
+        const rawRoles = safeString(r[1]).trim().toUpperCase().split(',').map(s => s.trim()).filter(Boolean);
+        const name = safeString(r[2]);
+        if (userMap.has(email)) {
+          const existing = userMap.get(email);
+          // Merge roles from duplicate rows, deduplicate
+          rawRoles.forEach(role => { if (!existing.roles.includes(role)) existing.roles.push(role); });
+          if (name && !existing.name) existing.name = name;
+        } else {
+          userMap.set(email, { email: safeString(r[0]).trim(), roles: [...new Set(rawRoles)], name });
+        }
+      });
+      const parsedUsers = Array.from(userMap.values()).map(u => ({
+        email: u.email, role: u.roles.join(','), name: u.name || ''
+      }));
       if (parsedUsers.length > 0) {
         // Derive the current user's role from Config_Users (overrides n8n GUEST fallback)
         const currentUserEntry = parsedUsers.find(u => u.email.toLowerCase() === authenticatedUser.email?.toLowerCase());
@@ -1245,7 +1260,11 @@ function App({ authenticatedUser }) {
       return;
     }
     const token = authenticatedUser.accessToken;
-    const rows = updatedUsers.map(u => [u.email, u.role, u.name || '']);
+    // Normalize: deduplicate roles per user before writing
+    const rows = updatedUsers.map(u => {
+      const dedupedRole = [...new Set(u.role.split(',').map(r => r.trim().toUpperCase()).filter(Boolean))].join(',');
+      return [u.email, dedupedRole, u.name || ''];
+    });
     const { ok, error } = await fetchSheets({
       action: 'update',
       spreadsheetId: config.spreadsheetId,
@@ -1266,7 +1285,7 @@ function App({ authenticatedUser }) {
     const fromUsers = curationData.users.find(u => u.email.toLowerCase() === email);
     let roles = [];
     if (fromUsers) {
-      roles = fromUsers.role.split(',').map(r => r.trim().toUpperCase()).filter(Boolean);
+      roles = [...new Set(fromUsers.role.split(',').map(r => r.trim().toUpperCase()).filter(Boolean))];
     }
     // 2. Add n8n-assigned role if not already present
     if (curationData.userRole && curationData.userRole !== 'GUEST') {
