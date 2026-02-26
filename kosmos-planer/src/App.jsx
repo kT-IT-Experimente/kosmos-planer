@@ -504,10 +504,10 @@ const parsePlannerBatch = (batch, config) => {
         telefon: safeString(r[11]),
         registeredBy: safeString(r[15]),
         honorar: safeString(r[16]),
-        hotel: safeString(r[22]),
+        hotel: safeString(r[23]),
         briefing: safeString(r[25]),
-        vertragStatus: safeString(r[30]),
-        adresse: safeString(r[31]),
+        adresse: safeString(r[30]),
+        vertragStatus: safeString(r[31]),
         ehrenamtsverguetung: safeString(r[32]).toLowerCase() === 'true',
         catering: safeString(r[33]),
         anreiseAm: safeString(r[34]),
@@ -1640,11 +1640,11 @@ function App({ authenticatedUser }) {
         range: `'${config.sheetNameSpeakers}'!L${rowNum}`,
         values: [[updatedSpeaker.telefon || '']],
       }, token, config.curationApiUrl);
-      // Update address (AF) — replace commas with semicolons for CSV safety
+      // Update address (AE) — replace commas with semicolons for CSV safety
       const safeAddress = (updatedSpeaker.adresse || '').replace(/,/g, ';');
       await fetchSheets({
         action: 'update', spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameSpeakers}'!AF${rowNum}`,
+        range: `'${config.sheetNameSpeakers}'!AE${rowNum}`,
         values: [[safeAddress]],
       }, token, config.curationApiUrl);
       // Update ansprache (AK)
@@ -1781,13 +1781,13 @@ function App({ authenticatedUser }) {
         newSpeaker.linkedin || '',    // AB - LinkedIn
         newSpeaker.socialSonstiges || '', // AC - Sonstige Social Media
         registeredAm,                 // AD - Zeitstempel
-        'nicht benötigt',              // AE - Status_Vertrag (default)
-        safeAddr,                     // AF - Adresse
+        safeAddr,                     // AE - Adresse
+        'nicht benötigt',             // AF - Status Vertrag (default)
         'FALSE',                      // AG - Ehrenamtsvergütung (default)
         '',                           // AH - Catering
         '',                           // AI - Anreise Am
         '',                           // AJ - Abreise Am
-        newSpeaker.ansprache || ''    // AK - Ansprache
+        newSpeaker.ansprache || ''    // AK - Wie möchte ich angesprochen werden
       ];
       const { ok, error } = await fetchSheets({
         action: 'append',
