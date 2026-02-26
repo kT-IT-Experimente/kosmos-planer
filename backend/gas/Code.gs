@@ -10,7 +10,7 @@ const CONFIG = {
   SPREADSHEET_ID: '', 
   
   // --- Planner Sheet Names (must match your Google Sheet tabs) ---
-  PROGRAM_SHEET_NAME: 'Programm_Export',
+  PROGRAM_SHEET_NAME: 'Master_Einreichungen',
   SPEAKERS_SHEET_NAME: '26_Kosmos_SprecherInnen',
   MODS_SHEET_NAME: '26_Kosmos_Moderation',
   STAGES_SHEET_NAME: 'Bühnen_Import',
@@ -272,7 +272,7 @@ function exportCleanCSV(email) {
   // --- Read Program ---
   const programSheet = ss.getSheetByName(CONFIG.PROGRAM_SHEET_NAME);
   if (!programSheet) {
-    return ContentService.createTextOutput(JSON.stringify({ error: 'Programm_Export Sheet nicht gefunden.' }))
+    return ContentService.createTextOutput(JSON.stringify({ error: 'Master_Einreichungen Sheet nicht gefunden.' }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
@@ -418,7 +418,7 @@ function getPlannerSheets() {
     { key: 'speakers', name: CONFIG.SPEAKERS_SHEET_NAME || '26_Kosmos_SprecherInnen' },
     { key: 'mods', name: CONFIG.MODS_SHEET_NAME || '26_Kosmos_Moderation' },
     { key: 'stages', name: CONFIG.STAGES_SHEET_NAME || 'Bühnen_Import' },
-    { key: 'program', name: CONFIG.PROGRAM_SHEET_NAME || 'Programm_Export' }
+    { key: 'program', name: CONFIG.PROGRAM_SHEET_NAME || 'Master_Einreichungen' }
   ];
   
   const data = {};
@@ -536,6 +536,16 @@ function doPost(e) {
       }
     } else if (postData.action === 'updateMetadata') {
       result = updateMetadata(postData.id, postData.field, postData.value);
+    } else if (postData.action === 'toggleLiveMode') {
+      const ss = getSS();
+      const sheet = ss.getSheetByName(CONFIG.CONFIG_METADATA_SHEET_NAME);
+      if (sheet) {
+        // Live Mode is in cell F2
+        sheet.getRange('F2').setValue(postData.value ? 'true' : 'false');
+        result = "Live Mode synchronisiert";
+      } else {
+        result = "Config-Sheet nicht gefunden";
+      }
     }
     
     return ContentService.createTextOutput(JSON.stringify({ success: true, result: result }))

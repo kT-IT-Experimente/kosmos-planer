@@ -89,16 +89,16 @@ export default function AdminDashboard({
     };
 
     return (
-        <div className="flex-1 overflow-auto bg-slate-50 p-6 custom-scrollbar">
+        <div className="flex-1 overflow-auto p-6 custom-scrollbar">
             <div className="max-w-5xl mx-auto space-y-8">
                 {/* HEADER */}
                 <div className="flex justify-between items-end">
                     <div>
-                        <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-                            <Shield className="w-8 h-8 text-indigo-600" />
+                        <h2 className="k-h2 flex items-center gap-3">
+                            <Shield className="w-8 h-8 text-[var(--k-accent-teal)]" />
                             Admin Control Center
                         </h2>
-                        <p className="text-slate-500 text-sm mt-1">Verwalte Nutzer, Bühnen, Themen und Open Call.</p>
+                        <p className="k-caption mt-1">Verwalte Nutzer, Bühnen, Themen und Open Call.</p>
                     </div>
                     {/* OPEN CALL TOGGLE */}
                     <button
@@ -122,10 +122,10 @@ export default function AdminDashboard({
                 )}
 
                 {/* SCHEDULE CONTROL */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                        <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                            <Clock className="w-5 h-5 text-indigo-500" />
+                <div className="k-panel-glass text-white border-white/10 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-white/10 bg-black/40 flex justify-between items-center">
+                        <h3 className="font-bold flex items-center gap-2">
+                            <Clock className="w-5 h-5 text-[var(--k-accent-teal)]" />
                             Programmeinstellungen
                         </h3>
                         {configDirty && !readOnly && (
@@ -141,52 +141,52 @@ export default function AdminDashboard({
                     <div className="p-6">
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                             <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-2 block tracking-widest">
+                                <label className="k-caption tracking-widest block mb-2">
                                     Programmstart (Uhr)
                                 </label>
                                 <div className="flex items-center gap-3">
                                     <input type="number" min={0} max={23} value={localConfig.startHour}
                                         onChange={e => handleConfigChange('startHour', e.target.value)}
-                                        className="w-24 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-lg font-bold text-slate-700 text-center outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+                                        className="w-24 k-input px-4 py-2.5 text-lg text-center" />
                                     <span className="text-slate-400 text-sm">:00 Uhr</span>
                                 </div>
-                                <p className="text-[10px] text-slate-400 mt-1.5">Timeline beginnt hier</p>
+                                <p className="text-[10px] text-slate-500 mt-1.5">Timeline beginnt hier</p>
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-2 block tracking-widest">
+                                <label className="k-caption tracking-widest block mb-2">
                                     Programmende (Uhr)
                                 </label>
                                 <div className="flex items-center gap-3">
                                     <input type="number" min={1} max={24} value={localConfig.endHour}
                                         onChange={e => handleConfigChange('endHour', e.target.value)}
-                                        className="w-24 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-lg font-bold text-slate-700 text-center outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+                                        className="w-24 k-input px-4 py-2.5 text-lg text-center" />
                                     <span className="text-slate-400 text-sm">:00 Uhr</span>
                                 </div>
-                                <p className="text-[10px] text-slate-400 mt-1.5">Timeline endet hier</p>
+                                <p className="text-[10px] text-slate-500 mt-1.5">Timeline endet hier</p>
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-2 block tracking-widest">
+                                <label className="k-caption tracking-widest block mb-2">
                                     Pausenzeit (Minuten)
                                 </label>
                                 <div className="flex items-center gap-3">
                                     <input type="number" min={0} max={60} value={localConfig.bufferMin}
                                         onChange={e => handleConfigChange('bufferMin', e.target.value)}
-                                        className="w-24 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-lg font-bold text-slate-700 text-center outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+                                        className="w-24 k-input px-4 py-2.5 text-lg text-center" />
                                     <span className="text-slate-400 text-sm">min</span>
                                 </div>
-                                <p className="text-[10px] text-slate-400 mt-1.5">Mindestpause zwischen Sessions</p>
+                                <p className="text-[10px] text-slate-500 mt-1.5">Mindestpause zwischen Sessions</p>
                             </div>
                             <div>
-                                <label className="text-xs font-bold text-slate-400 uppercase mb-2 block tracking-widest">
+                                <label className="k-caption tracking-widest block mb-2">
                                     Max Einreichungen
                                 </label>
                                 <div className="flex items-center gap-3">
                                     <input type="number" min={1} max={50} value={localConfig.maxSubmissions || 5}
                                         onChange={e => handleConfigChange('maxSubmissions', parseInt(e.target.value) || 5)}
-                                        className="w-24 bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-lg font-bold text-slate-700 text-center outline-none focus:ring-2 focus:ring-indigo-500 transition-all" />
+                                        className="w-24 k-input px-4 py-2.5 text-lg text-center" />
                                     <span className="text-slate-400 text-sm">pro User</span>
                                 </div>
-                                <p className="text-[10px] text-slate-400 mt-1.5">Max. Session-Einreichungen pro Person</p>
+                                <p className="text-[10px] text-slate-500 mt-1.5">Max. Session-Einreichungen pro Person</p>
                             </div>
                         </div>
                         {localConfig.startHour >= localConfig.endHour && (
@@ -198,26 +198,26 @@ export default function AdminDashboard({
                 </div>
 
                 {/* ROLE MANAGEMENT */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                        <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                            <Users className="w-5 h-5 text-indigo-500" />
+                <div className="k-panel-glass text-white border-white/10 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-white/10 bg-black/40 flex justify-between items-center">
+                        <h3 className="font-bold flex items-center gap-2">
+                            <Users className="w-5 h-5 text-[var(--k-accent-teal)]" />
                             User & Role Management
                         </h3>
                     </div>
                     <div className="p-6">
                         <table className="w-full text-left">
                             <thead>
-                                <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b">
+                                <tr className="text-[10px] font-bold text-white/60 uppercase tracking-widest border-b border-white/10">
                                     <th className="pb-3 px-2">Email Address</th>
                                     <th className="pb-3 px-2">Assigned Role</th>
                                     <th className="pb-3 px-2 text-right">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-50 text-sm">
+                            <tbody className="divide-y divide-white/10 text-sm">
                                 {users.map(user => (
-                                    <tr key={user.email} className="hover:bg-slate-50 transition-colors">
-                                        <td className="py-4 px-2 font-medium text-slate-700">{user.email}</td>
+                                    <tr key={user.email} className="hover:bg-white/5 transition-colors">
+                                        <td className="py-4 px-2 font-medium text-white">{user.email}</td>
                                         <td className="py-4 px-2">
                                             <div className="flex flex-wrap gap-1">
                                                 {['ADMIN', 'CURATOR', 'REVIEWER', 'ORGANISATION', 'SPRECHERIN', 'TEILNEHMENDE', 'SPEAKER', 'PRODUCTION', 'BAND', 'GUEST'].map(role => {
@@ -235,11 +235,11 @@ export default function AdminDashboard({
                                                             onUpdateUserRole(user.email, newRoles.join(','));
                                                         }}
                                                             className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase transition-all cursor-pointer ${hasThis
-                                                                ? role === 'ADMIN' ? 'bg-red-100 text-red-700 ring-1 ring-red-300'
-                                                                    : role === 'CURATOR' ? 'bg-purple-100 text-purple-700 ring-1 ring-purple-300'
-                                                                        : role === 'REVIEWER' ? 'bg-blue-100 text-blue-700 ring-1 ring-blue-300'
-                                                                            : 'bg-emerald-100 text-emerald-700 ring-1 ring-emerald-300'
-                                                                : 'bg-slate-50 text-slate-300 hover:bg-slate-100'}`}>
+                                                                ? role === 'ADMIN' ? 'bg-red-500/20 text-red-400 ring-1 ring-red-500/50'
+                                                                    : role === 'CURATOR' ? 'bg-purple-500/20 text-purple-400 ring-1 ring-purple-500/50'
+                                                                        : role === 'REVIEWER' ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/50'
+                                                                            : 'bg-[var(--k-accent-teal)]/20 text-[var(--k-accent-teal)] ring-1 ring-[var(--k-accent-teal)]/50'
+                                                                : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}>
                                                             {role}
                                                         </button>
                                                     );
@@ -249,13 +249,13 @@ export default function AdminDashboard({
                                         <td className="py-4 px-2 text-right flex items-center gap-1 justify-end">
                                             {!readOnly && onInviteUser && (
                                                 <button onClick={() => onInviteUser(user.email)}
-                                                    className="p-2 text-slate-300 hover:text-indigo-600 transition-colors" title="Magic Link senden">
+                                                    className="p-2 text-slate-400 hover:text-[var(--k-accent-teal)] transition-colors" title="Magic Link senden">
                                                     <Send className="w-4 h-4" />
                                                 </button>
                                             )}
                                             {!readOnly && (
                                                 <button onClick={() => onDeleteUser(user.email)}
-                                                    className="p-2 text-slate-300 hover:text-red-500 transition-colors" title="Delete User">
+                                                    className="p-2 text-slate-400 hover:text-red-400 transition-colors" title="Delete User">
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             )}
@@ -263,15 +263,15 @@ export default function AdminDashboard({
                                     </tr>
                                 ))}
                                 {!readOnly && (
-                                    <tr className="bg-indigo-50/30">
+                                    <tr className="bg-black/20">
                                         <td className="py-4 px-2">
                                             <input type="email" placeholder="new-user@example.com" value={newUserEmail}
                                                 onChange={(e) => setNewUserEmail(e.target.value)}
-                                                className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                                className="w-full k-input px-3 py-1.5 text-xs" />
                                         </td>
                                         <td className="py-4 px-2">
                                             <select value={newUserRole} onChange={(e) => setNewUserRole(e.target.value)}
-                                                className="text-xs font-bold py-1.5 px-2 rounded border border-slate-200 bg-white focus:ring-2 focus:ring-indigo-500 outline-none cursor-pointer">
+                                                className="text-xs font-bold py-1.5 px-2 rounded k-input cursor-pointer">
                                                 <option value="ADMIN">ADMIN</option>
                                                 <option value="CURATOR">CURATOR</option>
                                                 <option value="REVIEWER">REVIEWER</option>
@@ -299,10 +299,10 @@ export default function AdminDashboard({
                 </div>
 
                 {/* STAGE MANAGEMENT */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                        <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                            <MapPin className="w-5 h-5 text-indigo-500" />
+                <div className="k-panel-glass text-white border-white/10 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-white/10 bg-black/40 flex justify-between items-center">
+                        <h3 className="font-bold flex items-center gap-2">
+                            <MapPin className="w-5 h-5 text-[var(--k-accent-teal)]" />
                             Bühnen-Verwaltung
                         </h3>
                         {stagesDirty && (
@@ -315,7 +315,7 @@ export default function AdminDashboard({
                     <div className="p-6">
                         <table className="w-full text-left">
                             <thead>
-                                <tr className="text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b">
+                                <tr className="text-[10px] font-bold text-white/60 uppercase tracking-widest border-b border-white/10">
                                     <th className="pb-3 px-2">Name</th>
                                     <th className="pb-3 px-2 w-24">Kapazität</th>
                                     <th className="pb-3 px-2 w-24">Max Mics</th>
@@ -323,45 +323,45 @@ export default function AdminDashboard({
                                     <th className="pb-3 px-2 w-16 text-right">Aktion</th>
                                 </tr>
                             </thead>
-                            <tbody className="divide-y divide-slate-50 text-sm">
+                            <tbody className="divide-y divide-white/10 text-sm">
                                 {localStages.map(stage => (
-                                    <tr key={stage.id} className={`hover:bg-slate-50 transition-colors ${stage.hidden ? 'opacity-50' : ''}`}>
+                                    <tr key={stage.id} className={`hover:bg-white/5 transition-colors ${stage.hidden ? 'opacity-50' : ''}`}>
                                         <td className="py-3 px-2">
                                             <input type="text" value={stage.name}
                                                 onChange={e => updateStage(stage.id, 'name', e.target.value)}
-                                                className="w-full bg-transparent border-b border-transparent hover:border-slate-300 focus:border-indigo-500 outline-none py-1 font-medium text-slate-700" />
+                                                className="w-full bg-transparent border-b border-transparent hover:border-white/30 focus:border-[var(--k-accent-teal)] outline-none py-1 font-medium text-white" />
                                         </td>
                                         <td className="py-3 px-2">
                                             <input type="number" min={0} value={stage.capacity || ''}
                                                 onChange={e => updateStage(stage.id, 'capacity', e.target.value)}
-                                                className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-center outline-none focus:ring-2 focus:ring-indigo-500" />
+                                                className="w-20 k-input px-2 py-1 text-xs text-center" />
                                         </td>
                                         <td className="py-3 px-2">
                                             <input type="number" min={0} max={20} value={stage.maxMics || 4}
                                                 onChange={e => updateStage(stage.id, 'maxMics', parseInt(e.target.value) || 0)}
-                                                className="w-20 bg-slate-50 border border-slate-200 rounded px-2 py-1 text-xs text-center outline-none focus:ring-2 focus:ring-indigo-500" />
+                                                className="w-20 k-input px-2 py-1 text-xs text-center" />
                                         </td>
                                         <td className="py-3 px-2 text-center">
                                             <button onClick={() => updateStage(stage.id, 'hidden', !stage.hidden)}
-                                                className={`p-1.5 rounded transition-colors ${stage.hidden ? 'text-red-400 hover:text-red-600 bg-red-50' : 'text-emerald-500 hover:text-emerald-700 bg-emerald-50'}`}
+                                                className={`p-1.5 rounded transition-colors ${stage.hidden ? 'text-red-400 hover:text-red-300 bg-red-900/40' : 'text-emerald-400 hover:text-emerald-300 bg-emerald-900/40'}`}
                                                 title={stage.hidden ? 'Versteckt — klicken zum Anzeigen' : 'Sichtbar — klicken zum Verstecken'}>
                                                 {stage.hidden ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                             </button>
                                         </td>
                                         <td className="py-3 px-2 text-right">
                                             <button onClick={() => deleteStage(stage.id)}
-                                                className="p-1.5 text-slate-300 hover:text-red-500 transition-colors" title="Bühne löschen">
+                                                className="p-1.5 text-slate-400 hover:text-red-400 transition-colors" title="Bühne löschen">
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
                                         </td>
                                     </tr>
                                 ))}
-                                <tr className="bg-indigo-50/30">
+                                <tr className="bg-black/20">
                                     <td className="py-3 px-2" colSpan={3}>
                                         <input type="text" placeholder="Neue Bühne..." value={newStageName}
                                             onChange={e => setNewStageName(e.target.value)}
                                             onKeyDown={e => e.key === 'Enter' && addStage()}
-                                            className="w-full bg-white border border-slate-200 rounded px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                            className="w-full k-input px-3 py-1.5 text-xs" />
                                     </td>
                                     <td className="py-3 px-2 text-right" colSpan={2}>
                                         <button onClick={addStage}
@@ -376,10 +376,10 @@ export default function AdminDashboard({
                 </div>
 
                 {/* CONFIG_THEMEN MANAGEMENT */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-                        <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                            <Tag className="w-5 h-5 text-indigo-500" />
+                <div className="k-panel-glass text-white border-white/10 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-white/10 bg-black/40 flex justify-between items-center">
+                        <h3 className="font-bold flex items-center gap-2">
+                            <Tag className="w-5 h-5 text-[var(--k-accent-teal)]" />
                             Festivalbereiche & Themen
                         </h3>
                         {themenDirty && (
@@ -391,22 +391,22 @@ export default function AdminDashboard({
                     </div>
                     <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                         {Object.entries(categoryLabels).map(([key, { label, icon: Icon, color }]) => (
-                            <div key={key} className="border border-slate-100 rounded-lg p-4">
-                                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                    <Icon className="w-4 h-4" />
+                            <div key={key} className="border border-white/10 rounded-lg p-4">
+                                <h4 className="k-caption mb-3 flex items-center gap-2">
+                                    <Icon className="w-4 h-4 text-[var(--k-accent-teal)]" />
                                     {label}
                                 </h4>
                                 <div className="flex flex-wrap gap-2 mb-3 min-h-[32px]">
                                     {(localThemen[key] || []).map(item => (
                                         <span key={item}
-                                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-${color}-50 text-${color}-700 border border-${color}-100`}>
+                                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700`}>
                                             {item}
                                             <button onClick={() => removeThemenItem(key, item)}
-                                                className={`ml-0.5 hover:text-${color}-900 transition-colors`}>×</button>
+                                                className={`ml-0.5 hover:text-red-400 transition-colors`}>×</button>
                                         </span>
                                     ))}
                                     {(!localThemen[key] || localThemen[key].length === 0) && (
-                                        <span className="text-xs text-slate-300 italic">Keine Einträge</span>
+                                        <span className="text-xs text-slate-500 italic">Keine Einträge</span>
                                     )}
                                 </div>
                                 <div className="flex gap-2">
@@ -414,9 +414,9 @@ export default function AdminDashboard({
                                         value={newItems[key] || ''}
                                         onChange={e => setNewItems(prev => ({ ...prev, [key]: e.target.value }))}
                                         onKeyDown={e => e.key === 'Enter' && addThemenItem(key)}
-                                        className="flex-1 bg-slate-50 border border-slate-200 rounded px-3 py-1.5 text-xs focus:ring-2 focus:ring-indigo-500 outline-none" />
+                                        className="flex-1 k-input px-3 py-1.5 text-xs" />
                                     <button onClick={() => addThemenItem(key)}
-                                        className="bg-slate-100 hover:bg-slate-200 text-slate-600 p-1.5 rounded transition-colors">
+                                        className="bg-white/10 hover:bg-white/20 text-white p-1.5 rounded transition-colors">
                                         <Plus className="w-3.5 h-3.5" />
                                     </button>
                                 </div>
@@ -426,18 +426,18 @@ export default function AdminDashboard({
                 </div>
 
                 {/* DATA EXPORT */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                    <div className="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
-                        <h3 className="font-bold text-slate-700 flex items-center gap-2">
-                            <Download className="w-5 h-5 text-indigo-500" />
+                <div className="k-panel-glass text-white border-white/10 overflow-hidden">
+                    <div className="px-6 py-4 border-b border-white/10 bg-black/40 flex justify-between items-center">
+                        <h3 className="font-bold flex items-center gap-2">
+                            <Download className="w-5 h-5 text-[var(--k-accent-teal)]" />
                             Daten-Export
                         </h3>
                     </div>
                     <div className="p-6">
                         <div className="flex items-center justify-between">
                             <div>
-                                <p className="text-sm font-medium text-slate-700">Mail-Merge CSV Export</p>
-                                <p className="text-xs text-slate-400 mt-1">Komma-sichere CSV mit allen Programmdaten und Speaker-Emails.</p>
+                                <p className="text-sm font-medium text-white">Mail-Merge CSV Export</p>
+                                <p className="k-caption mt-1">Komma-sichere CSV mit allen Programmdaten und Speaker-Emails.</p>
                             </div>
                             <button
                                 onClick={() => {
@@ -454,9 +454,9 @@ export default function AdminDashboard({
                 </div>
 
                 {/* INFO */}
-                <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 flex gap-3 items-start">
-                    <ChevronRight className="w-5 h-5 text-blue-500 shrink-0" />
-                    <div className="text-xs text-blue-700 leading-relaxed">
+                <div className="bg-[var(--k-accent-teal)]/10 border border-[var(--k-accent-teal)]/30 rounded-lg p-4 flex gap-3 items-start">
+                    <ChevronRight className="w-5 h-5 text-[var(--k-accent-teal)] shrink-0" />
+                    <div className="text-white leading-relaxed text-xs">
                         <strong>Hinweis:</strong> Alle Änderungen an Nutzern, Bühnen und Themen werden über den sicheren n8n-Proxy direkt ins Google Sheet geschrieben. Der Open-Call-Status steuert, ob neue Session-Einreichungen möglich sind.
                     </div>
                 </div>

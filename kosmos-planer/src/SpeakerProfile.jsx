@@ -7,14 +7,14 @@ import { User, Save, Globe, MapPin, Languages, Building2, FileText, Camera, Load
  */
 const Field = ({ label, icon: Icon, children }) => (
     <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1 flex items-center gap-1">
+        <label className="k-caption tracking-widest block mb-2 flex items-center gap-1">
             {Icon && <Icon className="w-3 h-3" />} {label}
         </label>
         {children}
     </div>
 );
 
-const inputCls = "w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500";
+const inputCls = "w-full k-input px-3 py-2 text-sm";
 
 /**
  * SpeakerProfile — Allows any authenticated user to create/edit their speaker profile.
@@ -148,38 +148,38 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
     };
 
     return (
-        <div className="flex-1 overflow-y-auto bg-slate-50 p-6">
+        <div className="flex-1 overflow-y-auto p-6">
             <div className="max-w-2xl mx-auto">
                 <div className="flex items-center gap-3 mb-6">
-                    {isNew ? <UserPlus className="w-8 h-8 text-indigo-600" /> : <User className="w-8 h-8 text-indigo-600" />}
+                    {isNew ? <UserPlus className="w-8 h-8 text-[var(--k-accent-teal)]" /> : <User className="w-8 h-8 text-[var(--k-accent-teal)]" />}
                     <div>
-                        <h2 className="text-xl font-bold text-slate-800">{isNew ? 'Profil anlegen' : 'Mein Profil'}</h2>
-                        <p className="text-xs text-slate-400">{userEmail}</p>
+                        <h2 className="k-h2">{isNew ? 'Profil anlegen' : 'Mein Profil'}</h2>
+                        <p className="k-caption">{userEmail}</p>
                     </div>
                 </div>
 
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 space-y-5">
+                <div className="k-panel-glass text-white border-white/10 p-6 space-y-5">
                     {/* Read-only info for existing speakers */}
                     {!isNew && (
-                        <div className="flex gap-4 p-3 bg-slate-50 rounded-lg text-xs text-slate-500">
+                        <div className="flex gap-4 p-3 bg-black/40 rounded-lg text-xs text-white/70">
                             <span><strong>ID:</strong> {speaker.id}</span>
                             <span><strong>Status:</strong> {speaker.status}</span>
                         </div>
                     )}
 
                     {isNew && (
-                        <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-lg text-sm text-indigo-700">
+                        <div className="p-3 bg-[var(--k-accent-teal)]/10 border border-[var(--k-accent-teal)]/30 rounded-lg text-sm text-white">
                             <strong>Willkommen!</strong> Erstelle dein Profil, um Sessions einzureichen oder als SprecherIn sichtbar zu werden.
                         </div>
                     )}
 
                     {/* Avatar */}
                     <div className="flex items-center gap-4">
-                        <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
+                        <div className="w-20 h-20 bg-[var(--k-accent-teal)]/20 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
                             {form.bildUrl ? (
                                 <img src={form.bildUrl} alt="Profilbild" className="w-full h-full object-cover" onError={(e) => { e.target.style.display = 'none'; }} />
                             ) : (
-                                <User className="w-10 h-10 text-indigo-400" />
+                                <User className="w-10 h-10 text-[var(--k-accent-teal)]" />
                             )}
                         </div>
                         <Field label="Profilbild-URL" icon={Camera}>
@@ -217,7 +217,7 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                     <Field label="Bio" icon={FileText}>
                         <textarea value={form.bio} onChange={e => handleChange('bio', e.target.value)}
                             placeholder="Erzähle etwas über dich..." rows={5} maxLength={1000} className={inputCls + ' resize-none'} />
-                        <span className="text-xs text-slate-400">{form.bio.length}/1000</span>
+                        <span className="text-xs text-white/40">{form.bio.length}/1000</span>
                     </Field>
 
                     {/* Webseite */}
@@ -228,7 +228,7 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
 
                     {/* Social Media */}
                     <div className="space-y-3">
-                        <p className="text-xs font-semibold text-slate-500 flex items-center gap-1"><Link2 className="w-3 h-3" /> Social Media</p>
+                        <p className="k-caption flex items-center gap-1"><Link2 className="w-3 h-3" /> Social Media</p>
                         <div className="grid grid-cols-2 gap-4">
                             <Field label="LinkedIn">
                                 <input type="url" value={form.linkedin} onChange={e => handleChange('linkedin', e.target.value)}
@@ -270,28 +270,28 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                     <div className="grid grid-cols-2 gap-4">
                         <Field label="Telefon *" icon={Phone}>
                             <input type="tel" value={form.telefon} onChange={e => handleChange('telefon', e.target.value)}
-                                placeholder="+49 123 456789" className={`${inputCls} ${validationErrors.telefon ? 'border-red-400 ring-2 ring-red-100' : ''}`} />
-                            {validationErrors.telefon && <span className="text-xs text-red-500 mt-1">{validationErrors.telefon}</span>}
+                                placeholder="+49 123 456789" className={`${inputCls} ${validationErrors.telefon ? 'border-red-500/50 ring-2 ring-red-500/50' : ''}`} />
+                            {validationErrors.telefon && <span className="text-xs text-red-400 mt-1 block">{validationErrors.telefon}</span>}
                         </Field>
                         <Field label="Adresse *" icon={Home}>
                             <input type="text" value={form.adresse} onChange={e => handleChange('adresse', e.target.value)}
-                                placeholder="Straße, PLZ Ort" className={`${inputCls} ${validationErrors.adresse ? 'border-red-400 ring-2 ring-red-100' : ''}`} />
-                            {validationErrors.adresse && <span className="text-xs text-red-500 mt-1">{validationErrors.adresse}</span>}
+                                placeholder="Straße, PLZ Ort" className={`${inputCls} ${validationErrors.adresse ? 'border-red-500/50 ring-2 ring-red-500/50' : ''}`} />
+                            {validationErrors.adresse && <span className="text-xs text-red-400 mt-1 block">{validationErrors.adresse}</span>}
                         </Field>
                     </div>
 
                     {/* Speaker visibility toggle */}
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <div className="flex items-center gap-3 p-3 bg-black/20 rounded-lg border border-white/10">
                         <button onClick={() => handleChange('auswaehlbar', !form.auswaehlbar)}
-                            className={`relative w-11 h-6 rounded-full transition-colors ${form.auswaehlbar ? 'bg-indigo-600' : 'bg-slate-300'}`}>
+                            className={`relative w-11 h-6 rounded-full transition-colors ${form.auswaehlbar ? 'bg-[var(--k-accent-teal)]' : 'bg-slate-700'}`}>
                             <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.auswaehlbar ? 'translate-x-5' : ''}`} />
                         </button>
                         <div className="flex-1">
-                            <span className="text-sm font-bold text-slate-700 flex items-center gap-1.5">
-                                {form.auswaehlbar ? <Eye className="w-4 h-4 text-indigo-600" /> : <EyeOff className="w-4 h-4 text-slate-400" />}
+                            <span className="text-sm font-bold text-white flex items-center gap-1.5">
+                                {form.auswaehlbar ? <Eye className="w-4 h-4 text-[var(--k-accent-teal)]" /> : <EyeOff className="w-4 h-4 text-slate-500" />}
                                 Als SprecherIn auswählbar
                             </span>
-                            <p className="text-xs text-slate-400 mt-0.5">
+                            <p className="text-xs text-white/50 mt-0.5">
                                 {form.auswaehlbar ? 'Du bist als SprecherIn in der Suche sichtbar.' : 'Du bist nur als TeilnehmerIn registriert (nicht als SprecherIn auswählbar).'}
                             </p>
                         </div>
@@ -300,12 +300,12 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                     {/* Save */}
                     <div className="pt-2 flex items-center gap-3">
                         <button onClick={handleSave} disabled={saving || (!hasChanges && !isNew) || (!form.vorname && !form.nachname)}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-sm active:scale-95 ${(hasChanges || isNew) && (form.vorname || form.nachname) ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-sm active:scale-95 ${(hasChanges || isNew) && (form.vorname || form.nachname) ? 'k-btn-primary' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : isNew ? <UserPlus className="w-4 h-4" /> : <Save className="w-4 h-4" />}
                             {saving ? 'Wird gespeichert...' : isNew ? 'Profil anlegen' : 'Profil speichern'}
                         </button>
                         {saved && (
-                            <span className="flex items-center gap-1 text-green-600 text-sm font-bold">
+                            <span className="flex items-center gap-1 text-emerald-400 text-sm font-bold">
                                 <CheckCircle2 className="w-4 h-4" /> Gespeichert
                             </span>
                         )}
@@ -313,19 +313,19 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
 
                     {/* Delete Profile (only for existing speakers) */}
                     {!isNew && onDelete && (
-                        <div className="mt-6 pt-4 border-t border-red-200">
+                        <div className="mt-6 pt-4 border-t border-red-900/30">
                             {!showDeleteConfirm ? (
                                 <button onClick={() => setShowDeleteConfirm(true)}
-                                    className="flex items-center gap-2 text-xs text-red-400 hover:text-red-600 transition-colors">
+                                    className="flex items-center gap-2 text-xs text-red-500 hover:text-red-400 transition-colors">
                                     <Trash2 className="w-3.5 h-3.5" /> Profil und alle personenbezogenen Daten löschen
                                 </button>
                             ) : (
-                                <div className="bg-red-50 border border-red-200 rounded-lg p-4 space-y-3">
+                                <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4 space-y-3">
                                     <div className="flex items-start gap-2">
-                                        <AlertTriangle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+                                        <AlertTriangle className="w-5 h-5 text-red-500 shrink-0 mt-0.5" />
                                         <div>
-                                            <p className="text-sm font-bold text-red-800">Profil endgültig löschen?</p>
-                                            <p className="text-xs text-red-600 mt-1">
+                                            <p className="text-sm font-bold text-red-300">Profil endgültig löschen?</p>
+                                            <p className="text-xs text-red-200 mt-1">
                                                 Alle personenbezogenen Daten (Name, Bio, Kontakt, Social Media) werden unwiderruflich gelöscht.
                                                 Du wirst aus allen verknüpften Sessions entfernt und die Session-Ersteller werden benachrichtigt.
                                             </p>
@@ -334,12 +334,12 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                                     <div className="flex gap-2">
                                         <button onClick={async () => { setDeleting(true); await onDelete(); }}
                                             disabled={deleting}
-                                            className="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5">
+                                            className="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-500 disabled:opacity-50 flex items-center gap-1.5">
                                             {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                                             {deleting ? 'Wird gelöscht...' : 'Ja, endgültig löschen'}
                                         </button>
                                         <button onClick={() => setShowDeleteConfirm(false)}
-                                            className="px-4 py-2 bg-slate-200 text-slate-600 text-xs font-bold rounded-lg hover:bg-slate-300">
+                                            className="px-4 py-2 bg-white/10 text-white text-xs font-bold rounded-lg hover:bg-white/20">
                                             Abbrechen
                                         </button>
                                     </div>

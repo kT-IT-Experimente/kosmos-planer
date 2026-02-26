@@ -65,10 +65,10 @@ function mergeProductionData(sessions, productionData) {
 // Color for production status
 function statusColor(status) {
     const s = (status || '').toLowerCase();
-    if (s === 'confirmed' || s === 'bestätigt') return 'bg-emerald-100 text-emerald-700 border-emerald-300';
-    if (s === 'pending' || s === 'offen') return 'bg-amber-100 text-amber-700 border-amber-300';
-    if (s === 'canceled' || s === 'abgesagt') return 'bg-red-100 text-red-700 border-red-300';
-    return 'bg-slate-100 text-slate-600 border-slate-300';
+    if (s === 'confirmed' || s === 'bestätigt') return 'bg-emerald-900/30 text-emerald-400 border-emerald-500/30';
+    if (s === 'pending' || s === 'offen') return 'bg-amber-900/30 text-amber-500 border-amber-500/30';
+    if (s === 'canceled' || s === 'abgesagt') return 'bg-red-900/30 text-red-400 border-red-500/30';
+    return 'bg-white/10 text-white border-white/20';
 }
 
 function ProductionTimeline({ sessions = [], stages = [], productionData = [], startHour = 9, endHour = 22 }) {
@@ -185,37 +185,37 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
     for (let h = startHour; h <= endHour; h++) hours.push(h);
 
     return (
-        <div className="flex flex-col h-full overflow-hidden bg-slate-50">
+        <div className="flex flex-col h-full overflow-hidden k-panel-glass text-white border-white/10">
             {/* Header */}
-            <div className="bg-white border-b px-4 py-3 flex items-center justify-between shrink-0 shadow-sm">
+            <div className="bg-white/5 backdrop-blur-md border-b border-white/10 px-4 py-3 flex items-center justify-between shrink-0">
                 <div>
-                    <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                        <Wrench className="w-5 h-5 text-orange-500" />
+                    <h2 className="k-h2 flex items-center gap-2 mb-0">
+                        <Wrench className="w-5 h-5 text-[var(--k-accent-teal)]" />
                         Produktions-Zeitplan
                     </h2>
-                    <p className="text-xs text-slate-500 mt-0.5">
+                    <p className="k-caption mt-0.5">
                         {equipmentSummary.sessionCount} Sessions • {equipmentSummary.confirmedCount} bestätigt • Peak: {equipmentSummary.peakWireless} Funk + {equipmentSummary.peakHeadset} Headset
                     </p>
                 </div>
 
                 <div className="flex items-center gap-3">
                     {overbookingWarnings.length > 0 && (
-                        <div className="flex items-center gap-1.5 text-red-600 bg-red-50 px-3 py-1.5 rounded-full border border-red-200 text-xs font-bold animate-pulse">
+                        <div className="flex items-center gap-1.5 text-red-400 bg-red-900/20 px-3 py-1.5 rounded-full border border-red-500/30 text-xs font-bold animate-pulse">
                             <AlertTriangle className="w-4 h-4" />
                             {overbookingWarnings.length} Überbuchung{overbookingWarnings.length > 1 ? 'en' : ''}
                         </div>
                     )}
 
-                    <div className="flex bg-slate-100 rounded-lg p-0.5">
+                    <div className="flex bg-black/40 rounded-lg p-0.5 border border-white/10">
                         <button
                             onClick={() => setViewType('timeline')}
-                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewType === 'timeline' ? 'bg-white shadow-sm text-orange-600' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewType === 'timeline' ? 'bg-[var(--k-accent-teal)]/20 text-[var(--k-accent-teal)]' : 'text-white/50 hover:text-white'}`}
                         >
                             Timeline
                         </button>
                         <button
                             onClick={() => setViewType('table')}
-                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewType === 'table' ? 'bg-white shadow-sm text-orange-600' : 'text-slate-500 hover:text-slate-700'}`}
+                            className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${viewType === 'table' ? 'bg-[var(--k-accent-teal)]/20 text-[var(--k-accent-teal)]' : 'text-white/50 hover:text-white'}`}
                         >
                             Tabelle
                         </button>
@@ -225,9 +225,9 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
 
             {/* Overbooking Warnings */}
             {overbookingWarnings.length > 0 && (
-                <div className="bg-red-50 border-b border-red-200 px-4 py-2">
+                <div className="bg-red-900/20 border-b border-red-500/30 px-4 py-2">
                     {overbookingWarnings.map((w, i) => (
-                        <div key={i} className="text-xs text-red-700 flex items-center gap-2 py-0.5">
+                        <div key={i} className="text-xs text-red-300 flex items-center gap-2 py-0.5">
                             <AlertTriangle className="w-3 h-3 shrink-0" />
                             <span><strong>{w.stageName}</strong> ({w.timeRange}): „{w.sessionA}" + „{w.sessionB}" = {w.totalMics} Mics (max {w.maxMics})</span>
                         </div>
@@ -241,14 +241,14 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                     /* ===== TIMELINE VIEW ===== */
                     <div className="flex min-w-fit">
                         {/* Time axis */}
-                        <div className="w-16 shrink-0 bg-white border-r relative" style={{ height: timelineHeight + HEADER_HEIGHT }}>
-                            <div className="sticky top-0 bg-white z-10 border-b text-center text-[10px] font-bold text-slate-400 uppercase" style={{ height: HEADER_HEIGHT, lineHeight: `${HEADER_HEIGHT}px` }}>
+                        <div className="w-16 shrink-0 bg-black/30 border-r border-white/10 relative" style={{ height: timelineHeight + HEADER_HEIGHT }}>
+                            <div className="sticky top-0 bg-[#0a0f18]/90 backdrop-blur-sm border-b border-white/10 text-center text-[10px] font-bold text-white/50 uppercase" style={{ height: HEADER_HEIGHT, lineHeight: `${HEADER_HEIGHT}px` }}>
                                 Zeit
                             </div>
                             {hours.map(h => (
                                 <div
                                     key={h}
-                                    className="absolute w-full text-right pr-2 text-[10px] font-mono text-slate-400 border-t border-slate-100"
+                                    className="absolute w-full text-right pr-2 text-[10px] font-mono text-white/40 border-t border-white/5"
                                     style={{ top: HEADER_HEIGHT + (h - startHour) * 60 * PIXELS_PER_MINUTE }}
                                 >
                                     {`${String(h).padStart(2, '0')}:00`}
@@ -262,17 +262,17 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                             return (
                                 <div
                                     key={stage.id}
-                                    className="min-w-[260px] max-w-[320px] w-full border-r relative bg-white/50"
+                                    className="min-w-[260px] max-w-[320px] w-full border-r border-white/10 relative bg-black/10"
                                     style={{ height: timelineHeight + HEADER_HEIGHT }}
                                 >
                                     {/* Stage header */}
                                     <div
-                                        className="sticky top-0 z-10 bg-white border-b p-2 text-center shadow-sm"
+                                        className="sticky top-0 z-10 bg-[#0a0f18]/90 backdrop-blur-sm border-b border-white/10 p-2 text-center"
                                         style={{ height: HEADER_HEIGHT }}
                                     >
-                                        <div className="font-bold text-sm text-slate-700 truncate">{stage.name}</div>
-                                        <div className="flex justify-center gap-3 text-[10px] text-slate-400 font-mono mt-0.5">
-                                            <span className="flex items-center gap-0.5"><Mic2 className="w-3 h-3" /> {stage.maxMics || '?'}</span>
+                                        <div className="font-bold text-sm text-white truncate">{stage.name}</div>
+                                        <div className="flex justify-center gap-3 text-[10px] text-white/50 font-mono mt-0.5">
+                                            <span className="flex items-center gap-0.5"><Mic2 className="w-3 h-3 text-[var(--k-accent-teal)]" /> {stage.maxMics || '?'}</span>
                                             <span className="flex items-center gap-0.5">{stageSess.length} Sessions</span>
                                         </div>
                                     </div>
@@ -281,7 +281,7 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                                     {hours.map(h => (
                                         <div
                                             key={h}
-                                            className="absolute w-full border-t border-slate-100"
+                                            className="absolute w-full border-t border-white/5"
                                             style={{ top: HEADER_HEIGHT + (h - startHour) * 60 * PIXELS_PER_MINUTE }}
                                         />
                                     ))}
@@ -296,38 +296,38 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                                         return (
                                             <div
                                                 key={session.id}
-                                                className={`absolute left-1 right-1 rounded border px-2 py-1 overflow-hidden transition-all hover:shadow-md cursor-default z-10 ${isCanceled ? 'bg-red-50 border-red-300 opacity-60' : 'bg-orange-50 border-orange-200 hover:border-orange-400'
+                                                className={`absolute left-1 right-1 rounded border px-2 py-1 overflow-hidden transition-all hover:shadow-[0_0_15px_rgba(45,212,191,0.2)] cursor-default z-10 ${isCanceled ? 'bg-red-900/30 border-red-500/40 text-red-200 opacity-60' : 'bg-[var(--k-accent-teal)]/10 border-[var(--k-accent-teal)]/40 hover:border-[var(--k-accent-teal)]'
                                                     }`}
                                                 style={{ top, height }}
                                                 title={`${session.title}\n${session.start}–${session.end}\nFunk: ${session.micCountWireless} | Headset: ${session.micCountHeadset}\nDI: ${session.dIBoxes} | Audio: ${session.audioFeeds}\nVisuals: ${session.visuals}\n${session.specialRequirements ? 'Special: ' + session.specialRequirements : ''}`}
                                             >
                                                 <div className="flex items-center justify-between gap-1">
-                                                    <span className="font-bold text-[10px] text-slate-800 truncate leading-tight">
-                                                        {isCanceled && <span className="text-red-600">[ABGESAGT] </span>}
+                                                    <span className={`font-bold text-[10px] truncate leading-tight ${isCanceled ? 'text-red-300 line-through' : 'text-[var(--k-accent-teal)]'}`}>
+                                                        {isCanceled && <span className="text-red-500 mr-1">[ABGESAGT]</span>}
                                                         {session.title || 'Unbenannt'}
                                                     </span>
-                                                    <span className="text-[9px] font-mono text-slate-400 shrink-0">{session.start}</span>
+                                                    <span className="text-[9px] font-mono text-white/40 shrink-0">{session.start}</span>
                                                 </div>
 
                                                 {height > 35 && (
                                                     <div className="flex flex-wrap gap-1 mt-1">
                                                         {(session.micCountWireless > 0) && (
-                                                            <span className="inline-flex items-center gap-0.5 text-[9px] bg-blue-100 text-blue-700 px-1 rounded">
+                                                            <span className="inline-flex items-center gap-0.5 text-[9px] bg-blue-900/40 text-blue-300 px-1 rounded border border-blue-500/30">
                                                                 <Mic2 className="w-2.5 h-2.5" />{session.micCountWireless}
                                                             </span>
                                                         )}
                                                         {(session.micCountHeadset > 0) && (
-                                                            <span className="inline-flex items-center gap-0.5 text-[9px] bg-purple-100 text-purple-700 px-1 rounded">
+                                                            <span className="inline-flex items-center gap-0.5 text-[9px] bg-purple-900/40 text-purple-300 px-1 rounded border border-purple-500/30">
                                                                 <Headphones className="w-2.5 h-2.5" />{session.micCountHeadset}
                                                             </span>
                                                         )}
                                                         {(session.dIBoxes > 0) && (
-                                                            <span className="inline-flex items-center gap-0.5 text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded">
+                                                            <span className="inline-flex items-center gap-0.5 text-[9px] bg-emerald-900/40 text-emerald-300 px-1 rounded border border-emerald-500/30">
                                                                 <Music className="w-2.5 h-2.5" />{session.dIBoxes} DI
                                                             </span>
                                                         )}
                                                         {session.visuals && (
-                                                            <span className="inline-flex items-center gap-0.5 text-[9px] bg-amber-100 text-amber-700 px-1 rounded">
+                                                            <span className="inline-flex items-center gap-0.5 text-[9px] bg-amber-900/40 text-amber-300 px-1 rounded border border-amber-500/30">
                                                                 <Monitor className="w-2.5 h-2.5" />{session.visuals}
                                                             </span>
                                                         )}
@@ -335,7 +335,7 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                                                 )}
 
                                                 {height > 55 && session.specialRequirements && (
-                                                    <div className="text-[9px] text-slate-500 mt-1 truncate italic">
+                                                    <div className="text-[9px] text-white/50 mt-1 truncate italic">
                                                         {session.specialRequirements}
                                                     </div>
                                                 )}
@@ -349,20 +349,20 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                 ) : (
                     /* ===== TABLE VIEW ===== */
                     <div className="p-4">
-                        <table className="w-full text-xs border-collapse">
+                        <table className="w-full text-xs border-collapse text-left">
                             <thead>
-                                <tr className="bg-slate-100 border-b-2 border-slate-300">
-                                    <th className="text-left p-2 font-bold text-slate-600">Bühne</th>
-                                    <th className="text-left p-2 font-bold text-slate-600">Start</th>
-                                    <th className="text-left p-2 font-bold text-slate-600">Ende</th>
-                                    <th className="text-left p-2 font-bold text-slate-600">Session</th>
-                                    <th className="text-center p-2 font-bold text-slate-600" title="Funk-Mikrofone">🎤 Funk</th>
-                                    <th className="text-center p-2 font-bold text-slate-600" title="Headsets">🎧 Headset</th>
-                                    <th className="text-center p-2 font-bold text-slate-600" title="DI-Boxen">🎸 DI</th>
-                                    <th className="text-left p-2 font-bold text-slate-600">Audio</th>
-                                    <th className="text-left p-2 font-bold text-slate-600">Visuals</th>
-                                    <th className="text-left p-2 font-bold text-slate-600">Special</th>
-                                    <th className="text-center p-2 font-bold text-slate-600">Status</th>
+                                <tr className="border-b border-white/20 text-white/70 uppercase tracking-widest text-[10px]">
+                                    <th className="p-2 font-bold">Bühne</th>
+                                    <th className="p-2 font-bold">Start</th>
+                                    <th className="p-2 font-bold">Ende</th>
+                                    <th className="p-2 font-bold">Session</th>
+                                    <th className="text-center p-2 font-bold" title="Funk-Mikrofone">🎤 Funk</th>
+                                    <th className="text-center p-2 font-bold" title="Headsets">🎧 Headset</th>
+                                    <th className="text-center p-2 font-bold" title="DI-Boxen">🎸 DI</th>
+                                    <th className="p-2 font-bold">Audio</th>
+                                    <th className="p-2 font-bold">Visuals</th>
+                                    <th className="p-2 font-bold">Special</th>
+                                    <th className="text-center p-2 font-bold">Status</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -374,14 +374,14 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                                         <React.Fragment key={stage.id}>
                                             {/* Stage group header */}
                                             <tr
-                                                className="bg-slate-50 cursor-pointer hover:bg-slate-100 border-b border-slate-200"
+                                                className="bg-black/40 cursor-pointer hover:bg-black/60 border-b border-white/10 transition-colors"
                                                 onClick={() => setExpandedStage(expandedStage === stage.id ? null : stage.id)}
                                             >
-                                                <td colSpan={11} className="p-2 font-bold text-slate-700">
+                                                <td colSpan={11} className="p-2 font-bold text-white">
                                                     <div className="flex items-center gap-2">
-                                                        {isExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                                        {isExpanded ? <ChevronDown className="w-3 h-3 text-[var(--k-accent-teal)]" /> : <ChevronRight className="w-3 h-3 text-[var(--k-accent-teal)]" />}
                                                         {stage.name}
-                                                        <span className="text-slate-400 font-normal">({stageSess.length} Sessions, max {stage.maxMics || '?'} Mics)</span>
+                                                        <span className="text-white/40 font-normal">({stageSess.length} Sessions, max {stage.maxMics || '?'} Mics)</span>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -391,18 +391,18 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                                                 return (
                                                     <tr
                                                         key={session.id}
-                                                        className={`border-b border-slate-100 hover:bg-slate-50 ${isCanceled ? 'opacity-50 line-through' : ''}`}
+                                                        className={`border-b border-white/5 hover:bg-white/5 transition-colors ${isCanceled ? 'opacity-50 line-through text-white/50' : 'text-white'}`}
                                                     >
-                                                        <td className="p-2 text-slate-400 font-mono">{stage.name}</td>
+                                                        <td className="p-2 text-white/40 font-mono">{stage.name}</td>
                                                         <td className="p-2 font-mono">{session.start}</td>
                                                         <td className="p-2 font-mono">{session.end || '-'}</td>
-                                                        <td className="p-2 font-medium text-slate-800 max-w-[200px] truncate">{session.title || 'Unbenannt'}</td>
+                                                        <td className="p-2 font-medium text-[var(--k-accent-teal)] max-w-[200px] truncate">{session.title || 'Unbenannt'}</td>
                                                         <td className="p-2 text-center font-bold">{session.micCountWireless || '-'}</td>
                                                         <td className="p-2 text-center font-bold">{session.micCountHeadset || '-'}</td>
                                                         <td className="p-2 text-center font-bold">{session.dIBoxes || '-'}</td>
-                                                        <td className="p-2 text-slate-600">{session.audioFeeds || '-'}</td>
-                                                        <td className="p-2 text-slate-600">{session.visuals || '-'}</td>
-                                                        <td className="p-2 text-slate-500 max-w-[150px] truncate" title={session.specialRequirements}>{session.specialRequirements || '-'}</td>
+                                                        <td className="p-2 text-white/60">{session.audioFeeds || '-'}</td>
+                                                        <td className="p-2 text-white/60">{session.visuals || '-'}</td>
+                                                        <td className="p-2 text-white/50 max-w-[150px] truncate" title={session.specialRequirements}>{session.specialRequirements || '-'}</td>
                                                         <td className="p-2 text-center">
                                                             <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusColor(session.productionStatus)}`}>
                                                                 {session.productionStatus || 'Offen'}
@@ -421,21 +421,21 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
             </div>
 
             {/* Equipment Summary Footer */}
-            <div className="bg-white border-t px-4 py-2 flex items-center gap-6 text-xs shrink-0 shadow-inner">
-                <div className="flex items-center gap-1.5 text-blue-600 font-bold">
+            <div className="bg-black/50 border-t border-white/10 px-4 py-3 flex items-center gap-6 text-xs shrink-0 backdrop-blur-md">
+                <div className="flex items-center gap-1.5 text-blue-300 font-bold">
                     <Mic2 className="w-3.5 h-3.5" />
                     Peak Funk: {equipmentSummary.peakWireless}
                 </div>
-                <div className="flex items-center gap-1.5 text-purple-600 font-bold">
+                <div className="flex items-center gap-1.5 text-purple-300 font-bold">
                     <Headphones className="w-3.5 h-3.5" />
                     Peak Headset: {equipmentSummary.peakHeadset}
                 </div>
-                <div className="flex items-center gap-1.5 text-emerald-600 font-bold">
+                <div className="flex items-center gap-1.5 text-emerald-300 font-bold">
                     <Music className="w-3.5 h-3.5" />
                     Total DI: {equipmentSummary.totalDIBoxes}
                 </div>
-                <div className="flex items-center gap-1.5 text-slate-500 ml-auto">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                <div className="flex items-center gap-1.5 text-white/50 ml-auto font-medium">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                     {equipmentSummary.confirmedCount}/{equipmentSummary.sessionCount} bestätigt
                 </div>
             </div>

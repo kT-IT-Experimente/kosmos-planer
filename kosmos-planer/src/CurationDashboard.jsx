@@ -141,29 +141,29 @@ const CurationDashboard = ({
     };
 
     return (
-        <div className="flex flex-col h-full bg-slate-50 p-6 overflow-hidden">
+        <div className="flex flex-col h-full p-6 overflow-hidden">
             {/* HEADER */}
             <div className="flex justify-between items-center mb-6">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-                        <LayoutDashboard className="text-indigo-600 w-8 h-8" /> Curation Center
+                    <h2 className="k-h2 flex items-center gap-2">
+                        <LayoutDashboard className="text-[var(--k-accent-teal)] w-8 h-8" /> Curation Center
                     </h2>
-                    <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
-                        <Users className="w-3.5 h-3.5" /> {userEmail} · <span className="font-bold text-slate-600 uppercase tracking-tighter">{userRole}</span>
+                    <p className="k-caption mt-1 flex items-center gap-1.5">
+                        <Users className="w-3.5 h-3.5" /> {userEmail} · <span className="font-bold text-white uppercase tracking-tighter">{userRole}</span>
                     </p>
                 </div>
-                <span className="bg-indigo-600 text-white px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm">
+                <span className="bg-[var(--k-accent-teal)]/20 text-[var(--k-accent-teal)] border border-[var(--k-accent-teal)]/50 px-4 py-1.5 rounded-lg text-sm font-bold shadow-sm">
                     {processedSessions.length} Sessions
                 </span>
             </div>
 
             {/* FILTERS */}
-            <div className="bg-white p-5 rounded-xl shadow-sm border border-slate-200 mb-6 flex flex-wrap gap-4 items-end">
+            <div className="k-panel-glass p-5 mb-6 flex flex-wrap gap-4 items-end text-white border-white/10">
                 <div className="flex-1 min-w-[250px]">
-                    <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 block tracking-widest">Suche</label>
+                    <label className="k-caption mb-1.5 block">Suche</label>
                     <div className="relative">
                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-                        <input type="text" className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-indigo-100"
+                        <input type="text" className="k-input pl-10 text-sm py-2.5"
                             placeholder="Titel, Speaker, ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                     </div>
                 </div>
@@ -174,8 +174,8 @@ const CurationDashboard = ({
                     { key: 'status', label: 'Status', options: ['Vorschlag', 'Eingeladen', 'Akzeptiert', 'Abgelehnt'] }
                 ].map(({ key, label, options }) => (
                     <div key={key} className="w-36">
-                        <label className="text-xs font-bold text-slate-400 uppercase mb-1.5 block tracking-widest">{label}</label>
-                        <select className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none appearance-none"
+                        <label className="k-caption mb-1.5 block">{label}</label>
+                        <select className="k-input text-sm py-2.5 px-3 appearance-none"
                             value={filters[key]} onChange={(e) => setFilters(prev => ({ ...prev, [key]: e.target.value }))}>
                             <option value="">Alle</option>
                             {options.map(o => <option key={o} value={o}>{o}</option>)}
@@ -185,7 +185,7 @@ const CurationDashboard = ({
             </div>
 
             {/* SORT BAR */}
-            <div className="flex gap-4 mb-3 text-[10px] font-bold text-slate-400 uppercase tracking-widest px-1">
+            <div className="flex gap-4 mb-3 k-caption px-1">
                 {[
                     { key: 'title', label: 'Titel' },
                     { key: 'average_score', label: '∅ Score' },
@@ -193,7 +193,7 @@ const CurationDashboard = ({
                     { key: 'status', label: 'Status' }
                 ].map(({ key, label }) => (
                     <button key={key} onClick={() => handleSort(key)}
-                        className={`flex items-center gap-1 hover:text-indigo-600 transition-colors ${sortConfig.key === key ? 'text-indigo-600' : ''}`}>
+                        className={`flex items-center gap-1 hover:text-[var(--k-accent-teal)] transition-colors ${sortConfig.key === key ? 'text-[var(--k-accent-teal)]' : ''}`}>
                         {label}
                         {sortConfig.key === key && (sortConfig.direction === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
                     </button>
@@ -211,33 +211,33 @@ const CurationDashboard = ({
                     const speakerNames = parseSpeakerNames(session.speakers);
 
                     return (
-                        <div key={session.id} className={`bg-white rounded-xl shadow-sm border transition-all ${isExpanded ? 'border-indigo-200 shadow-md' : 'border-slate-200 hover:border-slate-300'}`}>
+                        <div key={session.id} className={`k-card transition-all ${isExpanded ? 'border-[var(--k-accent-teal)] shadow-lg shadow-[var(--k-accent-teal)]/10' : 'hover:border-white/20'}`}>
                             {/* CARD HEADER */}
                             <div className="p-4 cursor-pointer flex gap-4 items-start" onClick={() => setExpandedSession(isExpanded ? null : session.id)}>
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-start gap-2 mb-1.5">
-                                        <span className="font-mono text-[9px] text-slate-300 bg-slate-50 px-1.5 py-0.5 rounded shrink-0 mt-0.5">{session.id}</span>
-                                        <h3 className="font-extrabold text-slate-800 text-base leading-tight">{session.title}</h3>
+                                        <span className="font-mono text-[9px] text-[var(--k-accent-teal)] bg-[var(--k-accent-teal)]/10 border border-[var(--k-accent-teal)]/30 px-1.5 py-0.5 rounded shrink-0 mt-0.5">{session.id}</span>
+                                        <h3 className="font-extrabold text-white text-base leading-tight">{session.title}</h3>
                                     </div>
                                     {/* Speakers — clickable */}
-                                    <div className="flex items-center gap-1 text-xs text-indigo-600 font-bold mb-1.5 flex-wrap">
+                                    <div className="flex items-center gap-1 text-xs text-[var(--k-accent-teal)] font-bold mb-1.5 flex-wrap">
                                         <Users className="w-3 h-3 shrink-0" />
                                         {speakerNames.map((name, i) => (
                                             <span key={i}>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); const sp = findSpeaker(name); setSpeakerPopup(sp || { fullName: name }); }}
-                                                    className="hover:underline hover:text-indigo-800 transition-colors"
+                                                    className="hover:underline hover:text-white transition-colors"
                                                 >{name}</button>
-                                                {i < speakerNames.length - 1 && <span className="text-slate-300 mx-0.5">·</span>}
+                                                {i < speakerNames.length - 1 && <span className="text-slate-500 mx-0.5">·</span>}
                                             </span>
                                         ))}
                                     </div>
                                     {/* Short description always visible */}
                                     {session.shortDescription && (
-                                        <p className="text-xs text-slate-500 line-clamp-2">{session.shortDescription}</p>
+                                        <p className="k-caption line-clamp-2">{session.shortDescription}</p>
                                     )}
                                     {!session.shortDescription && !isExpanded && session.description && (
-                                        <p className="text-xs text-slate-400 italic line-clamp-2">{session.description.substring(0, 200)}</p>
+                                        <p className="k-caption italic line-clamp-2">{session.description.substring(0, 200)}</p>
                                     )}
                                 </div>
 
@@ -259,14 +259,14 @@ const CurationDashboard = ({
                                     <div className="text-center">
                                         {session._myScore > 0 ? (
                                             session.average_score ? (
-                                                <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg border-2 shadow-sm ${Number(session.average_score) >= 4 ? 'bg-green-50 border-green-200 text-green-700' :
-                                                    Number(session.average_score) >= 3 ? 'bg-yellow-50 border-yellow-200 text-yellow-700' :
-                                                        'bg-red-50 border-red-200 text-red-700'}`}>
+                                                <div className={`w-11 h-11 rounded-xl flex items-center justify-center font-black text-lg border-2 shadow-sm ${Number(session.average_score) >= 4 ? 'bg-green-500/20 border-green-500/50 text-green-400' :
+                                                    Number(session.average_score) >= 3 ? 'bg-yellow-500/20 border-yellow-500/50 text-yellow-400' :
+                                                        'bg-red-500/20 border-red-500/50 text-red-400'}`}>
                                                     {session.average_score}
                                                 </div>
-                                            ) : <div className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-200 border-2 border-slate-100 text-sm">—</div>
+                                            ) : <div className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-400 border-2 border-white/10 text-sm">—</div>
                                         ) : (
-                                            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-300 border-2 border-slate-100 text-sm" title="Erst nach eigener Bewertung sichtbar">?</div>
+                                            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-400 border-2 border-white/10 text-sm" title="Erst nach eigener Bewertung sichtbar">?</div>
                                         )}
                                         <span className="text-[9px] text-slate-400 font-bold mt-0.5 block">{session.review_count || 0} Rev.</span>
                                     </div>
@@ -278,32 +278,32 @@ const CurationDashboard = ({
                                         ))}
                                     </div>
 
-                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter border ${session.status === 'Akzeptiert' ? 'bg-green-100 text-green-700 border-green-200' :
-                                        session.status === 'Abgelehnt' ? 'bg-red-100 text-red-700 border-red-200' :
-                                            'bg-amber-100 text-amber-700 border-amber-200'}`}>
+                                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter border ${session.status === 'Akzeptiert' ? 'bg-green-500/20 text-green-400 border-green-500/50' :
+                                        session.status === 'Abgelehnt' ? 'bg-red-500/20 text-red-400 border-red-500/50' :
+                                            'bg-amber-500/20 text-amber-400 border-amber-500/50'}`}>
                                         {session.status}
                                     </span>
 
-                                    {isExpanded ? <ChevronUp className="w-5 h-5 text-indigo-400" /> : <ChevronDown className="w-5 h-5 text-slate-300" />}
+                                    {isExpanded ? <ChevronUp className="w-5 h-5 text-[var(--k-accent-teal)]" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
                                 </div>
                             </div>
 
                             {/* EXPANDED CONTENT */}
                             {isExpanded && (
-                                <div className="border-t border-slate-100">
+                                <div className="border-t border-white/10 mt-3 pt-3">
                                     {/* Internal notes */}
                                     {session.notes && (
-                                        <div className="mx-5 mt-4 p-3 bg-amber-50 border border-amber-100 rounded-lg">
-                                            <div className="flex items-center gap-1.5 text-[10px] font-black uppercase text-amber-600 tracking-tighter mb-1">
+                                        <div className="mx-5 mt-4 p-3 bg-amber-500/20 border border-amber-500/50 rounded-lg">
+                                            <div className="flex items-center gap-1.5 k-caption text-amber-400 mb-1">
                                                 <AlertCircle className="w-3 h-3" /> Interne Notiz
                                             </div>
-                                            <p className="text-xs text-amber-800 italic">{session.notes}</p>
+                                            <p className="k-caption text-amber-200 italic">{session.notes}</p>
                                         </div>
                                     )}
 
                                     {/* Submitter info */}
                                     {(session.submitterName || session.submitterEmail) && (
-                                        <div className="mx-5 mt-3 flex items-center gap-2 text-xs text-slate-500">
+                                        <div className="mx-5 mt-3 flex items-center gap-2 k-caption text-slate-400">
                                             <Send className="w-3 h-3 shrink-0" />
                                             <span>Eingereicht von: </span>
                                             <button
@@ -315,7 +315,7 @@ const CurationDashboard = ({
                                                         email: session.submitterEmail || ''
                                                     });
                                                 }}
-                                                className="font-bold text-indigo-600 hover:underline"
+                                                className="font-bold text-white hover:underline"
                                             >
                                                 {session.submitterName || session.submitterEmail}
                                             </button>
@@ -326,23 +326,23 @@ const CurationDashboard = ({
                                     <div className="px-5 pt-4">
                                         {session.shortDescription && (
                                             <div className="mb-3">
-                                                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-tighter mb-1">Kurzbeschreibung</h4>
-                                                <p className="text-sm text-slate-700 leading-relaxed">{session.shortDescription}</p>
+                                                <h4 className="k-caption mb-1">Kurzbeschreibung</h4>
+                                                <p className="k-body text-slate-300 leading-relaxed">{session.shortDescription}</p>
                                             </div>
                                         )}
                                         {session.description && (
                                             <div>
                                                 <button
                                                     onClick={(e) => { e.stopPropagation(); setShowLongDesc(prev => ({ ...prev, [session.id]: !prev[session.id] })); }}
-                                                    className="flex items-center gap-1.5 text-[10px] font-black uppercase text-indigo-500 tracking-tighter hover:text-indigo-700 transition-colors mb-2"
+                                                    className="flex items-center gap-1.5 k-caption text-[var(--k-accent-teal)] tracking-tighter hover:text-white transition-colors mb-2"
                                                 >
                                                     <FileText className="w-3 h-3" />
                                                     {showLong ? 'Langbeschreibung ausblenden' : 'Langbeschreibung anzeigen'}
                                                     {showLong ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                                                 </button>
                                                 {showLong && (
-                                                    <div className="bg-slate-50 rounded-lg p-4 max-h-72 overflow-y-auto custom-scrollbar mb-2">
-                                                        <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">
+                                                    <div className="bg-black/30 border border-white/10 rounded-lg p-4 max-h-72 overflow-y-auto custom-scrollbar mb-2">
+                                                        <p className="k-body text-slate-300 leading-relaxed whitespace-pre-wrap">
                                                             {session.description}
                                                         </p>
                                                     </div>
@@ -354,7 +354,7 @@ const CurationDashboard = ({
                                     {/* Admin-only metadata editing */}
                                     {isAdmin && (
                                         <div className="px-5 pt-3">
-                                            <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-tighter mb-2">Metadaten bearbeiten (Admin)</h4>
+                                            <h4 className="k-caption mb-2">Metadaten bearbeiten (Admin)</h4>
                                             <div className="flex gap-4">
                                                 {[
                                                     { field: 'format', label: 'Format', options: config.formate },
@@ -364,7 +364,7 @@ const CurationDashboard = ({
                                                     <div key={field} className="flex flex-col">
                                                         <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</span>
                                                         <select
-                                                            className="text-xs font-bold bg-white border border-slate-200 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-indigo-100 cursor-pointer"
+                                                            className="k-input p-1.5 text-xs bg-slate-800"
                                                             value={session[field] || ''}
                                                             onChange={(e) => { onUpdateMetadata(session.id, field, e.target.value); }}
                                                         >
@@ -379,19 +379,19 @@ const CurationDashboard = ({
 
                                     {/* TAG PICKER — Curators + Admins */}
                                     <div className="px-5 pt-3">
-                                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-tighter mb-2 flex items-center gap-1.5">
+                                        <h4 className="k-caption mb-2 flex items-center gap-1.5">
                                             <Tag className="w-3 h-3" /> Tags
                                         </h4>
                                         <div className="flex flex-wrap gap-1.5 mb-2">
                                             {(session.tags || '').split(',').filter(t => t.trim()).map(tag => (
-                                                <span key={tag.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 bg-violet-100 text-violet-700 rounded-full text-[10px] font-bold">
+                                                <span key={tag.trim()} className="inline-flex items-center gap-1 px-2 py-0.5 bg-indigo-500/20 text-indigo-300 rounded-full text-[10px] font-bold">
                                                     {tag.trim()}
                                                     <button onClick={(e) => {
                                                         e.stopPropagation();
                                                         const currentTags = (session.tags || '').split(',').map(t => t.trim()).filter(Boolean);
                                                         const newTags = currentTags.filter(t => t !== tag.trim()).join(', ');
                                                         onUpdateMetadata(session.id, 'tags', newTags);
-                                                    }} className="hover:text-red-600 transition-colors">
+                                                    }} className="hover:text-red-400 transition-colors">
                                                         <X className="w-2.5 h-2.5" />
                                                     </button>
                                                 </span>
@@ -403,7 +403,7 @@ const CurationDashboard = ({
                                                     type="text"
                                                     list={`tags-list-${session.id}`}
                                                     placeholder="Tag hinzufügen..."
-                                                    className="w-full px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-violet-100"
+                                                    className="k-input px-3 py-1.5 text-xs bg-slate-800"
                                                     onClick={(e) => e.stopPropagation()}
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter' && e.target.value.trim()) {
@@ -434,17 +434,17 @@ const CurationDashboard = ({
 
                                     {/* RATING — combined stars + comment + submit */}
                                     <div className="px-5 pt-4 pb-2">
-                                        <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-3 flex items-center gap-2">
+                                        <h4 className="k-caption mb-3 flex items-center gap-2">
                                             <Star className="w-3 h-3 text-amber-500 fill-amber-500" />
                                             Deine Bewertung
-                                            {session._myScore > 0 && <span className="text-amber-600 normal-case tracking-normal font-bold">(aktuell: {session._myScore}★)</span>}
+                                            {session._myScore > 0 && <span className="text-amber-500 normal-case tracking-normal font-bold">(aktuell: {session._myScore}★)</span>}
                                         </h4>
                                         <div className="flex items-center gap-3">
                                             <div className="flex gap-1">
                                                 {[1, 2, 3, 4, 5].map(star => (
                                                     <button key={star}
                                                         onClick={(e) => { e.stopPropagation(); setDraftScore(session.id, star); }}
-                                                        className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border ${activeScore >= star ? 'bg-amber-50 border-amber-200 text-amber-600' : 'bg-slate-50 border-slate-100 text-slate-300 hover:border-amber-200 hover:text-amber-400'}`}>
+                                                        className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border ${activeScore >= star ? 'bg-amber-500/20 border-amber-500/50 text-amber-500' : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-amber-500/50 hover:text-amber-400'}`}>
                                                         <Star className={`w-4 h-4 ${activeScore >= star ? 'fill-current' : ''}`} />
                                                     </button>
                                                 ))}
@@ -455,12 +455,12 @@ const CurationDashboard = ({
                                                     value={draft.kommentar} onClick={(e) => e.stopPropagation()}
                                                     onChange={(e) => setDraftKommentar(session.id, e.target.value)}
                                                     onKeyDown={(e) => { if (e.key === 'Enter') submitRating(session.id); }}
-                                                    className="w-full pl-9 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs outline-none focus:ring-2 focus:ring-indigo-100" />
+                                                    className="k-input pl-9 pr-4 py-2 text-xs bg-slate-800" />
                                             </div>
                                             <button onClick={(e) => { e.stopPropagation(); submitRating(session.id); }}
                                                 disabled={activeScore === 0 && !draft.kommentar.trim()}
-                                                className="flex items-center gap-1.5 px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-bold hover:bg-indigo-700 disabled:bg-slate-200 disabled:text-slate-400 disabled:cursor-not-allowed transition-all shadow-sm active:scale-95">
-                                                <Send className="w-3.5 h-3.5" /> Absenden
+                                                className="k-btn-primary px-4 py-2 text-xs shadow-sm active:scale-95">
+                                                <Send className="w-3.5 h-3.5 mr-1 inline" /> Absenden
                                             </button>
                                         </div>
                                     </div>
@@ -472,7 +472,7 @@ const CurationDashboard = ({
                                                 <>
                                                     <button
                                                         onClick={(e) => { e.stopPropagation(); setExpandedReviews(prev => ({ ...prev, [session.id]: !prev[session.id] })); }}
-                                                        className="flex items-center gap-2 text-[10px] font-black uppercase text-indigo-500 tracking-widest hover:text-indigo-700 transition-colors"
+                                                        className="flex items-center gap-2 k-caption text-[var(--k-accent-teal)] hover:text-white transition-colors"
                                                     >
                                                         {showReviews ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
                                                         {session._ratings.length} Bewertung{session._ratings.length !== 1 ? 'en' : ''} {showReviews ? 'ausblenden' : 'anzeigen'}
@@ -483,20 +483,20 @@ const CurationDashboard = ({
                                                                 const isMe = r.reviewer?.toLowerCase() === userEmail?.toLowerCase();
                                                                 const reviewerName = isMe ? 'Du' : (userNameMap[r.reviewer?.toLowerCase()] || r.reviewer || 'Anonym');
                                                                 return (
-                                                                    <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${isMe ? 'bg-indigo-50/50 border-indigo-100' : 'bg-slate-50/50 border-slate-100'}`}>
+                                                                    <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${isMe ? 'bg-[var(--k-accent-teal)]/10 border-[var(--k-accent-teal)]/30' : 'bg-white/5 border-white/10'}`}>
                                                                         <div className="flex gap-0.5 shrink-0 pt-0.5">
                                                                             {[1, 2, 3, 4, 5].map(s => (
-                                                                                <Star key={s} className={`w-3 h-3 ${r.score >= s ? 'text-amber-500 fill-amber-500' : 'text-slate-200'}`} />
+                                                                                <Star key={s} className={`w-3 h-3 ${r.score >= s ? 'text-amber-500 fill-amber-500' : 'text-slate-700'}`} />
                                                                             ))}
                                                                         </div>
                                                                         <div className="flex-1 min-w-0">
                                                                             <div className="flex items-center gap-2 mb-0.5">
-                                                                                <span className={`text-[10px] font-bold ${isMe ? 'text-indigo-600' : 'text-slate-600'}`}>{isMe ? '🟢 ' : ''}{reviewerName}</span>
-                                                                                {r.kategorie && <span className="text-[9px] text-slate-300 bg-slate-100 px-1.5 py-0.5 rounded">{r.kategorie}</span>}
-                                                                                <span className="text-[9px] text-slate-300">{r.timestamp ? new Date(r.timestamp).toLocaleDateString('de-DE') : ''}</span>
+                                                                                <span className={`text-[10px] font-bold ${isMe ? 'text-[var(--k-accent-teal)]' : 'text-white'}`}>{isMe ? '🟢 ' : ''}{reviewerName}</span>
+                                                                                {r.kategorie && <span className="text-[9px] text-slate-300 bg-white/10 px-1.5 py-0.5 rounded">{r.kategorie}</span>}
+                                                                                <span className="text-[9px] text-slate-400">{r.timestamp ? new Date(r.timestamp).toLocaleDateString('de-DE') : ''}</span>
                                                                             </div>
-                                                                            {r.kommentar && <p className="text-xs text-slate-600 leading-relaxed">{r.kommentar}</p>}
-                                                                            {!r.kommentar && <p className="text-[10px] text-slate-300 italic">Kein Kommentar</p>}
+                                                                            {r.kommentar && <p className="text-xs text-slate-300 leading-relaxed">{r.kommentar}</p>}
+                                                                            {!r.kommentar && <p className="text-[10px] text-slate-500 italic">Kein Kommentar</p>}
                                                                         </div>
                                                                     </div>
                                                                 );
@@ -520,7 +520,7 @@ const CurationDashboard = ({
                 })}
 
                 {processedSessions.length === 0 && (
-                    <div className="text-center py-20 text-slate-400">
+                    <div className="text-center py-20 text-white/40">
                         <Search className="w-12 h-12 mx-auto mb-3 opacity-30" />
                         <p className="font-bold">Keine Sessions gefunden</p>
                         <p className="text-xs mt-1">Passe die Filter oder die Suche an.</p>
@@ -530,37 +530,37 @@ const CurationDashboard = ({
 
             {/* SPEAKER POPUP */}
             {speakerPopup && (
-                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-6" onClick={() => setSpeakerPopup(null)}>
-                    <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 relative" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setSpeakerPopup(null)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 transition-colors">
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6" onClick={() => setSpeakerPopup(null)}>
+                    <div className="k-panel-glass text-white shadow-2xl border-white/10 max-w-md w-full p-6 relative" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setSpeakerPopup(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">
                             <X className="w-5 h-5" />
                         </button>
                         <div className="flex items-start gap-4 mb-4">
-                            <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center shrink-0">
-                                <User className="w-8 h-8 text-indigo-500" />
+                            <div className="w-16 h-16 bg-[var(--k-accent-teal)]/20 rounded-full flex items-center justify-center shrink-0">
+                                <User className="w-8 h-8 text-[var(--k-accent-teal)]" />
                             </div>
                             <div>
-                                <h3 className="font-extrabold text-slate-800 text-lg">{speakerPopup.fullName}</h3>
-                                {speakerPopup.pronoun && <span className="text-xs text-slate-400">({speakerPopup.pronoun})</span>}
-                                {speakerPopup.organisation && <p className="text-sm text-indigo-600 font-bold mt-0.5">{speakerPopup.organisation}</p>}
+                                <h3 className="font-extrabold text-white text-lg">{speakerPopup.fullName}</h3>
+                                {speakerPopup.pronoun && <span className="k-caption">({speakerPopup.pronoun})</span>}
+                                {speakerPopup.organisation && <p className="k-body font-bold mt-0.5 text-[var(--k-accent-teal)]">{speakerPopup.organisation}</p>}
                             </div>
                         </div>
                         {speakerPopup.bio ? (
                             <div className="mb-4">
-                                <h4 className="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Bio</h4>
-                                <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap">{speakerPopup.bio}</p>
+                                <h4 className="k-caption mb-2">Bio</h4>
+                                <p className="k-body text-white/80 leading-relaxed whitespace-pre-wrap">{speakerPopup.bio}</p>
                             </div>
                         ) : (
-                            <p className="text-sm text-slate-300 italic mb-4">Keine Bio hinterlegt.</p>
+                            <p className="k-caption italic mb-4">Keine Bio hinterlegt.</p>
                         )}
-                        <div className="flex flex-wrap gap-3 text-xs text-slate-500">
+                        <div className="flex flex-wrap gap-3 text-xs text-slate-400">
                             {speakerPopup.email && (
-                                <a href={`mailto:${speakerPopup.email}`} className="flex items-center gap-1 text-indigo-600 hover:underline">
+                                <a href={`mailto:${speakerPopup.email}`} className="flex items-center gap-1 text-[var(--k-accent-teal)] hover:underline">
                                     ✉️ {speakerPopup.email}
                                 </a>
                             )}
                             {speakerPopup.webseite && (
-                                <a href={speakerPopup.webseite} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-indigo-600 hover:underline">
+                                <a href={speakerPopup.webseite} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-[var(--k-accent-teal)] hover:underline">
                                     🌐 Webseite
                                 </a>
                             )}
@@ -568,9 +568,9 @@ const CurationDashboard = ({
                             {speakerPopup.sprache && <span>🗣️ {speakerPopup.sprache}</span>}
                         </div>
                         {speakerPopup.status && (
-                            <div className="mt-3 pt-3 border-t border-slate-100">
-                                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Status: </span>
-                                <span className="text-xs font-bold text-slate-600">{speakerPopup.status}</span>
+                            <div className="mt-3 pt-3 border-t border-white/10">
+                                <span className="k-caption">Status: </span>
+                                <span className="k-body font-bold text-white ml-2">{speakerPopup.status}</span>
                             </div>
                         )}
                     </div>

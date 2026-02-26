@@ -84,10 +84,10 @@ const SpeakerRegistration = ({ n8nBaseUrl, accessToken, onSuccess, registeredBy 
     };
 
     return (
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 max-w-lg mx-auto">
+        <div className="k-panel-glass text-white border-white/10 p-6 max-w-lg mx-auto">
             <div className="flex items-center gap-3 mb-6">
-                <UserPlus className="w-6 h-6 text-indigo-600" />
-                <h2 className="text-xl font-bold text-slate-800">Speaker Registrierung</h2>
+                <UserPlus className="w-6 h-6 text-[var(--k-accent-teal)]" />
+                <h2 className="k-h2">Speaker Registrierung</h2>
             </div>
 
             {/* Dummy Toggle */}
@@ -96,9 +96,9 @@ const SpeakerRegistration = ({ n8nBaseUrl, accessToken, onSuccess, registeredBy 
                     type="checkbox"
                     checked={form.isDummy}
                     onChange={e => handleChange('isDummy', e.target.checked)}
-                    className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                    className="rounded border-slate-700 bg-slate-800 text-[var(--k-accent-teal)] focus:ring-[var(--k-accent-teal)]"
                 />
-                <span className="text-sm text-slate-600">
+                <span className="text-sm text-white/70">
                     Platzhalter-Speaker (Dummy) — Daten werden später ergänzt
                 </span>
             </label>
@@ -107,7 +107,7 @@ const SpeakerRegistration = ({ n8nBaseUrl, accessToken, onSuccess, registeredBy 
                 {/* Row: Vorname + Nachname */}
                 <div className="grid grid-cols-2 gap-3">
                     <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">
+                        <label className="k-caption tracking-widest block mb-1">
                             Vorname <span className="text-red-500">*</span>
                         </label>
                         <input
@@ -115,18 +115,18 @@ const SpeakerRegistration = ({ n8nBaseUrl, accessToken, onSuccess, registeredBy 
                             value={form.vorname}
                             onChange={e => handleChange('vorname', e.target.value)}
                             placeholder={form.isDummy ? 'z.B. TBD' : 'Maria'}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            className="w-full k-input px-3 py-2 text-sm"
                             required
                         />
                     </div>
                     <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">Nachname</label>
+                        <label className="k-caption tracking-widest block mb-1">Nachname</label>
                         <input
                             type="text"
                             value={form.nachname}
                             onChange={e => handleChange('nachname', e.target.value)}
                             placeholder={form.isDummy ? 'Panel-Klima' : 'Müller'}
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            className="w-full k-input px-3 py-2 text-sm"
                         />
                     </div>
                 </div>
@@ -134,7 +134,7 @@ const SpeakerRegistration = ({ n8nBaseUrl, accessToken, onSuccess, registeredBy 
                 {/* E-Mail (hidden for dummy) */}
                 {!form.isDummy && (
                     <div>
-                        <label className="block text-xs font-medium text-slate-500 mb-1">
+                        <label className="k-caption tracking-widest block mb-1">
                             E-Mail <span className="text-red-500">*</span>
                         </label>
                         <input
@@ -142,7 +142,7 @@ const SpeakerRegistration = ({ n8nBaseUrl, accessToken, onSuccess, registeredBy 
                             value={form.email}
                             onChange={e => handleChange('email', e.target.value)}
                             placeholder="speaker@example.com"
-                            className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                            className="w-full k-input px-3 py-2 text-sm"
                             required={!form.isDummy}
                         />
                     </div>
@@ -150,11 +150,11 @@ const SpeakerRegistration = ({ n8nBaseUrl, accessToken, onSuccess, registeredBy 
 
                 {/* Pronomen */}
                 <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">Pronomen</label>
+                    <label className="k-caption tracking-widest block mb-1">Pronomen</label>
                     <select
                         value={form.pronomen}
                         onChange={e => handleChange('pronomen', e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                        className="w-full k-input px-3 py-2 text-sm"
                     >
                         <option value="">— wählen —</option>
                         <option value="sie/ihr">sie/ihr</option>
@@ -168,41 +168,41 @@ const SpeakerRegistration = ({ n8nBaseUrl, accessToken, onSuccess, registeredBy 
                 {!form.isDummy && (
                     <>
                         <div>
-                            <label className="block text-xs font-medium text-slate-500 mb-1">Organisation</label>
+                            <label className="k-caption tracking-widest block mb-1">Organisation</label>
                             <input
                                 type="text"
                                 value={form.organisation}
                                 onChange={e => handleChange('organisation', e.target.value)}
                                 placeholder="z.B. TU Berlin"
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                                className="w-full k-input px-3 py-2 text-sm"
                             />
                         </div>
                         <div>
-                            <label className="block text-xs font-medium text-slate-500 mb-1">Kurze Biografie</label>
+                            <label className="k-caption tracking-widest block mb-1">Kurze Biografie</label>
                             <textarea
                                 value={form.bio}
                                 onChange={e => handleChange('bio', e.target.value)}
                                 placeholder="Max. 300 Zeichen..."
                                 maxLength={300}
                                 rows={3}
-                                className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
+                                className="w-full k-input px-3 py-2 text-sm resize-none"
                             />
-                            <span className="text-xs text-slate-400">{form.bio.length}/300</span>
+                            <span className="text-xs text-white/40">{form.bio.length}/300</span>
                         </div>
                     </>
                 )}
 
                 {/* Status Messages */}
                 {status.error && (
-                    <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-200 rounded-lg">
-                        <AlertCircle className="w-4 h-4 text-red-600 mt-0.5 flex-shrink-0" />
-                        <span className="text-sm text-red-800">{status.error}</span>
+                    <div className="flex items-start gap-2 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
+                        <AlertCircle className="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" />
+                        <span className="text-sm text-red-200">{status.error}</span>
                     </div>
                 )}
                 {status.success && (
-                    <div className="flex items-start gap-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                        <CheckCircle2 className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                        <span className="text-sm text-green-800">{status.success}</span>
+                    <div className="flex items-start gap-2 p-3 bg-emerald-900/20 border border-emerald-500/30 rounded-lg">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400 mt-0.5 flex-shrink-0" />
+                        <span className="text-sm text-emerald-200">{status.success}</span>
                     </div>
                 )}
 
@@ -210,7 +210,7 @@ const SpeakerRegistration = ({ n8nBaseUrl, accessToken, onSuccess, registeredBy 
                 <button
                     type="submit"
                     disabled={status.loading}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white font-medium py-2.5 px-4 rounded-lg flex items-center justify-center gap-2 transition-colors"
+                    className="w-full k-btn-primary py-2.5 flex items-center justify-center gap-2"
                 >
                     {status.loading ? (
                         <><Loader2 className="w-4 h-4 animate-spin" /> Wird registriert...</>

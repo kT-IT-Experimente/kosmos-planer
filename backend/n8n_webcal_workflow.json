@@ -1,0 +1,245 @@
+{
+    "name": "Kosmos - WebCal Feed & Favorites",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "GET",
+                "path": "calendar/:user_id",
+                "responseMode": "lastNode",
+                "options": {}
+            },
+            "id": "1",
+            "name": "Webhook - WebCal GET",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                0,
+                0
+            ],
+            "webhookId": "kosmos-webcal-get"
+        },
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "webcal/toggle",
+                "responseMode": "onReceived",
+                "options": {}
+            },
+            "id": "2",
+            "name": "Webhook - WebCal Toggle",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                0,
+                200
+            ],
+            "webhookId": "kosmos-webcal-toggle"
+        },
+        {
+            "parameters": {
+                "operation": "appendOrUpdate",
+                "documentId": {
+                    "__rl": true,
+                    "value": "1u12ILaBSj5B3Iy3yh6DYyanSIp7UQjimOBw61yYVmME",
+                    "mode": "id"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "User_Favorites",
+                    "mode": "list"
+                },
+                "columns": {
+                    "mappingMode": "defineBelow",
+                    "value": {
+                        "UserEmail": "={{ $json.body.userId }}",
+                        "SessionID": "={{ $json.body.sessionId }}",
+                        "SessionTitle": "={{ $json.body.sessionTitle }}",
+                        "Action": "={{ $json.body.action }}",
+                        "Timestamp": "={{ $now }}"
+                    }
+                },
+                "options": {}
+            },
+            "id": "3",
+            "name": "Store Favorite in Sheet",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.1,
+            "position": [
+                220,
+                200
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "getAll",
+                "documentId": {
+                    "__rl": true,
+                    "value": "1u12ILaBSj5B3Iy3yh6DYyanSIp7UQjimOBw61yYVmME",
+                    "mode": "id"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "User_Favorites",
+                    "mode": "list"
+                },
+                "options": {}
+            },
+            "id": "4",
+            "name": "Get User Favorites",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.1,
+            "position": [
+                220,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const favorites = items.filter(item => item.json.UserEmail === $('Webhook - WebCal GET').item.json.params.user_id);\nconst activeIds = new Set();\nfavorites.forEach(f => {\n  if (f.json.Action === 'add') activeIds.add(f.json.SessionID);\n  else if (f.json.Action === 'remove') activeIds.delete(f.json.SessionID);\n});\nreturn [{ json: { favoriteSessionIds: Array.from(activeIds) } }];"
+            },
+            "id": "5",
+            "name": "Calculate Active Favorites",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                440,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "getAll",
+                "documentId": {
+                    "__rl": true,
+                    "value": "1u12ILaBSj5B3Iy3yh6DYyanSIp7UQjimOBw61yYVmME",
+                    "mode": "id"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "Master_Einreichungen",
+                    "mode": "list"
+                },
+                "options": {}
+            },
+            "id": "6",
+            "name": "Get All Sessions",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.1,
+            "position": [
+                660,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const activeIds = $('Calculate Active Favorites').item.json.favoriteSessionIds;\nconst sessions = items.filter(i => activeIds.includes(i.json.Session_ID));\n\nlet icsContent = 'BEGIN:VCALENDAR\\nVERSION:2.0\\nPRODID:-//Kosmos Planer//WebCal//DE\\nCALSCALE:GREGORIAN\\nMETHOD:PUBLISH\\nX-WR-CALNAME:Kosmos Favoriten\\n';\n\nsessions.forEach(item => {\n  const s = item.json;\n  const prefix = s.Status === 'Canceled' ? '[ABGESAGT] ' : '';\n  \n  icsContent += 'BEGIN:VEVENT\\n';\n  icsContent += `DTSTART;TZID=Europe/Berlin:${s.Start_Time.replace(/[-:]/g, '')}\\n`;\n  icsContent += `DTEND;TZID=Europe/Berlin:${s.End_Time.replace(/[-:]/g, '')}\\n`;\n  icsContent += `SUMMARY:${prefix}${s.Session_Title || s.Session_ID}\\n`;\n  icsContent += `LOCATION:${s.Stage_Name || ''}\\n`;\n  icsContent += `DESCRIPTION:${s.Description_Full || ''}\\n`;\n  icsContent += `UID:${s.Session_ID}@kosmos-planer.local\\n`;\n  if (s.Status === 'Canceled') icsContent += 'STATUS:CANCELLED\\n';\n  icsContent += 'END:VEVENT\\n';\n});\n\nicsContent += 'END:VCALENDAR';\n\nreturn [{ json: { ics: icsContent } }];"
+            },
+            "id": "7",
+            "name": "Generate ICS",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                860,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "text",
+                "responseBody": "={{ $json.ics }}",
+                "options": {
+                    "responseHeaders": {
+                        "entries": [
+                            {
+                                "name": "Content-Type",
+                                "value": "text/calendar; charset=utf-8"
+                            },
+                            {
+                                "name": "Content-Disposition",
+                                "value": "attachment; filename=\"kosmos_favorites.ics\""
+                            }
+                        ]
+                    }
+                }
+            },
+            "id": "8",
+            "name": "Respond WebCal",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1.1,
+            "position": [
+                1080,
+                0
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook - WebCal GET": {
+            "main": [
+                [
+                    {
+                        "node": "Get User Favorites",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get User Favorites": {
+            "main": [
+                [
+                    {
+                        "node": "Calculate Active Favorites",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Calculate Active Favorites": {
+            "main": [
+                [
+                    {
+                        "node": "Get All Sessions",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get All Sessions": {
+            "main": [
+                [
+                    {
+                        "node": "Generate ICS",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate ICS": {
+            "main": [
+                [
+                    {
+                        "node": "Respond WebCal",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Webhook - WebCal Toggle": {
+            "main": [
+                [
+                    {
+                        "node": "Store Favorite in Sheet",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {}
+}

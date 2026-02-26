@@ -1,0 +1,229 @@
+{
+    "name": "Kosmos - Graphics Pipeline",
+    "nodes": [
+        {
+            "parameters": {
+                "httpMethod": "POST",
+                "path": "export-graphics",
+                "responseMode": "onReceived",
+                "options": {}
+            },
+            "id": "1",
+            "name": "Webhook - Export Graphics",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1.1,
+            "position": [
+                0,
+                0
+            ],
+            "webhookId": "kosmos-export-graphics"
+        },
+        {
+            "parameters": {
+                "operation": "getAll",
+                "documentId": {
+                    "__rl": true,
+                    "value": "1u12ILaBSj5B3Iy3yh6DYyanSIp7UQjimOBw61yYVmME",
+                    "mode": "id"
+                },
+                "sheetName": {
+                    "__rl": true,
+                    "value": "Master_Einreichungen",
+                    "mode": "list"
+                },
+                "options": {}
+            },
+            "id": "2",
+            "name": "Get Sessions",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 4.1,
+            "position": [
+                220,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "read",
+                "fileSelector": "/app/templates/SessionBoard.html",
+                "options": {}
+            },
+            "id": "3",
+            "name": "Read Title Board Template",
+            "type": "n8n-nodes-base.readWriteFile",
+            "typeVersion": 1,
+            "position": [
+                440,
+                -100
+            ]
+        },
+        {
+            "parameters": {
+                "operation": "read",
+                "fileSelector": "/app/templates/LowerThird.html",
+                "options": {}
+            },
+            "id": "4",
+            "name": "Read Lower Third Template",
+            "type": "n8n-nodes-base.readWriteFile",
+            "typeVersion": 1,
+            "position": [
+                440,
+                100
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "const sessions = $('Get Sessions').all()[0].json;\nconst boardTpl = $('Read Title Board Template').item.binary.data;\nconst lowerTpl = $('Read Lower Third Template').item.binary.data;\n\n// Basic string replacement for demo\nreturn sessions.map(s => {\n  let boardHtml = Buffer.from(boardTpl, 'base64').toString()\n    .replace('{{SESSION_TITLE}}', s.json.Session_Title || '')\n    .replace('{{SPEAKER_NAME}}', s.json.Speaker_Names || '')\n    .replace('{{SPEAKER_ORG}}', s.json.Speaker_Organizations || '')\n    .replace('{{STAGE_NAME}}', s.json.Stage_Name || '')\n    .replace('{{LANGUAGE}}', s.json.Language || '');\n\n  let lowerHtml = Buffer.from(lowerTpl, 'base64').toString()\n    .replace('{{SESSION_TITLE}}', s.json.Session_Title || '')\n    .replace('{{SPEAKER_NAME}}', s.json.Speaker_Names || '')\n    .replace('{{SPEAKER_ORG}}', s.json.Speaker_Organizations || '')\n    .replace('{{LANGUAGE}}', s.json.Language || '');\n\n  return { json: { htmlBoard: boardHtml, htmlLower: lowerHtml, sessionId: s.json.Session_ID } };\n});"
+            },
+            "id": "5",
+            "name": "Merge Templates",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                660,
+                0
+            ]
+        },
+        {
+            "parameters": {
+                "options": {
+                    "resolution": "1920x1080",
+                    "transparentBackground": true
+                }
+            },
+            "id": "6",
+            "name": "Generate Board PNG",
+            "type": "n8n-nodes-base.htmlToImage",
+            "typeVersion": 1,
+            "position": [
+                860,
+                -100
+            ]
+        },
+        {
+            "parameters": {
+                "options": {
+                    "resolution": "1920x1080",
+                    "transparentBackground": true
+                }
+            },
+            "id": "7",
+            "name": "Generate Lower Third PNG",
+            "type": "n8n-nodes-base.htmlToImage",
+            "typeVersion": 1,
+            "position": [
+                860,
+                100
+            ]
+        },
+        {
+            "parameters": {
+                "sendTo": "={{ $('Webhook - Export Graphics').item.json.body.requesterEmail }}",
+                "subject": "Deine angeforderten Grafiken (Kosmos)",
+                "message": "Hallo,\\n\\nangehängt findest du die generierten Grafiken.\\n\\nViele Grüße,\\nDein Kosmos Team",
+                "attachments": "dataPropertyName",
+                "options": {}
+            },
+            "id": "8",
+            "name": "Send Email with Graphics",
+            "type": "n8n-nodes-base.gmail",
+            "typeVersion": 2,
+            "position": [
+                1080,
+                0
+            ]
+        }
+    ],
+    "connections": {
+        "Webhook - Export Graphics": {
+            "main": [
+                [
+                    {
+                        "node": "Get Sessions",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Get Sessions": {
+            "main": [
+                [
+                    {
+                        "node": "Read Title Board Template",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Read Lower Third Template",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Read Title Board Template": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Templates",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Read Lower Third Template": {
+            "main": [
+                [
+                    {
+                        "node": "Merge Templates",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Merge Templates": {
+            "main": [
+                [
+                    {
+                        "node": "Generate Board PNG",
+                        "type": "main",
+                        "index": 0
+                    },
+                    {
+                        "node": "Generate Lower Third PNG",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate Board PNG": {
+            "main": [
+                [
+                    {
+                        "node": "Send Email with Graphics",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate Lower Third PNG": {
+            "main": [
+                [
+                    {
+                        "node": "Send Email with Graphics",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {}
+}

@@ -1,0 +1,163 @@
+{
+    "name": "Kosmos Planer - Public WebCal Export",
+    "nodes": [
+        {
+            "parameters": {
+                "path": "webcal/public",
+                "responseMode": "lastNode",
+                "options": {}
+            },
+            "id": "e1f1c243-d2d8-4f80-b2dd-c0bc43f11d13",
+            "name": "Webhook - Public WebCal",
+            "type": "n8n-nodes-base.webhook",
+            "typeVersion": 1,
+            "position": [
+                200,
+                300
+            ],
+            "webhookId": "kosmos-public-webcal-12345"
+        },
+        {
+            "parameters": {
+                "operation": "getAll",
+                "spreadsheetId": "YOUR_SPREADSHEET_ID_HERE",
+                "sheetName": "Master_Einreichungen",
+                "options": {}
+            },
+            "id": "b0f7d54a-a436-4078-bec2-7b0b6cf68ebb",
+            "name": "Read Master_Einreichungen",
+            "type": "n8n-nodes-base.googleSheets",
+            "typeVersion": 3,
+            "position": [
+                420,
+                300
+            ],
+            "credentials": {
+                "googleSheetsOAuth2Api": {
+                    "id": "YOUR_CREDENTIALS_ID_HERE",
+                    "name": "Google Sheets account"
+                }
+            }
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "string": [
+                        {
+                            "value1": "={{ $json.Status }}",
+                            "value2": "Fixiert"
+                        },
+                        {
+                            "value1": "={{ $json.Veröffentlicht || $json['Col X'] || $json.isPublished }}",
+                            "value2": "TRUE"
+                        }
+                    ]
+                }
+            },
+            "id": "c1a2db34-b258-45e0-81df-1d8cfbb181fa",
+            "name": "Filter Published Only",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 1,
+            "position": [
+                640,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "jsCode": "let icsContent = 'BEGIN:VCALENDAR\\nVERSION:2.0\\nPRODID:-//Kosmos Festival//Planer//DE\\nCALSCALE:GREGORIAN\\n';\n\nfor (const item of $input.all()) {\n  const session = item.json;\n  // Convert date strings to iCal format (assuming DD.MM. YYYY HH:mm or similar parsing here)\n  // Example values:\n  const id = session.ID || session.Session_ID || Math.random().toString(36);\n  const title = session.Titel || 'Unbenannte Session';\n  const desc = session.Kurzbeschreibung || session.Beschreibung || '';\n  const stage = session.Bühne || '';\n  \n  // For a real implementation, parse 'Startzeit' and 'Endzeit' properly into YYYYMMDDTHHMMSS format\n  const dtStart = '20250920T100000Z'; // DUMMY\n  const dtEnd = '20250920T110000Z';   // DUMMY\n\n  icsContent += 'BEGIN:VEVENT\\n';\n  icsContent += `UID:${id}@kosmos-festival.de\\n`;\n  icsContent += `SUMMARY:${title}\\n`;\n  icsContent += `DESCRIPTION:${desc}\\n`;\n  icsContent += `LOCATION:${stage}\\n`;\n  icsContent += `DTSTART:${dtStart}\\n`;\n  icsContent += `DTEND:${dtEnd}\\n`;\n  icsContent += 'END:VEVENT\\n';\n}\n\nicsContent += 'END:VCALENDAR';\n\nreturn [\n  {\n    json: {},\n    binary: {\n      data: {\n        data: Buffer.from(icsContent).toString('base64'),\n        mimeType: 'text/calendar',\n        fileName: 'kosmos-programm.ics'\n      }\n    }\n  }\n];"
+            },
+            "id": "d0f413ad-abcf-4d37-9bd0-f9abedbfcf73",
+            "name": "Generate ICS Generator",
+            "type": "n8n-nodes-base.code",
+            "typeVersion": 2,
+            "position": [
+                860,
+                280
+            ]
+        },
+        {
+            "parameters": {
+                "respondWith": "binary",
+                "options": {
+                    "responseHeaders": {
+                        "entries": [
+                            {
+                                "name": "Content-Type",
+                                "value": "text/calendar; charset=utf-8"
+                            },
+                            {
+                                "name": "Content-Disposition",
+                                "value": "attachment; filename=\"kosmos-programm.ics\""
+                            }
+                        ]
+                    }
+                }
+            },
+            "id": "f5e921b1-6a2f-4a0b-8012-4fb0dbf11d61",
+            "name": "Respond ICS",
+            "type": "n8n-nodes-base.respondToWebhook",
+            "typeVersion": 1,
+            "position": [
+                1080,
+                280
+            ]
+        }
+    ],
+    "pinData": {},
+    "connections": {
+        "Webhook - Public WebCal": {
+            "main": [
+                [
+                    {
+                        "node": "Read Master_Einreichungen",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Read Master_Einreichungen": {
+            "main": [
+                [
+                    {
+                        "node": "Filter Published Only",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Filter Published Only": {
+            "main": [
+                [
+                    {
+                        "node": "Generate ICS Generator",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Generate ICS Generator": {
+            "main": [
+                [
+                    {
+                        "node": "Respond ICS",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "active": false,
+    "settings": {
+        "executionOrder": "v1"
+    },
+    "versionId": "f064dbef-e51c-4b57-9db6-7b83d1ba6bfe",
+    "meta": {
+        "instanceId": "6c40e1e94cfdded3d1872147ea414c7c8c36cf0da28a0ca4e00b8e734bcfe4d8"
+    },
+    "tags": []
+}
