@@ -162,7 +162,7 @@ const CurationDashboard = ({
                 <div className="flex-1 min-w-[250px]">
                     <label className="k-caption mb-1.5 block">Suche</label>
                     <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#161616]/40 w-4 h-4" />
                         <input type="text" className="k-input pl-10 text-sm py-2.5"
                             placeholder="Titel, Speaker, ID..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
                     </div>
@@ -228,7 +228,7 @@ const CurationDashboard = ({
                                                     onClick={(e) => { e.stopPropagation(); const sp = findSpeaker(name); setSpeakerPopup(sp || { fullName: name }); }}
                                                     className="hover:underline hover:text-white transition-colors"
                                                 >{name}</button>
-                                                {i < speakerNames.length - 1 && <span className="text-slate-500 mx-0.5">·</span>}
+                                                {i < speakerNames.length - 1 && <span className="text-[#161616]/60 mx-0.5">·</span>}
                                             </span>
                                         ))}
                                     </div>
@@ -250,7 +250,7 @@ const CurationDashboard = ({
                                     </div>
 
                                     {/* Meta info */}
-                                    <div className="flex flex-col items-center gap-0.5 text-[9px] text-slate-400">
+                                    <div className="flex flex-col items-center gap-0.5 text-[9px] text-[#161616]/40">
                                         {session.duration && <span className="flex items-center gap-0.5"><Clock className="w-3 h-3" /> {session.duration}′</span>}
                                         {session.language && <span className="flex items-center gap-0.5"><Globe className="w-3 h-3" /> {session.language}</span>}
                                     </div>
@@ -264,11 +264,11 @@ const CurationDashboard = ({
                                                         'bg-red-500/20 border-red-500/50 text-red-400'}`}>
                                                     {session.average_score}
                                                 </div>
-                                            ) : <div className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-400 border-2 border-white/10 text-sm">—</div>
+                                            ) : <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[#161616]/40 border-2 border-white/10 text-sm">—</div>
                                         ) : (
-                                            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-slate-400 border-2 border-white/10 text-sm" title="Erst nach eigener Bewertung sichtbar">?</div>
+                                            <div className="w-11 h-11 rounded-xl flex items-center justify-center text-[#161616]/40 border-2 border-white/10 text-sm" title="Erst nach eigener Bewertung sichtbar">?</div>
                                         )}
-                                        <span className="text-[9px] text-slate-400 font-bold mt-0.5 block">{session.review_count || 0} Rev.</span>
+                                        <span className="text-[9px] text-[#161616]/40 font-bold mt-0.5 block">{session.review_count || 0} Rev.</span>
                                     </div>
 
                                     {/* My stars (compact preview) */}
@@ -284,7 +284,7 @@ const CurationDashboard = ({
                                         {session.status}
                                     </span>
 
-                                    {isExpanded ? <ChevronUp className="w-5 h-5 text-[var(--k-accent-teal)]" /> : <ChevronDown className="w-5 h-5 text-slate-400" />}
+                                    {isExpanded ? <ChevronUp className="w-5 h-5 text-[var(--k-accent-teal)]" /> : <ChevronDown className="w-5 h-5 text-[#161616]/40" />}
                                 </div>
                             </div>
 
@@ -303,7 +303,7 @@ const CurationDashboard = ({
 
                                     {/* Submitter info */}
                                     {(session.submitterName || session.submitterEmail) && (
-                                        <div className="mx-5 mt-3 flex items-center gap-2 k-caption text-slate-400">
+                                        <div className="mx-5 mt-3 flex items-center gap-2 k-caption text-[#161616]/40">
                                             <Send className="w-3 h-3 shrink-0" />
                                             <span>Eingereicht von: </span>
                                             <button
@@ -362,9 +362,9 @@ const CurationDashboard = ({
                                                     { field: 'thema', label: 'Thema', options: config.themen }
                                                 ].map(({ field, label, options }) => (
                                                     <div key={field} className="flex flex-col">
-                                                        <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1">{label}</span>
+                                                        <span className="text-[9px] font-bold text-[#161616]/40 uppercase tracking-widest mb-1">{label}</span>
                                                         <select
-                                                            className="k-input p-1.5 text-xs bg-slate-800"
+                                                            className="k-input p-1.5 text-xs bg-[#161616]"
                                                             value={session[field] || ''}
                                                             onChange={(e) => { onUpdateMetadata(session.id, field, e.target.value); }}
                                                         >
@@ -403,7 +403,7 @@ const CurationDashboard = ({
                                                     type="text"
                                                     list={`tags-list-${session.id}`}
                                                     placeholder="Tag hinzufügen..."
-                                                    className="k-input px-3 py-1.5 text-xs bg-slate-800"
+                                                    className="k-input px-3 py-1.5 text-xs bg-[#161616]"
                                                     onClick={(e) => e.stopPropagation()}
                                                     onKeyDown={(e) => {
                                                         if (e.key === 'Enter' && e.target.value.trim()) {
@@ -444,18 +444,18 @@ const CurationDashboard = ({
                                                 {[1, 2, 3, 4, 5].map(star => (
                                                     <button key={star}
                                                         onClick={(e) => { e.stopPropagation(); setDraftScore(session.id, star); }}
-                                                        className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border ${activeScore >= star ? 'bg-amber-500/20 border-amber-500/50 text-amber-500' : 'bg-slate-800 border-slate-700 text-slate-500 hover:border-amber-500/50 hover:text-amber-400'}`}>
+                                                        className={`w-9 h-9 rounded-lg flex items-center justify-center transition-all hover:scale-110 active:scale-95 border ${activeScore >= star ? 'bg-amber-500/20 border-amber-500/50 text-amber-500' : 'bg-[#161616] border-slate-700 text-[#161616]/60 hover:border-amber-500/50 hover:text-amber-400'}`}>
                                                         <Star className={`w-4 h-4 ${activeScore >= star ? 'fill-current' : ''}`} />
                                                     </button>
                                                 ))}
                                             </div>
                                             <div className="flex-1 relative">
-                                                <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" />
+                                                <MessageSquare className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-[#161616]/40" />
                                                 <input type="text" placeholder="Kommentar zur Bewertung..."
                                                     value={draft.kommentar} onClick={(e) => e.stopPropagation()}
                                                     onChange={(e) => setDraftKommentar(session.id, e.target.value)}
                                                     onKeyDown={(e) => { if (e.key === 'Enter') submitRating(session.id); }}
-                                                    className="k-input pl-9 pr-4 py-2 text-xs bg-slate-800" />
+                                                    className="k-input pl-9 pr-4 py-2 text-xs bg-[#161616]" />
                                             </div>
                                             <button onClick={(e) => { e.stopPropagation(); submitRating(session.id); }}
                                                 disabled={activeScore === 0 && !draft.kommentar.trim()}
@@ -486,17 +486,17 @@ const CurationDashboard = ({
                                                                     <div key={i} className={`flex items-start gap-3 p-3 rounded-lg border ${isMe ? 'bg-[var(--k-accent-teal)]/10 border-[var(--k-accent-teal)]/30' : 'bg-white/5 border-white/10'}`}>
                                                                         <div className="flex gap-0.5 shrink-0 pt-0.5">
                                                                             {[1, 2, 3, 4, 5].map(s => (
-                                                                                <Star key={s} className={`w-3 h-3 ${r.score >= s ? 'text-amber-500 fill-amber-500' : 'text-slate-700'}`} />
+                                                                                <Star key={s} className={`w-3 h-3 ${r.score >= s ? 'text-amber-500 fill-amber-500' : 'text-[#161616]/90'}`} />
                                                                             ))}
                                                                         </div>
                                                                         <div className="flex-1 min-w-0">
                                                                             <div className="flex items-center gap-2 mb-0.5">
                                                                                 <span className={`text-[10px] font-bold ${isMe ? 'text-[var(--k-accent-teal)]' : 'text-white'}`}>{isMe ? '🟢 ' : ''}{reviewerName}</span>
                                                                                 {r.kategorie && <span className="text-[9px] text-slate-300 bg-white/10 px-1.5 py-0.5 rounded">{r.kategorie}</span>}
-                                                                                <span className="text-[9px] text-slate-400">{r.timestamp ? new Date(r.timestamp).toLocaleDateString('de-DE') : ''}</span>
+                                                                                <span className="text-[9px] text-[#161616]/40">{r.timestamp ? new Date(r.timestamp).toLocaleDateString('de-DE') : ''}</span>
                                                                             </div>
                                                                             {r.kommentar && <p className="text-xs text-slate-300 leading-relaxed">{r.kommentar}</p>}
-                                                                            {!r.kommentar && <p className="text-[10px] text-slate-500 italic">Kein Kommentar</p>}
+                                                                            {!r.kommentar && <p className="text-[10px] text-[#161616]/60 italic">Kein Kommentar</p>}
                                                                         </div>
                                                                     </div>
                                                                 );
@@ -532,7 +532,7 @@ const CurationDashboard = ({
             {speakerPopup && (
                 <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-6" onClick={() => setSpeakerPopup(null)}>
                     <div className="k-panel-glass text-white shadow-2xl border-white/10 max-w-md w-full p-6 relative" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => setSpeakerPopup(null)} className="absolute top-4 right-4 text-slate-400 hover:text-white transition-colors">
+                        <button onClick={() => setSpeakerPopup(null)} className="absolute top-4 right-4 text-[#161616]/40 hover:text-white transition-colors">
                             <X className="w-5 h-5" />
                         </button>
                         <div className="flex items-start gap-4 mb-4">
@@ -553,7 +553,7 @@ const CurationDashboard = ({
                         ) : (
                             <p className="k-caption italic mb-4">Keine Bio hinterlegt.</p>
                         )}
-                        <div className="flex flex-wrap gap-3 text-xs text-slate-400">
+                        <div className="flex flex-wrap gap-3 text-xs text-[#161616]/40">
                             {speakerPopup.email && (
                                 <a href={`mailto:${speakerPopup.email}`} className="flex items-center gap-1 text-[var(--k-accent-teal)] hover:underline">
                                     ✉️ {speakerPopup.email}

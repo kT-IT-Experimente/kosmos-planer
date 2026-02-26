@@ -283,12 +283,12 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                     {/* Speaker visibility toggle */}
                     <div className="flex items-center gap-3 p-3 bg-black/20 rounded-lg border border-white/10">
                         <button onClick={() => handleChange('auswaehlbar', !form.auswaehlbar)}
-                            className={`relative w-11 h-6 rounded-full transition-colors ${form.auswaehlbar ? 'bg-[var(--k-accent-teal)]' : 'bg-slate-700'}`}>
+                            className={`relative w-11 h-6 rounded-full transition-colors ${form.auswaehlbar ? 'bg-[var(--k-accent-teal)]' : 'bg-[#161616]'}`}>
                             <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${form.auswaehlbar ? 'translate-x-5' : ''}`} />
                         </button>
                         <div className="flex-1">
                             <span className="text-sm font-bold text-white flex items-center gap-1.5">
-                                {form.auswaehlbar ? <Eye className="w-4 h-4 text-[var(--k-accent-teal)]" /> : <EyeOff className="w-4 h-4 text-slate-500" />}
+                                {form.auswaehlbar ? <Eye className="w-4 h-4 text-[var(--k-accent-teal)]" /> : <EyeOff className="w-4 h-4 text-[#161616]/60" />}
                                 Als SprecherIn auswählbar
                             </span>
                             <p className="text-xs text-white/50 mt-0.5">
@@ -300,7 +300,7 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                     {/* Save */}
                     <div className="pt-2 flex items-center gap-3">
                         <button onClick={handleSave} disabled={saving || (!hasChanges && !isNew) || (!form.vorname && !form.nachname)}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-sm active:scale-95 ${(hasChanges || isNew) && (form.vorname || form.nachname) ? 'k-btn-primary' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}>
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-sm active:scale-95 ${(hasChanges || isNew) && (form.vorname || form.nachname) ? 'k-btn-primary' : 'bg-[#161616] text-[#161616]/60 cursor-not-allowed'}`}>
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : isNew ? <UserPlus className="w-4 h-4" /> : <Save className="w-4 h-4" />}
                             {saving ? 'Wird gespeichert...' : isNew ? 'Profil anlegen' : 'Profil speichern'}
                         </button>

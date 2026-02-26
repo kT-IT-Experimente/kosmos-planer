@@ -287,7 +287,7 @@ const SessionSubmission = ({
                                     <label key={lang} className="flex items-center gap-2 text-sm cursor-pointer text-white hover:text-[var(--k-accent-teal)] transition-colors">
                                         <input type="radio" name="sprache" value={lang} checked={form.sprache === lang}
                                             onChange={() => handleChange('sprache', lang)}
-                                            className="text-[var(--k-accent-teal)] bg-slate-800 border-slate-600 focus:ring-[var(--k-accent-teal)]" />
+                                            className="text-[var(--k-accent-teal)] bg-[#161616] border-slate-600 focus:ring-[var(--k-accent-teal)]" />
                                         {lang}
                                     </label>
                                 ))}
@@ -378,7 +378,7 @@ const SessionSubmission = ({
                         {/* Submit */}
                         <button type="submit" disabled={status.loading || (!isEditing && !canSubmitNew)}
                             className={`w-full py-2.5 px-4 flex items-center justify-center gap-2 transition-colors ${isEditing
-                                    ? 'k-btn-primary !bg-amber-600 border-amber-500 text-white hover:!bg-amber-500 disabled:!bg-slate-700 disabled:!text-slate-500 disabled:!border-slate-800'
+                                    ? 'k-btn-primary !bg-amber-600 border-amber-500 text-white hover:!bg-amber-500 disabled:!bg-[#161616] disabled:!text-[#161616]/60 disabled:!border-slate-800'
                                     : 'k-btn-primary disabled:opacity-50 disabled:cursor-not-allowed'
                                 }`}>
                             {status.loading ? (

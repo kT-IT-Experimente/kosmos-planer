@@ -148,9 +148,9 @@ export default function AdminDashboard({
                                     <input type="number" min={0} max={23} value={localConfig.startHour}
                                         onChange={e => handleConfigChange('startHour', e.target.value)}
                                         className="w-24 k-input px-4 py-2.5 text-lg text-center" />
-                                    <span className="text-slate-400 text-sm">:00 Uhr</span>
+                                    <span className="text-[#161616]/40 text-sm">:00 Uhr</span>
                                 </div>
-                                <p className="text-[10px] text-slate-500 mt-1.5">Timeline beginnt hier</p>
+                                <p className="text-[10px] text-[#161616]/60 mt-1.5">Timeline beginnt hier</p>
                             </div>
                             <div>
                                 <label className="k-caption tracking-widest block mb-2">
@@ -160,9 +160,9 @@ export default function AdminDashboard({
                                     <input type="number" min={1} max={24} value={localConfig.endHour}
                                         onChange={e => handleConfigChange('endHour', e.target.value)}
                                         className="w-24 k-input px-4 py-2.5 text-lg text-center" />
-                                    <span className="text-slate-400 text-sm">:00 Uhr</span>
+                                    <span className="text-[#161616]/40 text-sm">:00 Uhr</span>
                                 </div>
-                                <p className="text-[10px] text-slate-500 mt-1.5">Timeline endet hier</p>
+                                <p className="text-[10px] text-[#161616]/60 mt-1.5">Timeline endet hier</p>
                             </div>
                             <div>
                                 <label className="k-caption tracking-widest block mb-2">
@@ -172,9 +172,9 @@ export default function AdminDashboard({
                                     <input type="number" min={0} max={60} value={localConfig.bufferMin}
                                         onChange={e => handleConfigChange('bufferMin', e.target.value)}
                                         className="w-24 k-input px-4 py-2.5 text-lg text-center" />
-                                    <span className="text-slate-400 text-sm">min</span>
+                                    <span className="text-[#161616]/40 text-sm">min</span>
                                 </div>
-                                <p className="text-[10px] text-slate-500 mt-1.5">Mindestpause zwischen Sessions</p>
+                                <p className="text-[10px] text-[#161616]/60 mt-1.5">Mindestpause zwischen Sessions</p>
                             </div>
                             <div>
                                 <label className="k-caption tracking-widest block mb-2">
@@ -184,9 +184,9 @@ export default function AdminDashboard({
                                     <input type="number" min={1} max={50} value={localConfig.maxSubmissions || 5}
                                         onChange={e => handleConfigChange('maxSubmissions', parseInt(e.target.value) || 5)}
                                         className="w-24 k-input px-4 py-2.5 text-lg text-center" />
-                                    <span className="text-slate-400 text-sm">pro User</span>
+                                    <span className="text-[#161616]/40 text-sm">pro User</span>
                                 </div>
-                                <p className="text-[10px] text-slate-500 mt-1.5">Max. Session-Einreichungen pro Person</p>
+                                <p className="text-[10px] text-[#161616]/60 mt-1.5">Max. Session-Einreichungen pro Person</p>
                             </div>
                         </div>
                         {localConfig.startHour >= localConfig.endHour && (
@@ -239,7 +239,7 @@ export default function AdminDashboard({
                                                                     : role === 'CURATOR' ? 'bg-purple-500/20 text-purple-400 ring-1 ring-purple-500/50'
                                                                         : role === 'REVIEWER' ? 'bg-blue-500/20 text-blue-400 ring-1 ring-blue-500/50'
                                                                             : 'bg-[var(--k-accent-teal)]/20 text-[var(--k-accent-teal)] ring-1 ring-[var(--k-accent-teal)]/50'
-                                                                : 'bg-white/5 text-slate-400 hover:bg-white/10'}`}>
+                                                                : 'bg-white/5 text-[#161616]/40 hover:bg-white/10'}`}>
                                                             {role}
                                                         </button>
                                                     );
@@ -249,13 +249,13 @@ export default function AdminDashboard({
                                         <td className="py-4 px-2 text-right flex items-center gap-1 justify-end">
                                             {!readOnly && onInviteUser && (
                                                 <button onClick={() => onInviteUser(user.email)}
-                                                    className="p-2 text-slate-400 hover:text-[var(--k-accent-teal)] transition-colors" title="Magic Link senden">
+                                                    className="p-2 text-[#161616]/40 hover:text-[var(--k-accent-teal)] transition-colors" title="Magic Link senden">
                                                     <Send className="w-4 h-4" />
                                                 </button>
                                             )}
                                             {!readOnly && (
                                                 <button onClick={() => onDeleteUser(user.email)}
-                                                    className="p-2 text-slate-400 hover:text-red-400 transition-colors" title="Delete User">
+                                                    className="p-2 text-[#161616]/40 hover:text-red-400 transition-colors" title="Delete User">
                                                     <Trash2 className="w-4 h-4" />
                                                 </button>
                                             )}
@@ -350,7 +350,7 @@ export default function AdminDashboard({
                                         </td>
                                         <td className="py-3 px-2 text-right">
                                             <button onClick={() => deleteStage(stage.id)}
-                                                className="p-1.5 text-slate-400 hover:text-red-400 transition-colors" title="Bühne löschen">
+                                                className="p-1.5 text-[#161616]/40 hover:text-red-400 transition-colors" title="Bühne löschen">
                                                 <Trash2 className="w-4 h-4" />
                                             </button>
                                         </td>
@@ -399,14 +399,14 @@ export default function AdminDashboard({
                                 <div className="flex flex-wrap gap-2 mb-3 min-h-[32px]">
                                     {(localThemen[key] || []).map(item => (
                                         <span key={item}
-                                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-slate-800 text-slate-300 border border-slate-700`}>
+                                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-[#161616] text-slate-300 border border-slate-700`}>
                                             {item}
                                             <button onClick={() => removeThemenItem(key, item)}
                                                 className={`ml-0.5 hover:text-red-400 transition-colors`}>×</button>
                                         </span>
                                     ))}
                                     {(!localThemen[key] || localThemen[key].length === 0) && (
-                                        <span className="text-xs text-slate-500 italic">Keine Einträge</span>
+                                        <span className="text-xs text-[#161616]/60 italic">Keine Einträge</span>
                                     )}
                                 </div>
                                 <div className="flex gap-2">

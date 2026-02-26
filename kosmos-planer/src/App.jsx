@@ -189,7 +189,7 @@ function buildGoogleAuthUrl(clientId, serverClientId) {
 // --- COMPONENTS ---
 
 const Card = React.forwardRef(function Card({ children, className = "", onClick, style, status, ...props }, ref) {
-  const statusClass = STATUS_COLORS[status] || 'border-slate-200 bg-white';
+  const statusClass = STATUS_COLORS[status] || 'border-[#161616]/20 bg-white';
   return (
     <div
       ref={ref}
@@ -207,7 +207,7 @@ function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConfl
   const isEingeladen = session.status === 'Eingeladen';
   const canSeeEingeladen = userRole === 'ADMIN' || userRole === 'REVIEWER';
   const isMasked = isEingeladen && !canSeeEingeladen;
-  const formatColor = FORMAT_COLORS[session.format] || 'bg-slate-100 text-slate-700';
+  const formatColor = FORMAT_COLORS[session.format] || 'bg-white text-[#161616]/90';
   const [activeOverlay, setActiveOverlay] = useState(null);
 
   const handleMouseLeaveCard = () => {
@@ -236,7 +236,7 @@ function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConfl
       )}
 
       {activeOverlay === 'notes' && session.notes && (
-        <div className="absolute inset-0 bg-slate-800/95 z-50 p-3 text-white flex flex-col justify-start items-start text-left backdrop-blur-sm rounded-r animate-in fade-in duration-200 overflow-y-auto custom-scrollbar">
+        <div className="absolute inset-0 bg-[#161616]/95 z-50 p-3 text-white flex flex-col justify-start items-start text-left backdrop-blur-sm rounded-r animate-in fade-in duration-200 overflow-y-auto custom-scrollbar">
           <div className="flex items-center gap-2 border-b border-slate-600 w-full pb-1 mb-2">
             <MessageSquare className="w-4 h-4 text-blue-400" />
             <span className="font-bold text-xs">Notizen</span>
@@ -248,7 +248,7 @@ function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConfl
       {/* Header */}
       <div className="flex justify-between items-start mb-1">
         <div className="flex flex-col overflow-hidden">
-          <span className="font-mono text-[10px] font-bold text-slate-500 leading-none mb-1">
+          <span className="font-mono text-[10px] font-bold text-[#161616]/60 leading-none mb-1">
             {session.stage === INBOX_ID ? `${session.duration} min` : `${session.start} - ${session.end}`}
           </span>
           <span className={`text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded w-fit ${formatColor}`}>
@@ -278,7 +278,7 @@ function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConfl
           <button
             onPointerDown={(e) => e.stopPropagation()}
             onClick={(e) => { e.stopPropagation(); onToggleLock(session); }}
-            className={`p-1 rounded hover:bg-black/5 transition-colors ${isLocked ? 'text-red-500' : 'text-slate-300 hover:text-slate-500'}`}
+            className={`p-1 rounded hover:bg-black/5 transition-colors ${isLocked ? 'text-red-500' : 'text-slate-300 hover:text-[#161616]/60'}`}
             title={isLocked ? "Entsperren" : "Fixieren"}
           >
             {isLocked ? <Lock className="w-3.5 h-3.5" /> : <Unlock className="w-3.5 h-3.5" />}
@@ -287,14 +287,14 @@ function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConfl
       </div>
 
       {/* Title */}
-      <div className="font-bold text-xs leading-snug mb-1 text-slate-800 line-clamp-2" title={isMasked ? 'Reserviert' : session.title}>
+      <div className="font-bold text-xs leading-snug mb-1 text-[#161616] line-clamp-2" title={isMasked ? 'Reserviert' : session.title}>
         {isMasked ? '🔒 Reserviert' : (session.title || 'Unbenannt')}
       </div>
 
       {/* People & Details */}
       {!isMasked && <div className="mt-auto space-y-1">
         {session.speakers && (
-          <div className="text-[10px] text-slate-600 flex flex-wrap items-center gap-1 leading-tight mb-1" title={`Speaker: ${session.speakers}`}>
+          <div className="text-[10px] text-[#161616]/80 flex flex-wrap items-center gap-1 leading-tight mb-1" title={`Speaker: ${session.speakers}`}>
             <Users className="w-3 h-3 shrink-0 text-indigo-500 mr-0.5" />
             {session.speakers.split(',').map((sp, i) => (
               <span key={i} className="after:content-[','] last:after:content-[''] mr-0.5">{sp.trim()}</span>
@@ -302,7 +302,7 @@ function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConfl
           </div>
         )}
         {session.moderators && (
-          <div className="text-[10px] text-slate-500 flex flex-wrap items-center gap-1 leading-tight" title={`Mod: ${session.moderators}`}>
+          <div className="text-[10px] text-[#161616]/60 flex flex-wrap items-center gap-1 leading-tight" title={`Mod: ${session.moderators}`}>
             <Mic2 className="w-3 h-3 shrink-0 text-pink-500 mr-0.5" />
             {session.moderators.split(',').map((mod, i) => (
               <span key={i} className="after:content-[','] last:after:content-[''] mr-0.5">{mod.trim()}</span>
@@ -310,9 +310,9 @@ function SessionCardContent({ session, onClick, onToggleLock, isLocked, hasConfl
           </div>
         )}
 
-        <div className="flex items-center gap-2 text-[9px] text-slate-400 pt-1 border-t border-black/5 mt-1">
+        <div className="flex items-center gap-2 text-[9px] text-[#161616]/40 pt-1 border-t border-black/5 mt-1">
           <span className="font-mono text-slate-300 text-[8px]">{session.id}</span>
-          {session.language && <span className="flex items-center gap-0.5 ml-auto font-bold text-slate-500">{session.language.toUpperCase()}</span>}
+          {session.language && <span className="flex items-center gap-0.5 ml-auto font-bold text-[#161616]/60">{session.language.toUpperCase()}</span>}
           {session.partner && session.partner !== 'FALSE' && (() => {
             const isPending = session.partner.startsWith('pending:');
             const displayName = isPending ? session.partner.replace(/^pending:/, '') : session.partner;
@@ -402,13 +402,13 @@ function StageColumn({ stage, children, height }) {
   });
 
   return (
-    <div ref={setNodeRef} style={{ height: height + HEADER_HEIGHT }} className={`min-w-[280px] w-full max-w-[320px] border-r relative transition-colors ${stage.hidden ? 'border-dashed border-slate-300 opacity-50' : 'border-slate-200'} ${isOver ? 'bg-blue-50/30' : 'bg-white/30 odd:bg-slate-50/50'}`}>
-      <div className={`backdrop-blur border-b p-2 text-center z-20 shadow-sm flex flex-col justify-center ${stage.hidden ? 'bg-slate-100/95 border-dashed border-slate-300' : 'bg-white/95 border-slate-200'}`} style={{ height: HEADER_HEIGHT }}>
-        <div className="font-bold text-slate-700 text-sm truncate flex items-center justify-center gap-1.5">
-          {stage.hidden && <span title="Versteckte Bühne (nur Admin)" className="text-slate-400">👻</span>}
+    <div ref={setNodeRef} style={{ height: height + HEADER_HEIGHT }} className={`min-w-[280px] w-full max-w-[320px] border-r relative transition-colors ${stage.hidden ? 'border-dashed border-[#161616]/30 opacity-50' : 'border-[#161616]/20'} ${isOver ? 'bg-blue-50/30' : 'bg-white/30 odd:bg-white/50'}`}>
+      <div className={`backdrop-blur border-b p-2 text-center z-20 shadow-sm flex flex-col justify-center ${stage.hidden ? 'bg-white/95 border-dashed border-[#161616]/30' : 'bg-white/95 border-[#161616]/20'}`} style={{ height: HEADER_HEIGHT }}>
+        <div className="font-bold text-[#161616]/90 text-sm truncate flex items-center justify-center gap-1.5">
+          {stage.hidden && <span title="Versteckte Bühne (nur Admin)" className="text-[#161616]/40">👻</span>}
           {stage.name}
         </div>
-        <div className="flex justify-center gap-3 text-[10px] text-slate-400 font-mono mt-0.5">
+        <div className="flex justify-center gap-3 text-[10px] text-[#161616]/40 font-mono mt-0.5">
           <span className="flex items-center gap-1"><Users className="w-3 h-3" /> {stage.capacity}</span>
           <span className="flex items-center gap-1"><Mic2 className="w-3 h-3" /> {stage.maxMics || '?'}</span>
         </div>
@@ -2334,7 +2334,7 @@ function App({ authenticatedUser }) {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-slate-100 font-sans overflow-hidden text-slate-900">
+    <div className="flex flex-col h-screen bg-transparent font-sans overflow-hidden text-[var(--k-text-main)]">
       {toast && (
         <div className={`fixed top-16 left-1/2 -translate-x-1/2 px-4 py-2 rounded shadow-lg z-50 text-sm font-bold text-white
            ${toast.type === 'error' ? 'bg-red-600' : 'bg-blue-600'}`}>
@@ -2346,11 +2346,11 @@ function App({ authenticatedUser }) {
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
         {viewMode === 'PLANNER' && (
           <div className="flex flex-col h-full overflow-hidden">
-            <header className="bg-white border-b border-slate-200 px-4 py-2 flex justify-between items-center shrink-0 z-40 shadow-sm">
+            <header className="bg-white border-b border-[#161616]/20 px-4 py-2 flex justify-between items-center shrink-0 z-40 shadow-sm">
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                  className={`p-2 rounded-full transition-colors ${isSidebarOpen ? 'bg-indigo-100 text-indigo-700' : 'text-slate-500 hover:bg-slate-100'}`}
+                  className={`p-2 rounded-full transition-colors ${isSidebarOpen ? 'bg-indigo-100 text-indigo-700' : 'text-[#161616]/60 hover:bg-white'}`}
                 >
                   <Layout className="w-5 h-5" />
                 </button>
@@ -2362,16 +2362,16 @@ function App({ authenticatedUser }) {
                 {!isMobile && (
                   <div className="flex items-center gap-2 ml-4 flex-1 max-w-md">
                     <div className="relative w-full">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#161616]/40 w-4 h-4" />
                       <input
                         type="text"
                         placeholder="Search sessions, speakers, IDs..."
-                        className="w-full pl-9 pr-4 py-1.5 bg-slate-100 border-none rounded-full text-sm focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
+                        className="w-full pl-9 pr-4 py-1.5 bg-white border-none rounded-full text-sm focus:ring-2 focus:ring-indigo-500 transition-all outline-none"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
                       />
                       {searchQuery && (
-                        <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                        <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#161616]/40 hover:text-[#161616]/80">
                           <X className="w-3.5 h-3.5" />
                         </button>
                       )}
@@ -2395,7 +2395,7 @@ function App({ authenticatedUser }) {
                 <button
                   onClick={() => loadData({ manual: true, importProgram: true })}
                   disabled={status.loading}
-                  className={`ml-2 flex items-center justify-center p-1.5 rounded transition-colors ${status.loading ? 'text-indigo-400' : 'text-slate-500 hover:text-[#351E8B] hover:bg-[#351E8B]/10'}`}
+                  className={`ml-2 flex items-center justify-center p-1.5 rounded transition-colors ${status.loading ? 'text-indigo-400' : 'text-[#161616]/60 hover:text-[#351E8B] hover:bg-[#351E8B]/10'}`}
                   title="Daten aktualisieren"
                 >
                   <RefreshCw className={`w-5 h-5 ${status.loading ? 'animate-spin' : ''}`} />
@@ -2406,13 +2406,13 @@ function App({ authenticatedUser }) {
                 {curationData.userRole !== 'GUEST' && (
                   <button
                     onClick={handleSync}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-all ${localChanges ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md animate-pulse' : 'bg-slate-100 hover:bg-slate-200 text-slate-700'}`}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded text-sm font-medium transition-all ${localChanges ? 'bg-orange-500 hover:bg-orange-600 text-white shadow-md animate-pulse' : 'bg-white hover:bg-[#161616]/10 text-[#161616]/90'}`}
                   >
                     <UploadCloud className="w-4 h-4" />
                     <span>Speichern</span>
                   </button>
                 )}
-                <button onClick={() => setShowSettings(!showSettings)} className="p-2 hover:bg-slate-100 rounded text-slate-500">
+                <button onClick={() => setShowSettings(!showSettings)} className="p-2 hover:bg-white rounded text-[#161616]/60">
                   <Settings className="w-4 h-4" />
                 </button>
 
@@ -2420,7 +2420,7 @@ function App({ authenticatedUser }) {
                 <div className="relative">
                   <button
                     onClick={() => setShowProfileMenu(!showProfileMenu)}
-                    className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-slate-100 transition-colors"
+                    className="flex items-center gap-2 px-2 py-1 rounded-full hover:bg-white transition-colors"
                     title={`${authenticatedUser.name || authenticatedUser.email} (${curationData.userRole})`}
                   >
                     {authenticatedUser.picture ? (
@@ -2435,8 +2435,8 @@ function App({ authenticatedUser }) {
                   {showProfileMenu && (
                     <>
                       <div className="fixed inset-0 z-40" onClick={() => setShowProfileMenu(false)} />
-                      <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-slate-200 z-50 overflow-hidden">
-                        <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 border-b border-slate-200">
+                      <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl shadow-2xl border border-[#161616]/20 z-50 overflow-hidden">
+                        <div className="p-4 bg-gradient-to-r from-indigo-50 to-blue-50 border-b border-[#161616]/20">
                           <div className="flex items-center gap-3">
                             {authenticatedUser.picture ? (
                               <img src={authenticatedUser.picture} alt="Profile" className="w-12 h-12 rounded-full border-2 border-white shadow-sm" />
@@ -2446,8 +2446,8 @@ function App({ authenticatedUser }) {
                               </div>
                             )}
                             <div className="flex-1 min-w-0">
-                              <p className="font-bold text-slate-800 truncate">{authenticatedUser.name || 'User'}</p>
-                              <p className="text-xs text-slate-500 truncate">{authenticatedUser.email}</p>
+                              <p className="font-bold text-[#161616] truncate">{authenticatedUser.name || 'User'}</p>
+                              <p className="text-xs text-[#161616]/60 truncate">{authenticatedUser.email}</p>
                               <span className={`inline-block mt-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${hasRole('ADMIN') ? 'bg-red-100 text-red-700' :
                                 hasRole('CURATOR') ? 'bg-purple-100 text-purple-700' :
                                   hasRole('REVIEWER') ? 'bg-blue-100 text-blue-700' :
@@ -2456,7 +2456,7 @@ function App({ authenticatedUser }) {
                                         hasRole('TEILNEHMENDE', 'SPEAKER') ? 'bg-cyan-100 text-cyan-700' :
                                           hasRole('PARTNER') ? 'bg-amber-100 text-amber-700' :
                                             hasRole('BAND') ? 'bg-pink-100 text-pink-700' :
-                                              'bg-slate-100 text-slate-600'
+                                              'bg-white text-[#161616]/80'
                                 }`}>{userRoles.join(', ')}</span>
                             </div>
                           </div>
@@ -2482,57 +2482,57 @@ function App({ authenticatedUser }) {
             <DndContext sensors={sensors} onDragStart={handleDragStart} onDragMove={handleDragMove} onDragEnd={handleDragEnd}>
               <div className="flex flex-1 overflow-hidden">
                 <div className={`${isSidebarOpen ? 'w-64 border-r' : 'w-0 border-r-0'} bg-white flex flex-col shrink-0 z-30 transition-all duration-300 overflow-hidden`}>
-                  <div className="p-4 border-b bg-slate-50/50">
-                    <h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2"><PieChart className="w-4 h-4" /> Analyse</h3>
+                  <div className="p-4 border-b bg-white/50">
+                    <h3 className="text-xs font-bold text-[#161616]/60 uppercase flex items-center gap-2"><PieChart className="w-4 h-4" /> Analyse</h3>
                     <div className="grid grid-cols-2 gap-2 mt-2">
                       <div className="bg-white p-2 rounded border text-center text-xs font-bold">
                         <div className="text-[#351E8B]">{analysis.genderCounts.w}</div>
-                        <div className="text-[8px] text-slate-400 uppercase">Frauen (W)</div>
+                        <div className="text-[8px] text-[#161616]/40 uppercase">Frauen (W)</div>
                       </div>
                       <div className="bg-white p-2 rounded border text-center text-xs font-bold">
                         <div className="text-[#351E8B]">{analysis.genderCounts.m}</div>
-                        <div className="text-[8px] text-slate-400 uppercase">Männer (M)</div>
+                        <div className="text-[8px] text-[#161616]/40 uppercase">Männer (M)</div>
                       </div>
                       <div className="bg-white p-2 rounded border text-center text-xs font-bold col-span-2">
                         <div className="flex justify-between items-center px-1">
-                          <span className="text-[8px] text-slate-400 uppercase">Partner-Anteil:</span>
+                          <span className="text-[8px] text-[#161616]/40 uppercase">Partner-Anteil:</span>
                           <span className="text-[#351E8B]">{analysis.partnerPercent}%</span>
                         </div>
-                        <div className="w-full bg-slate-100 h-1 mt-1 rounded-full overflow-hidden">
+                        <div className="w-full bg-white h-1 mt-1 rounded-full overflow-hidden">
                           <div className="bg-[#351E8B]/100 h-full" style={{ width: `${analysis.partnerPercent}%` }}></div>
                         </div>
                       </div>
                       <div className="bg-white p-2 rounded border text-center text-xs font-bold col-span-2">
                         <div className="flex justify-between items-center px-1">
-                          <span className="text-[8px] text-slate-400 uppercase">Bühnen-Belegung:</span>
+                          <span className="text-[8px] text-[#161616]/40 uppercase">Bühnen-Belegung:</span>
                           <span className="text-[#351E8B]">{analysis.occupancyPercent}%</span>
                         </div>
-                        <div className="w-full bg-slate-100 h-1 mt-1 rounded-full overflow-hidden">
+                        <div className="w-full bg-white h-1 mt-1 rounded-full overflow-hidden">
                           <div className="bg-green-500 h-full" style={{ width: `${analysis.occupancyPercent}%` }}></div>
                         </div>
                       </div>
                     </div>
                   </div>
                   <div className="flex-1 overflow-y-auto p-2">
-                    <div className="text-[10px] font-bold text-slate-400 uppercase p-2 tracking-widest">SprecherInnen ({data.speakers.length})</div>
-                    {data.speakers.slice(0, 50).map(s => <div key={s.id} className="text-[10px] py-1 px-2 hover:bg-slate-100 rounded truncate">{s.fullName}</div>)}
+                    <div className="text-[10px] font-bold text-[#161616]/40 uppercase p-2 tracking-widest">SprecherInnen ({data.speakers.length})</div>
+                    {data.speakers.slice(0, 50).map(s => <div key={s.id} className="text-[10px] py-1 px-2 hover:bg-white rounded truncate">{s.fullName}</div>)}
                   </div>
                 </div>
 
                 <div className="flex-1 flex flex-col overflow-hidden relative">
                   {/* INBOX */}
-                  <div className={`bg-slate-50 border-b flex flex-col transition-all duration-300 ease-in-out ${isInboxCollapsed ? 'h-10' : 'h-48'}`}>
+                  <div className={`bg-white border-b flex flex-col transition-all duration-300 ease-in-out ${isInboxCollapsed ? 'h-10' : 'h-48'}`}>
                     <div className="flex items-center justify-between px-3 py-1.5 border-b bg-white/50 shrink-0">
                       <div className="flex items-center gap-3">
-                        <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest flex items-center gap-2">
+                        <h3 className="text-[10px] font-bold text-[#161616]/60 uppercase tracking-widest flex items-center gap-2">
                           <PlusCircle className="w-3.5 h-3.5 text-indigo-500" />
                           Inbox ({filteredAndSortedInbox.length})
                         </h3>
                         {!isInboxCollapsed && (
                           <div className="flex items-center gap-2 border-l pl-3 ml-1">
-                            <span className="text-[9px] text-slate-400 font-bold uppercase">Sort:</span>
+                            <span className="text-[9px] text-[#161616]/40 font-bold uppercase">Sort:</span>
                             <select
-                              className="text-[9px] bg-transparent border-none focus:ring-0 font-bold text-slate-600 cursor-pointer"
+                              className="text-[9px] bg-transparent border-none focus:ring-0 font-bold text-[#161616]/80 cursor-pointer"
                               value={inboxSortBy}
                               onChange={(e) => setInboxSortBy(e.target.value)}
                             >
@@ -2546,7 +2546,7 @@ function App({ authenticatedUser }) {
                       </div>
                       <button
                         onClick={() => setIsInboxCollapsed(!isInboxCollapsed)}
-                        className="p-1 hover:bg-slate-200 rounded transition-colors text-slate-400 hover:text-slate-600"
+                        className="p-1 hover:bg-[#161616]/10 rounded transition-colors text-[#161616]/40 hover:text-[#161616]/80"
                         title={isInboxCollapsed ? "Aufklappen" : "Einklappen"}
                       >
                         {isInboxCollapsed ? <PlusCircle className="w-4 h-4" /> : <X className="w-4 h-4" />}
@@ -2569,7 +2569,7 @@ function App({ authenticatedUser }) {
                               />
                             ))}
                             {filteredAndSortedInbox.length === 0 && (
-                              <div className="flex flex-col items-center justify-center w-full h-full text-slate-400 animate-pulse">
+                              <div className="flex flex-col items-center justify-center w-full h-full text-[#161616]/40 animate-pulse">
                                 <Search className="w-5 h-5 mb-1 opacity-20" />
                                 <span className="text-[10px] uppercase font-bold tracking-widest">Keine Übereinstimmung</span>
                               </div>
@@ -2581,14 +2581,14 @@ function App({ authenticatedUser }) {
                   </div>
 
                   {/* TIMELINE */}
-                  <div className="flex-1 overflow-auto relative custom-scrollbar flex bg-slate-50">
+                  <div className="flex-1 overflow-auto relative custom-scrollbar flex bg-transparent">
                     <div className="w-10 bg-white border-r shrink-0 sticky left-0 z-30 shadow-sm" style={{ minHeight: timelineHeight + HEADER_HEIGHT }}>
                       {Array.from({ length: config.endHour - config.startHour }).map((_, i) => {
                         const hour = config.startHour + i;
                         return (
                           <div
                             key={hour}
-                            className="absolute w-full border-t border-slate-200 text-[10px] font-bold text-slate-400 pl-1 pt-0.5"
+                            className="absolute w-full border-t border-[#161616]/20 text-[10px] font-bold text-[#161616]/40 pl-1 pt-0.5"
                             style={{ top: HEADER_HEIGHT + i * 60 * PIXELS_PER_MINUTE }}
                           >
                             {hour}:00
@@ -2658,9 +2658,9 @@ function App({ authenticatedUser }) {
 
         {viewMode === 'CURATION' && (
           <div className="flex flex-col h-full overflow-hidden">
-            <header className="bg-slate-800 text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
+            <header className="bg-[#161616] text-white px-4 py-2 flex justify-between items-center shadow-lg shrink-0">
               <h1 className="font-bold flex items-center gap-2"><LayoutDashboard className="w-5 h-5" /> KOSMOS Curation Center</h1>
-              <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-slate-700 hover:bg-slate-600 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
+              <button onClick={() => setViewMode('PLANNER')} className="text-xs bg-[#161616] hover:bg-slate-600 px-3 py-1 rounded transition-colors uppercase font-bold tracking-widest">Planner View</button>
             </header>
             <CurationDashboard
               sessions={[
@@ -2826,19 +2826,19 @@ function App({ authenticatedUser }) {
             <div className="flex-1 overflow-auto p-4">
               <div className="max-w-5xl mx-auto">
                 {(data.organisations || []).length === 0 ? (
-                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center text-slate-400">
+                  <div className="bg-white rounded-xl shadow-sm border border-[#161616]/20 p-6 text-center text-[#161616]/40">
                     <p className="text-sm">Noch keine Organisationen in Config_Organisations hinterlegt.</p>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                  <div className="bg-white rounded-xl shadow-sm border border-[#161616]/20 overflow-hidden">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200">
-                          <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase">Organisation</th>
-                          <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase">E-Mail</th>
-                          <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase">Status</th>
-                          <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase">Sessions</th>
-                          <th className="text-left py-3 px-4 text-xs font-bold text-slate-500 uppercase">Links</th>
+                        <tr className="bg-white border-b border-[#161616]/20">
+                          <th className="text-left py-3 px-4 text-xs font-bold text-[#161616]/60 uppercase">Organisation</th>
+                          <th className="text-left py-3 px-4 text-xs font-bold text-[#161616]/60 uppercase">E-Mail</th>
+                          <th className="text-left py-3 px-4 text-xs font-bold text-[#161616]/60 uppercase">Status</th>
+                          <th className="text-left py-3 px-4 text-xs font-bold text-[#161616]/60 uppercase">Sessions</th>
+                          <th className="text-left py-3 px-4 text-xs font-bold text-[#161616]/60 uppercase">Links</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -2848,17 +2848,17 @@ function App({ authenticatedUser }) {
                           const isExpanded = expandedOrgEmail === org.email;
                           return (
                             <React.Fragment key={org.email || i}>
-                              <tr className={`border-b border-slate-100 hover:bg-slate-50/50 cursor-pointer ${isExpanded ? 'bg-blue-50/30' : ''}`} onClick={() => setExpandedOrgEmail(isExpanded ? null : org.email)}>
+                              <tr className={`border-b border-[#161616]/10 hover:bg-white/50 cursor-pointer ${isExpanded ? 'bg-blue-50/30' : ''}`} onClick={() => setExpandedOrgEmail(isExpanded ? null : org.email)}>
                                 <td className="py-3 px-4">
                                   <div className="flex items-center gap-3">
                                     {org.logoUrl && <img src={org.logoUrl} alt="" className="w-8 h-8 rounded object-cover border" />}
                                     <div>
-                                      <div className="font-bold text-slate-800">{org.name || '—'}</div>
-                                      {org.beschreibung && <div className="text-[10px] text-slate-400 truncate max-w-[200px]">{org.beschreibung}</div>}
+                                      <div className="font-bold text-[#161616]">{org.name || '—'}</div>
+                                      {org.beschreibung && <div className="text-[10px] text-[#161616]/40 truncate max-w-[200px]">{org.beschreibung}</div>}
                                     </div>
                                   </div>
                                 </td>
-                                <td className="py-3 px-4 text-slate-600 text-xs">{org.email}</td>
+                                <td className="py-3 px-4 text-[#161616]/80 text-xs">{org.email}</td>
                                 <td className="py-3 px-4" onClick={e => e.stopPropagation()}>
                                   {hasRole('ADMIN') ? (
                                     <button
@@ -2897,7 +2897,7 @@ function App({ authenticatedUser }) {
                                   )}
                                 </td>
                                 <td className="py-3 px-4">
-                                  <span className={`text-xs font-bold ${orgSessions.length > 0 ? 'text-[#351E8B]' : 'text-slate-400'}`}>
+                                  <span className={`text-xs font-bold ${orgSessions.length > 0 ? 'text-[#351E8B]' : 'text-[#161616]/40'}`}>
                                     {isExpanded ? '▼' : '▶'} {orgSessions.length} Session{orgSessions.length !== 1 ? 's' : ''}
                                   </span>
                                 </td>
@@ -2911,7 +2911,7 @@ function App({ authenticatedUser }) {
                               </tr>
                               {isExpanded && orgSessions.length > 0 && (
                                 <tr>
-                                  <td colSpan="5" className="bg-slate-50 px-4 py-3">
+                                  <td colSpan="5" className="bg-white px-4 py-3">
                                     <div className="space-y-2 max-w-3xl">
                                       {orgSessions.map((session, si) => {
                                         const statusLower = (session.status || '').toLowerCase();
@@ -2921,16 +2921,16 @@ function App({ authenticatedUser }) {
                                         return (
                                           <div key={session.id || si}
                                             onClick={() => { setEditingSession(session); setIsModalOpen(true); }}
-                                            className={`border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow ${isFixed ? 'border-green-200 bg-green-50/50' : isAccepted ? 'border-blue-200 bg-blue-50/50' : 'border-slate-200 bg-white'}`}
+                                            className={`border rounded-lg p-3 cursor-pointer hover:shadow-md transition-shadow ${isFixed ? 'border-green-200 bg-green-50/50' : isAccepted ? 'border-blue-200 bg-blue-50/50' : 'border-[#161616]/20 bg-white'}`}
                                           >
                                             <div className="flex items-center justify-between gap-2">
-                                              <h4 className="text-sm font-bold text-slate-800">{session.title || 'Ohne Titel'}</h4>
+                                              <h4 className="text-sm font-bold text-[#161616]">{session.title || 'Ohne Titel'}</h4>
                                               <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${isFixed ? 'bg-green-100 text-green-700' : isAccepted ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
                                                 {session.status || 'Vorschlag'}
                                               </span>
                                             </div>
-                                            <div className="flex items-center gap-3 mt-1 text-[10px] text-slate-500">
-                                              {stageName && <span className="bg-slate-100 px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
+                                            <div className="flex items-center gap-3 mt-1 text-[10px] text-[#161616]/60">
+                                              {stageName && <span className="bg-white px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
                                               {session.start && session.start !== '-' && <span>🕐 {session.start} – {session.end || ''}</span>}
                                               {session.speakers && <span>🎤 {session.speakers}</span>}
                                             </div>
@@ -3014,32 +3014,32 @@ function App({ authenticatedUser }) {
                   <div className="flex flex-wrap gap-2 mb-4">
                     {filterTabs.map(tab => (
                       <button key={tab.key} onClick={() => { setSpeakerDashFilter(tab.key); setExpandedSpeakerId(null); }}
-                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${speakerDashFilter === tab.key ? 'bg-purple-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${speakerDashFilter === tab.key ? 'bg-purple-600 text-white' : 'bg-white text-[#161616]/80 hover:bg-[#161616]/10'}`}>
                         {tab.label} ({tab.count})
                       </button>
                     ))}
                   </div>
 
                   {filtered.length === 0 ? (
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center text-slate-400">
+                    <div className="bg-white rounded-xl shadow-sm border border-[#161616]/20 p-6 text-center text-[#161616]/40">
                       <p className="text-sm">Keine SprecherInnen in dieser Kategorie.</p>
                     </div>
                   ) : (
-                    <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                    <div className="bg-white rounded-xl shadow-sm border border-[#161616]/20 overflow-hidden">
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="bg-slate-50 border-b border-slate-200">
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Name</th>
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Status</th>
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Briefing</th>
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Sessions</th>
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Profil</th>
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Reise</th>
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Honorar</th>
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Catering</th>
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Vertrag</th>
-                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Ehrenamt</th>
+                            <tr className="bg-white border-b border-[#161616]/20">
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-[#161616]/60 uppercase">Name</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-[#161616]/60 uppercase">Status</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-[#161616]/60 uppercase">Briefing</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-[#161616]/60 uppercase">Sessions</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-[#161616]/60 uppercase">Profil</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-[#161616]/60 uppercase">Reise</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-[#161616]/60 uppercase">Honorar</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-[#161616]/60 uppercase">Catering</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-[#161616]/60 uppercase">Vertrag</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-[#161616]/60 uppercase">Ehrenamt</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3066,12 +3066,12 @@ function App({ authenticatedUser }) {
 
                               return (
                                 <React.Fragment key={spk.id || i}>
-                                  <tr className={`border-b border-slate-100 hover:bg-slate-50/50 cursor-pointer ${isExpanded ? 'bg-purple-50/30' : ''}`}
+                                  <tr className={`border-b border-[#161616]/10 hover:bg-white/50 cursor-pointer ${isExpanded ? 'bg-purple-50/30' : ''}`}
                                     onClick={() => setExpandedSpeakerId(isExpanded ? null : spk.id)}>
                                     {/* Name */}
                                     <td className="py-2 px-3">
-                                      <div className="font-bold text-slate-800 text-xs">{spk.fullName || '—'}</div>
-                                      <div className="text-[10px] text-slate-400">{spk.email}</div>
+                                      <div className="font-bold text-[#161616] text-xs">{spk.fullName || '—'}</div>
+                                      <div className="text-[10px] text-[#161616]/40">{spk.email}</div>
                                       {isDummy && isCreatedByOther && (
                                         <div className="text-[9px] text-amber-600 font-bold mt-0.5">🤖 Dummy · erstellt von {spk.registeredBy}</div>
                                       )}
@@ -3081,23 +3081,23 @@ function App({ authenticatedUser }) {
                                       <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${isDummy ? 'bg-amber-100 text-amber-700' :
                                         (spk.status || '').toLowerCase().includes('fixiert') ? 'bg-green-100 text-green-700' :
                                           (spk.status || '').toLowerCase().includes('zusage') ? 'bg-blue-100 text-blue-700' :
-                                            'bg-slate-100 text-slate-600'
+                                            'bg-white text-[#161616]/80'
                                         }`}>{spk.status || '—'}</span>
                                     </td>
                                     {/* Briefing (read-only status — set by mailing automation) */}
                                     <td className="py-2 px-3">
                                       {briefingItems.length > 0 ? (
                                         <div className="flex flex-wrap gap-0.5 max-w-[140px]">
-                                          <span className="text-[8px] text-slate-400 font-bold mr-1">{briefingItems.length}×</span>
+                                          <span className="text-[8px] text-[#161616]/40 font-bold mr-1">{briefingItems.length}×</span>
                                           {briefingItems.map((b, bi) => (
                                             <span key={bi} className="px-1 py-0 rounded bg-[#351E8B]/10 text-indigo-700 text-[8px] font-bold">{b}</span>
                                           ))}
                                         </div>
-                                      ) : <span className="text-[9px] text-slate-400">—</span>}
+                                      ) : <span className="text-[9px] text-[#161616]/40">—</span>}
                                     </td>
                                     {/* Sessions */}
                                     <td className="py-2 px-3">
-                                      <span className={`text-xs font-bold ${spkSessions.length > 0 ? 'text-purple-600' : 'text-slate-400'}`}>
+                                      <span className={`text-xs font-bold ${spkSessions.length > 0 ? 'text-purple-600' : 'text-[#161616]/40'}`}>
                                         {isExpanded ? '▼' : '▶'} {spkSessions.length}
                                       </span>
                                     </td>
@@ -3124,10 +3124,10 @@ function App({ authenticatedUser }) {
                                               onBlur={e => { if (e.target.value !== (spk.abreiseAm || '')) updateSpeakerField(spk, 'AJ', e.target.value); }}
                                               className="text-[8px] border rounded px-0.5 py-0.5 w-[72px]" title="Abreise" />
                                           </div>
-                                          {nights !== null && <div className="text-[8px] text-slate-500">{nights} Nächte</div>}
+                                          {nights !== null && <div className="text-[8px] text-[#161616]/60">{nights} Nächte</div>}
                                         </div>
                                       ) : (
-                                        <div className="text-[9px] text-slate-500">
+                                        <div className="text-[9px] text-[#161616]/60">
                                           {spk.hotel ? <div>🏨 {spk.hotel}</div> : '—'}
                                           {spk.anreiseAm && <div>{spk.anreiseAm} → {spk.abreiseAm || '?'}</div>}
                                           {nights !== null && <div>{nights}N</div>}
@@ -3141,7 +3141,7 @@ function App({ authenticatedUser }) {
                                           onBlur={e => { if (e.target.value !== (spk.honorar || '')) updateSpeakerField(spk, 'Q', e.target.value); }}
                                           className="w-16 text-[10px] border rounded px-1 py-0.5" />
                                       ) : (
-                                        <span className="text-[10px] text-slate-500">{spk.honorar || '—'}</span>
+                                        <span className="text-[10px] text-[#161616]/60">{spk.honorar || '—'}</span>
                                       )}
                                     </td>
                                     {/* Catering (AH) - multi-select */}
@@ -3168,7 +3168,7 @@ function App({ authenticatedUser }) {
                                           ))}
                                         </div>
                                       ) : (
-                                        <span className="text-[9px] text-slate-500">{spk.catering || '—'}</span>
+                                        <span className="text-[9px] text-[#161616]/60">{spk.catering || '—'}</span>
                                       )}
                                     </td>
                                     {/* Vertrag (AE) */}
@@ -3178,7 +3178,7 @@ function App({ authenticatedUser }) {
                                           className={`text-[10px] border rounded px-1 py-0.5 font-bold ${spk.vertragStatus === 'unterschrieben' ? 'text-green-700' :
                                             spk.vertragStatus === 'Rechnung Gezahlt' ? 'text-green-700' :
                                               spk.vertragStatus === 'offen' || spk.vertragStatus === 'änderungen angefragt' ? 'text-amber-600' :
-                                                'text-slate-500'
+                                                'text-[#161616]/60'
                                             }`}>
                                           <option value="nicht benötigt">nicht benötigt</option>
                                           <option value="offen">offen</option>
@@ -3191,7 +3191,7 @@ function App({ authenticatedUser }) {
                                       ) : (
                                         <span className={`text-[10px] font-bold ${spk.vertragStatus === 'unterschrieben' || spk.vertragStatus === 'Rechnung Gezahlt' ? 'text-green-700' :
                                           spk.vertragStatus === 'offen' || spk.vertragStatus === 'änderungen angefragt' ? 'text-amber-600' :
-                                            'text-slate-500'
+                                            'text-[#161616]/60'
                                           }`}>{spk.vertragStatus || 'nicht benötigt'}</span>
                                       )}
                                     </td>
@@ -3199,18 +3199,18 @@ function App({ authenticatedUser }) {
                                     <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
                                       {isAdmin ? (
                                         <button onClick={() => updateSpeakerField(spk, 'AG', spk.ehrenamtsverguetung ? 'FALSE' : 'TRUE')}
-                                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${spk.ehrenamtsverguetung ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${spk.ehrenamtsverguetung ? 'bg-green-100 text-green-700' : 'bg-white text-[#161616]/60'}`}>
                                           {spk.ehrenamtsverguetung ? '✓ Ja' : '—'}
                                         </button>
                                       ) : (
-                                        <span className="text-[10px] text-slate-500">{spk.ehrenamtsverguetung ? 'Ja' : '—'}</span>
+                                        <span className="text-[10px] text-[#161616]/60">{spk.ehrenamtsverguetung ? 'Ja' : '—'}</span>
                                       )}
                                     </td>
                                   </tr>
                                   {isExpanded && (
                                     <tr>
-                                      <td colSpan="10" className="bg-slate-50 px-3 py-3">
-                                        <div className="grid grid-cols-2 gap-4 mb-3 text-[10px] text-slate-500">
+                                      <td colSpan="10" className="bg-white px-3 py-3">
+                                        <div className="grid grid-cols-2 gap-4 mb-3 text-[10px] text-[#161616]/60">
                                           <div><strong>📞 Telefon:</strong> {spk.telefon || '—'}</div>
                                           <div><strong>🏠 Adresse:</strong> {spk.adresse || '—'}</div>
                                           <div><strong>🌐 Webseite:</strong> {spk.webseite || '—'}</div>
@@ -3218,19 +3218,19 @@ function App({ authenticatedUser }) {
                                         </div>
                                         {spkSessions.length > 0 ? (
                                           <div className="space-y-2">
-                                            <p className="text-[10px] font-bold text-slate-500 uppercase">Sessions ({spkSessions.length})</p>
+                                            <p className="text-[10px] font-bold text-[#161616]/60 uppercase">Sessions ({spkSessions.length})</p>
                                             {spkSessions.map((session, si) => {
                                               const stageName = data.stages.find(s => s.id === session.stage)?.name || '';
                                               return (
                                                 <div key={session.id || si}
                                                   onClick={() => { setEditingSession(session); setIsModalOpen(true); }}
-                                                  className="border rounded-lg p-2 cursor-pointer hover:shadow-md transition-shadow bg-white border-slate-200">
+                                                  className="border rounded-lg p-2 cursor-pointer hover:shadow-md transition-shadow bg-white border-[#161616]/20">
                                                   <div className="flex items-center justify-between gap-2">
-                                                    <span className="text-xs font-bold text-slate-800">{session.title || 'Ohne Titel'}</span>
-                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-slate-100 text-slate-600">{session.status || 'Vorschlag'}</span>
+                                                    <span className="text-xs font-bold text-[#161616]">{session.title || 'Ohne Titel'}</span>
+                                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase bg-white text-[#161616]/80">{session.status || 'Vorschlag'}</span>
                                                   </div>
-                                                  <div className="flex items-center gap-2 mt-1 text-[10px] text-slate-500">
-                                                    {stageName && <span className="bg-slate-100 px-1 py-0.5 rounded font-bold">{stageName}</span>}
+                                                  <div className="flex items-center gap-2 mt-1 text-[10px] text-[#161616]/60">
+                                                    {stageName && <span className="bg-white px-1 py-0.5 rounded font-bold">{stageName}</span>}
                                                     {session.start && session.start !== '-' && <span>🕐 {session.start}</span>}
                                                   </div>
                                                 </div>
@@ -3238,7 +3238,7 @@ function App({ authenticatedUser }) {
                                             })}
                                           </div>
                                         ) : (
-                                          <p className="text-[10px] text-slate-400">Keine Sessions verknüpft.</p>
+                                          <p className="text-[10px] text-[#161616]/40">Keine Sessions verknüpft.</p>
                                         )}
                                       </td>
                                     </tr>
@@ -3275,7 +3275,7 @@ function App({ authenticatedUser }) {
 
         {/* Submit View */}
         {(viewMode === 'SUBMIT' || viewMode === 'ORG_SESSIONS' || viewMode === 'ORG_PROFILE') && (
-          <div className="flex-1 overflow-y-auto bg-slate-50 p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto bg-transparent p-6 space-y-6">
             {openCallClosed && !hasRole('ADMIN') ? (
               <div className="max-w-2xl mx-auto mt-20 text-center">
                 <div className="bg-red-50 border border-red-200 rounded-xl p-8">
@@ -3291,8 +3291,8 @@ function App({ authenticatedUser }) {
                   <p className="text-sm text-amber-800"><strong>Hinweis:</strong> Zeiten und Bühnen sind vorläufig, solange eine Session nicht den Status <strong className="text-green-700">fixiert</strong> hat. Erst dann sind die Angaben verbindlich.</p>
                 </div>
                 {mySessions.length > 0 ? (
-                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <h2 className="text-lg font-bold text-slate-800 mb-4">📋 Meine Sessions ({mySessions.length})</h2>
+                  <div className="bg-white rounded-xl shadow-sm border border-[#161616]/20 p-6">
+                    <h2 className="text-lg font-bold text-[#161616] mb-4">📋 Meine Sessions ({mySessions.length})</h2>
                     <div className="space-y-3">
                       {mySessions.map((session, i) => {
                         const statusLower = (session.status || '').toLowerCase();
@@ -3302,9 +3302,9 @@ function App({ authenticatedUser }) {
                         const stageName = data.stages.find(s => s.id === session.stage)?.name || session.stage;
                         const showSchedule = !isVorschlag; // hide stage/time for Vorschlag
                         return (
-                          <div key={session.id || i} className={`border rounded-lg p-4 ${isFixed ? 'border-green-200 bg-green-50/30' : isAccepted ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200'}`}>
+                          <div key={session.id || i} className={`border rounded-lg p-4 ${isFixed ? 'border-green-200 bg-green-50/30' : isAccepted ? 'border-blue-200 bg-blue-50/30' : 'border-[#161616]/20'}`}>
                             <div className="flex items-start justify-between gap-2">
-                              <h3 className="font-bold text-sm text-slate-800">{session.title || 'Ohne Titel'}</h3>
+                              <h3 className="font-bold text-sm text-[#161616]">{session.title || 'Ohne Titel'}</h3>
                               <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${isFixed ? 'bg-green-100 text-green-700' :
                                 isAccepted ? 'bg-blue-100 text-blue-700' :
                                   'bg-amber-100 text-amber-700'
@@ -3312,8 +3312,8 @@ function App({ authenticatedUser }) {
                                 {isFixed ? '✓ Fixiert' : isAccepted ? '✓ Akzeptiert' : session.status || 'Vorschlag'}
                               </span>
                             </div>
-                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500">
-                              {showSchedule && stageName && <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
+                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-[#161616]/60">
+                              {showSchedule && stageName && <span className="bg-white text-[#161616]/80 px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
                               {session.format && <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">{session.format}</span>}
                               {showSchedule && session.start && session.start !== '-' && (
                                 <span className={`flex items-center gap-1 ${isFixed ? 'text-green-700 font-bold' : 'text-blue-600 italic'}`}>
@@ -3329,7 +3329,7 @@ function App({ authenticatedUser }) {
                               </p>
                             )}
                             {isVorschlag && (
-                              <p className="mt-2 text-[10px] text-slate-400 italic">
+                              <p className="mt-2 text-[10px] text-[#161616]/40 italic">
                                 Bühne und Zeiten werden nach der Kuration zugewiesen.
                               </p>
                             )}
@@ -3339,7 +3339,7 @@ function App({ authenticatedUser }) {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center text-slate-400">
+                  <div className="bg-white rounded-xl shadow-sm border border-[#161616]/20 p-6 text-center text-[#161616]/40">
                     <p className="text-sm">Du bist noch keiner Session als SprecherIn zugeordnet.</p>
                   </div>
                 )}
@@ -3349,13 +3349,13 @@ function App({ authenticatedUser }) {
               <div className="max-w-3xl mx-auto space-y-6">
                 {/* Org Profile Card */}
                 {myOrgRecord && (
-                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
+                  <div className="bg-white rounded-xl shadow-sm border border-[#161616]/20 p-6">
                     <div className="flex items-center gap-4 mb-4">
                       {myOrgRecord.logoUrl && (
-                        <img src={myOrgRecord.logoUrl} alt={myOrgRecord.name} className="w-16 h-16 rounded-lg object-cover border border-slate-200" />
+                        <img src={myOrgRecord.logoUrl} alt={myOrgRecord.name} className="w-16 h-16 rounded-lg object-cover border border-[#161616]/20" />
                       )}
                       <div>
-                        <h2 className="text-lg font-bold text-slate-800">{myOrgRecord.name || 'Meine Organisation'}</h2>
+                        <h2 className="text-lg font-bold text-[#161616]">{myOrgRecord.name || 'Meine Organisation'}</h2>
                         {myOrgRecord.webseite && <a href={myOrgRecord.webseite} target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline">{myOrgRecord.webseite}</a>}
                       </div>
                       <button onClick={() => setViewMode('ORG_PROFILE')} className="ml-auto px-3 py-1.5 bg-[#351E8B]/10 text-[#351E8B] rounded-lg text-xs font-bold hover:bg-indigo-100 transition-colors">
@@ -3370,8 +3370,8 @@ function App({ authenticatedUser }) {
                   <p className="text-sm text-amber-800"><strong>Hinweis:</strong> Zeiten und Bühnen sind vorläufig, solange eine Session nicht den Status <strong className="text-green-700">fixiert</strong> hat.</p>
                 </div>
                 {myOrgSessions.length > 0 ? (
-                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                    <h2 className="text-lg font-bold text-slate-800 mb-4">🏢 Partner-Sessions ({myOrgSessions.length})</h2>
+                  <div className="bg-white rounded-xl shadow-sm border border-[#161616]/20 p-6">
+                    <h2 className="text-lg font-bold text-[#161616] mb-4">🏢 Partner-Sessions ({myOrgSessions.length})</h2>
                     <div className="space-y-3">
                       {myOrgSessions.map((session, i) => {
                         const statusLower = (session.status || '').toLowerCase();
@@ -3381,15 +3381,15 @@ function App({ authenticatedUser }) {
                         const stageName = data.stages.find(s => s.id === session.stage)?.name || session.stage;
                         const showSchedule = !isVorschlag;
                         return (
-                          <div key={session.id || i} className={`border rounded-lg p-4 ${isFixed ? 'border-green-200 bg-green-50/30' : isAccepted ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200'}`}>
+                          <div key={session.id || i} className={`border rounded-lg p-4 ${isFixed ? 'border-green-200 bg-green-50/30' : isAccepted ? 'border-blue-200 bg-blue-50/30' : 'border-[#161616]/20'}`}>
                             <div className="flex items-start justify-between gap-2">
-                              <h3 className="font-bold text-sm text-slate-800">{session.title || 'Ohne Titel'}</h3>
+                              <h3 className="font-bold text-sm text-[#161616]">{session.title || 'Ohne Titel'}</h3>
                               <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase shrink-0 ${isFixed ? 'bg-green-100 text-green-700' : isAccepted ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}`}>
                                 {isFixed ? '✓ Fixiert' : isAccepted ? '✓ Akzeptiert' : session.status || 'Vorschlag'}
                               </span>
                             </div>
-                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500">
-                              {showSchedule && stageName && <span className="bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
+                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-[#161616]/60">
+                              {showSchedule && stageName && <span className="bg-white text-[#161616]/80 px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
                               {session.format && <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">{session.format}</span>}
                               {showSchedule && session.start && session.start !== '-' && (
                                 <span className={`flex items-center gap-1 ${isFixed ? 'text-green-700 font-bold' : 'text-blue-600 italic'}`}>
@@ -3403,7 +3403,7 @@ function App({ authenticatedUser }) {
                               <p className="mt-2 text-[10px] text-blue-500 italic">ℹ️ Zeiten und Bühne können sich noch ändern.</p>
                             )}
                             {isVorschlag && (
-                              <p className="mt-2 text-[10px] text-slate-400 italic">Bühne und Zeiten werden nach der Kuration zugewiesen.</p>
+                              <p className="mt-2 text-[10px] text-[#161616]/40 italic">Bühne und Zeiten werden nach der Kuration zugewiesen.</p>
                             )}
                           </div>
                         );
@@ -3411,7 +3411,7 @@ function App({ authenticatedUser }) {
                     </div>
                   </div>
                 ) : (
-                  <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 text-center text-slate-400">
+                  <div className="bg-white rounded-xl shadow-sm border border-[#161616]/20 p-6 text-center text-[#161616]/40">
                     <p className="text-sm">Noch keine Sessions mit deiner Organisation verknüpft.</p>
                   </div>
                 )}
@@ -3419,8 +3419,8 @@ function App({ authenticatedUser }) {
             ) : hasRole('ORGANISATION') && viewMode === 'ORG_PROFILE' ? (
               /* ORGANISATION: Profile editing */
               <div className="max-w-2xl mx-auto">
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6">
-                  <h2 className="text-lg font-bold text-slate-800 mb-4">🏢 Organisations-Profil</h2>
+                <div className="bg-white rounded-xl shadow-sm border border-[#161616]/20 p-6">
+                  <h2 className="text-lg font-bold text-[#161616] mb-4">🏢 Organisations-Profil</h2>
                   <form onSubmit={async (e) => {
                     e.preventDefault();
                     const fd = new FormData(e.target);
@@ -3462,53 +3462,53 @@ function App({ authenticatedUser }) {
                     }
                   }} className="space-y-4">
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Name der Organisation</label>
-                      <input name="orgName" defaultValue={myOrgRecord?.name || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" required />
+                      <label className="text-xs font-bold text-[#161616]/60 uppercase block mb-1">Name der Organisation</label>
+                      <input name="orgName" defaultValue={myOrgRecord?.name || ''} className="w-full border border-[#161616]/20 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" required />
                     </div>
                     <div>
-                      <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Beschreibung</label>
-                      <textarea name="orgBeschreibung" defaultValue={myOrgRecord?.beschreibung || ''} rows={4} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" />
+                      <label className="text-xs font-bold text-[#161616]/60 uppercase block mb-1">Beschreibung</label>
+                      <textarea name="orgBeschreibung" defaultValue={myOrgRecord?.beschreibung || ''} rows={4} className="w-full border border-[#161616]/20 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" />
                     </div>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Webseite</label>
-                        <input name="orgWebseite" defaultValue={myOrgRecord?.webseite || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" placeholder="https://..." />
+                        <label className="text-xs font-bold text-[#161616]/60 uppercase block mb-1">Webseite</label>
+                        <input name="orgWebseite" defaultValue={myOrgRecord?.webseite || ''} className="w-full border border-[#161616]/20 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" placeholder="https://..." />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Logo URL</label>
-                        <input name="orgLogoUrl" defaultValue={myOrgRecord?.logoUrl || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" placeholder="https://..." />
+                        <label className="text-xs font-bold text-[#161616]/60 uppercase block mb-1">Logo URL</label>
+                        <input name="orgLogoUrl" defaultValue={myOrgRecord?.logoUrl || ''} className="w-full border border-[#161616]/20 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" placeholder="https://..." />
                         {myOrgRecord?.logoUrl && (
                           <div className="mt-2 flex items-center gap-3">
-                            <img src={myOrgRecord.logoUrl} alt="Logo" className="w-16 h-16 rounded-lg object-cover border border-slate-200" />
-                            <span className="text-[10px] text-slate-400">Aktuelle Vorschau</span>
+                            <img src={myOrgRecord.logoUrl} alt="Logo" className="w-16 h-16 rounded-lg object-cover border border-[#161616]/20" />
+                            <span className="text-[10px] text-[#161616]/40">Aktuelle Vorschau</span>
                           </div>
                         )}
                       </div>
                     </div>
                     <div className="grid grid-cols-3 gap-4">
                       <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Instagram</label>
-                        <input name="orgInstagram" defaultValue={myOrgRecord?.instagram || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" placeholder="@handle" />
+                        <label className="text-xs font-bold text-[#161616]/60 uppercase block mb-1">Instagram</label>
+                        <input name="orgInstagram" defaultValue={myOrgRecord?.instagram || ''} className="w-full border border-[#161616]/20 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" placeholder="@handle" />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">LinkedIn</label>
-                        <input name="orgLinkedin" defaultValue={myOrgRecord?.linkedin || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" />
+                        <label className="text-xs font-bold text-[#161616]/60 uppercase block mb-1">LinkedIn</label>
+                        <input name="orgLinkedin" defaultValue={myOrgRecord?.linkedin || ''} className="w-full border border-[#161616]/20 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" />
                       </div>
                       <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase block mb-1">Sonstiges</label>
-                        <input name="orgSocialSonstiges" defaultValue={myOrgRecord?.socialSonstiges || ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" />
+                        <label className="text-xs font-bold text-[#161616]/60 uppercase block mb-1">Sonstiges</label>
+                        <input name="orgSocialSonstiges" defaultValue={myOrgRecord?.socialSonstiges || ''} className="w-full border border-[#161616]/20 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-indigo-100" />
                       </div>
                     </div>
                     <div className="flex gap-2 pt-2">
                       <button type="submit" className="px-4 py-2 bg-[#81C7A9] text-[#161616] text-white rounded-lg text-sm font-bold hover:bg-indigo-700 transition-colors">💾 Speichern</button>
-                      <button type="button" onClick={() => setViewMode('ORG_SESSIONS')} className="px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition-colors">Abbrechen</button>
+                      <button type="button" onClick={() => setViewMode('ORG_SESSIONS')} className="px-4 py-2 bg-white text-[#161616]/80 rounded-lg text-sm font-bold hover:bg-[#161616]/10 transition-colors">Abbrechen</button>
                     </div>
                   </form>
                 </div>
 
                 {/* Linked Sessions below profile form */}
-                <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-6 mt-6">
-                  <h2 className="text-lg font-bold text-slate-800 mb-4">📄 Verknüpfte Sessions ({myOrgSessions.length})</h2>
+                <div className="bg-white rounded-xl shadow-sm border border-[#161616]/20 p-6 mt-6">
+                  <h2 className="text-lg font-bold text-[#161616] mb-4">📄 Verknüpfte Sessions ({myOrgSessions.length})</h2>
                   {myOrgSessions.length > 0 ? (
                     <div className="space-y-3">
                       {myOrgSessions.map((session, i) => {
@@ -3518,20 +3518,20 @@ function App({ authenticatedUser }) {
                         const isAccepted = statusLower === 'akzeptiert';
                         const stageName = data.stages.find(s => s.id === session.stage)?.name || '';
                         return (
-                          <div key={session.id || i} className={`border rounded-lg p-4 ${isPending ? 'border-amber-200 bg-amber-50/30' : isFixed ? 'border-green-200 bg-green-50/30' : isAccepted ? 'border-blue-200 bg-blue-50/30' : 'border-slate-200'}`}>
+                          <div key={session.id || i} className={`border rounded-lg p-4 ${isPending ? 'border-amber-200 bg-amber-50/30' : isFixed ? 'border-green-200 bg-green-50/30' : isAccepted ? 'border-blue-200 bg-blue-50/30' : 'border-[#161616]/20'}`}>
                             <div className="flex items-start justify-between gap-2">
-                              <h3 className="font-bold text-sm text-slate-800">{session.title || 'Ohne Titel'}</h3>
+                              <h3 className="font-bold text-sm text-[#161616]">{session.title || 'Ohne Titel'}</h3>
                               <div className="flex items-center gap-2 shrink-0">
                                 {isPending && (
                                   <span className="px-2 py-0.5 rounded text-[9px] font-bold uppercase bg-amber-100 text-amber-700">⏳ Bestätigung ausstehend</span>
                                 )}
-                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${isFixed ? 'bg-green-100 text-green-700' : isAccepted ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600'}`}>
+                                <span className={`px-2 py-0.5 rounded text-[9px] font-bold uppercase ${isFixed ? 'bg-green-100 text-green-700' : isAccepted ? 'bg-blue-100 text-blue-700' : 'bg-white text-[#161616]/80'}`}>
                                   {session.status || 'Vorschlag'}
                                 </span>
                               </div>
                             </div>
-                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-slate-500">
-                              {stageName && <span className="bg-slate-100 px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
+                            <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-[#161616]/60">
+                              {stageName && <span className="bg-white px-1.5 py-0.5 rounded font-bold">{stageName}</span>}
                               {session.format && <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded font-bold">{session.format}</span>}
                               {session.start && session.start !== '-' && <span>🕐 {session.start} – {session.end || ''}</span>}
                               {session.speakers && <span>🎤 {session.speakers}</span>}
@@ -3591,7 +3591,7 @@ function App({ authenticatedUser }) {
                                       setTimeout(() => setToast(null), 3000);
                                     }
                                   }}
-                                  className="px-3 py-1.5 bg-slate-200 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"
+                                  className="px-3 py-1.5 bg-[#161616]/10 text-[#161616]/80 rounded-lg text-xs font-bold hover:bg-slate-300 transition-colors"
                                 >
                                   ✗ Ablehnen
                                 </button>
@@ -3602,7 +3602,7 @@ function App({ authenticatedUser }) {
                       })}
                     </div>
                   ) : (
-                    <p className="text-sm text-slate-400 text-center">Noch keine Sessions verknüpft.</p>
+                    <p className="text-sm text-[#161616]/40 text-center">Noch keine Sessions verknüpft.</p>
                   )}
                 </div>
               </div>
@@ -3657,7 +3657,7 @@ function App({ authenticatedUser }) {
 
         {/* Speaker Registration View */}
         {viewMode === 'REGISTER' && (
-          <div className="flex-1 overflow-y-auto bg-slate-50 p-6 space-y-6">
+          <div className="flex-1 overflow-y-auto bg-transparent p-6 space-y-6">
             <SpeakerRegistration
               n8nBaseUrl={config.n8nBaseUrl}
               accessToken={authenticatedUser.accessToken || authenticatedUser.magicToken || ''}
@@ -3687,72 +3687,72 @@ function App({ authenticatedUser }) {
         )}
       </div>
 
-      <div className="h-10 bg-slate-900 flex items-center justify-center gap-4 sm:gap-8 shrink-0 border-t border-slate-800 overflow-x-auto">
+      <div className="h-10 bg-[#161616] flex items-center justify-center gap-4 sm:gap-8 shrink-0 border-t border-slate-800 overflow-x-auto">
         {/* Planer: ADMIN, CURATOR, REVIEWER, PRODUCTION */}
         {hasRole('ADMIN', 'CURATOR', 'REVIEWER', 'PRODUCTION') && (
-          <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PLANNER' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('PLANNER')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PLANNER' ? 'text-indigo-400' : 'text-[#161616]/60 hover:text-white'}`}>
             <Layout className="w-3.5 h-3.5" /> Planer
           </button>
         )}
 
         {/* Einreichung: ADMIN, TEILNEHMENDE, SPEAKER */}
         {hasRole('ADMIN', 'TEILNEHMENDE', 'SPEAKER') && (
-          <button onClick={() => setViewMode('SUBMIT')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SUBMIT' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('SUBMIT')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SUBMIT' ? 'text-indigo-400' : 'text-[#161616]/60 hover:text-white'}`}>
             <PlusCircle className="w-3.5 h-3.5" /> Einreichung
           </button>
         )}
 
         {/* Kuration: ADMIN, CURATOR only (not REVIEWER) */}
         {hasRole('ADMIN', 'CURATOR') && (
-          <button onClick={() => setViewMode('CURATION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'CURATION' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('CURATION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'CURATION' ? 'text-indigo-400' : 'text-[#161616]/60 hover:text-white'}`}>
             <LayoutDashboard className="w-3.5 h-3.5" /> Kuration
           </button>
         )}
 
         {/* Organisations: ADMIN, REVIEWER */}
         {hasRole('ADMIN', 'REVIEWER') && (
-          <button onClick={() => setViewMode('ORG_DASHBOARD')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ORG_DASHBOARD' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('ORG_DASHBOARD')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ORG_DASHBOARD' ? 'text-indigo-400' : 'text-[#161616]/60 hover:text-white'}`}>
             🏢 Organisationen
           </button>
         )}
 
         {/* SprecherInnen Dashboard: ADMIN, REVIEWER */}
         {hasRole('ADMIN', 'REVIEWER') && (
-          <button onClick={() => setViewMode('SPRECHERIN_DASHBOARD')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SPRECHERIN_DASHBOARD' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('SPRECHERIN_DASHBOARD')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'SPRECHERIN_DASHBOARD' ? 'text-indigo-400' : 'text-[#161616]/60 hover:text-white'}`}>
             🎤 SprecherInnen
           </button>
         )}
 
         {/* Profil: SPEAKER, TEILNEHMENDE (+ ADMIN for own) */}
         {hasRole('ADMIN', 'SPEAKER', 'TEILNEHMENDE') && (
-          <button onClick={() => setViewMode('PROFILE')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PROFILE' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('PROFILE')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PROFILE' ? 'text-indigo-400' : 'text-[#161616]/60 hover:text-white'}`}>
             <User className="w-3.5 h-3.5" /> Profil
           </button>
         )}
 
         {/* Organisation: ORGANISATION role */}
         {hasRole('ORGANISATION') && (
-          <button onClick={() => setViewMode('ORG_SESSIONS')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ORG_SESSIONS' || viewMode === 'ORG_PROFILE' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('ORG_SESSIONS')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ORG_SESSIONS' || viewMode === 'ORG_PROFILE' ? 'text-indigo-400' : 'text-[#161616]/60 hover:text-white'}`}>
             🏢 Organisation
           </button>
         )}
 
         {/* Admin: ADMIN + REVIEWER (read-only) */}
         {hasRole('ADMIN', 'REVIEWER') && (
-          <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ADMIN' ? 'text-indigo-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('ADMIN')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'ADMIN' ? 'text-indigo-400' : 'text-[#161616]/60 hover:text-white'}`}>
             <Shield className="w-3.5 h-3.5" /> Admin
           </button>
         )}
 
         {/* Production: ADMIN, PRODUCTION */}
         {hasRole('ADMIN', 'PRODUCTION') && (
-          <button onClick={() => setViewMode('PRODUCTION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PRODUCTION' ? 'text-orange-400' : 'text-slate-500 hover:text-white'}`}>
+          <button onClick={() => setViewMode('PRODUCTION')} className={`flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap ${viewMode === 'PRODUCTION' ? 'text-orange-400' : 'text-[#161616]/60 hover:text-white'}`}>
             🎛️ Produktion
           </button>
         )}
 
         {/* Logout */}
-        <button onClick={handleLogout} className="flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap text-slate-500 hover:text-red-400" title="Abmelden">
+        <button onClick={handleLogout} className="flex items-center gap-1.5 text-[10px] font-bold uppercase transition-all whitespace-nowrap text-[#161616]/60 hover:text-red-400" title="Abmelden">
           <LogOut className="w-3.5 h-3.5" /> Logout
         </button>
 
@@ -3778,14 +3778,14 @@ function App({ authenticatedUser }) {
                   <div><label className="text-xs block">Puffer (Min)</label><input type="number" className="border p-2 w-full rounded" value={config.bufferMin} onChange={e => setConfig({ ...config, bufferMin: parseInt(e.target.value) || 0 })} /></div>
                 </div>
                 <div className="space-y-2">
-                  <h3 className="text-xs font-bold uppercase text-slate-500">Sheet Config</h3>
+                  <h3 className="text-xs font-bold uppercase text-[#161616]/60">Sheet Config</h3>
                   <label className="block text-xs">n8n API Base URL (z.B. https://n8n.domain.com/webhook)</label>
                   <input
                     type="text"
                     value={config.curationApiUrl}
                     onChange={e => setConfig({ ...config, curationApiUrl: e.target.value })}
                     placeholder="https://n8n.deine-domain.com/webhook"
-                    className="w-full border rounded p-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                    className="w-full border rounded p-1.5 text-xs text-[#161616] focus:outline-none focus:ring-1 focus:ring-indigo-500"
                   />
                   <div className="grid grid-cols-2 gap-2">
 
@@ -3795,7 +3795,7 @@ function App({ authenticatedUser }) {
                   <input className="w-full border p-2 rounded text-xs font-mono" placeholder="https://n8n.deine-domain.de/webhook" value={config.n8nBaseUrl} onChange={e => setConfig({ ...config, n8nBaseUrl: e.target.value })} />
                 </div>
                 <div className="space-y-2 border-t pt-2">
-                  <h3 className="text-xs font-bold uppercase text-slate-500">Auth</h3>
+                  <h3 className="text-xs font-bold uppercase text-[#161616]/60">Auth</h3>
 
                   <div className={`p-2 rounded border text-xs mb-2 ${config.googleClientId === localStorage.getItem('kosmos_server_client_id') ? 'bg-green-50 border-green-200 text-green-800' : 'bg-blue-50 border-blue-200 text-blue-800'}`}>
                     {config.googleClientId === localStorage.getItem('kosmos_server_client_id') ? (
@@ -3822,7 +3822,7 @@ function App({ authenticatedUser }) {
                     {config.googleClientId !== localStorage.getItem('kosmos_server_client_id') && (
                       <button
                         onClick={() => setConfig({ ...config, googleClientId: localStorage.getItem('kosmos_server_client_id') || '' })}
-                        className="px-2 py-2 bg-slate-100 border rounded text-[10px] hover:bg-slate-200"
+                        className="px-2 py-2 bg-white border rounded text-[10px] hover:bg-[#161616]/10"
                         title="Zurück zum Server-Standard"
                       >
                         Reset
@@ -3831,7 +3831,7 @@ function App({ authenticatedUser }) {
                   </div>
 
                   {config.googleClientId !== localStorage.getItem('kosmos_server_client_id') && (
-                    <div className="text-[10px] text-slate-500 mt-1 bg-slate-50 p-2 rounded">
+                    <div className="text-[10px] text-[#161616]/60 mt-1 bg-white p-2 rounded">
                       <strong>Setup Info für Custom Client:</strong><br />
                       1. Authorized Javascript Origin: <code>{window.location.origin}</code><br />
                       2. Authorized Redirect URI: <code>{window.location.origin}</code><br />
@@ -3849,11 +3849,11 @@ function App({ authenticatedUser }) {
                   <div className="flex items-center gap-2 pt-4 border-t mt-4">
                     <button
                       onClick={generateMockCurationData}
-                      className="text-[10px] bg-slate-800 text-white px-3 py-2 rounded hover:bg-slate-700 flex items-center gap-2 transition-all font-bold uppercase tracking-wider shadow-sm"
+                      className="text-[10px] bg-[#161616] text-white px-3 py-2 rounded hover:bg-[#161616] flex items-center gap-2 transition-all font-bold uppercase tracking-wider shadow-sm"
                     >
                       <LayoutDashboard className="w-3.5 h-3.5" /> Mock-Daten laden (Test)
                     </button>
-                    <p className="text-[9px] text-slate-400 italic flex-1">Fügt temporäre Sessions hinzu, um das Dashboard zu testen.</p>
+                    <p className="text-[9px] text-[#161616]/40 italic flex-1">Fügt temporäre Sessions hinzu, um das Dashboard zu testen.</p>
                   </div>
                 </div>
               </div>

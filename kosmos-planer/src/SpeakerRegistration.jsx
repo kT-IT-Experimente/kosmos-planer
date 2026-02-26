@@ -96,7 +96,7 @@ const SpeakerRegistration = ({ n8nBaseUrl, accessToken, onSuccess, registeredBy 
                     type="checkbox"
                     checked={form.isDummy}
                     onChange={e => handleChange('isDummy', e.target.checked)}
-                    className="rounded border-slate-700 bg-slate-800 text-[var(--k-accent-teal)] focus:ring-[var(--k-accent-teal)]"
+                    className="rounded border-slate-700 bg-[#161616] text-[var(--k-accent-teal)] focus:ring-[var(--k-accent-teal)]"
                 />
                 <span className="text-sm text-white/70">
                     Platzhalter-Speaker (Dummy) — Daten werden später ergänzt
