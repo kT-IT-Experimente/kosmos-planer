@@ -1705,16 +1705,29 @@ function App({ authenticatedUser }) {
         range: `'${config.sheetNameSpeakers}'!AK${rowNum}`,
         values: [['']],
       }, token, config.curationApiUrl);
-      // 3) Remove from Config_Users — find row and clear it
+      // 3) Remove from Config_Users — fetch raw data to find ALL matching rows
+      //    (curationData.users is deduplicated, so indices don't match raw sheet rows)
       const email = authenticatedUser.email?.toLowerCase() || '';
-      const configIdx = curationData.users.findIndex(u => u.email.toLowerCase() === email);
-      if (configIdx >= 0) {
-        const configRow = configIdx + 2; // 1-indexed + header row
-        await fetchSheets({
-          action: 'update', spreadsheetId: config.spreadsheetId,
-          range: `'Config_Users'!A${configRow}:C${configRow}`,
-          values: [['[gelöscht]', 'GELÖSCHT', '']],
+      try {
+        const { ok: cuOk, data: cuData } = await fetchSheets({
+          action: 'get', spreadsheetId: config.spreadsheetId,
+          range: `'Config_Users'!A2:C`,
         }, token, config.curationApiUrl);
+        if (cuOk && cuData?.values) {
+          for (let i = 0; i < cuData.values.length; i++) {
+            const rowEmail = (cuData.values[i]?.[0] || '').trim().toLowerCase();
+            if (rowEmail === email) {
+              const configRow = i + 2; // 1-indexed + header
+              await fetchSheets({
+                action: 'update', spreadsheetId: config.spreadsheetId,
+                range: `'Config_Users'!A${configRow}:C${configRow}`,
+                values: [['[gelöscht]', 'GELÖSCHT', '']],
+              }, token, config.curationApiUrl);
+            }
+          }
+        }
+      } catch (cuErr) {
+        console.error('Config_Users cleanup error (non-fatal):', cuErr);
       }
       // 4) Logout
       setToast({ msg: 'Dein Profil wurde gelöscht. Alle personenbezogenen Daten wurden entfernt.', type: 'success' });
