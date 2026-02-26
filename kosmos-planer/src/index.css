@@ -7,30 +7,34 @@
 @layer base {
   :root {
     /* Kosmos CI Colors (2026) */
-    --k-primary: #351E8B;
-    /* Deep Purple */
-    --k-primary-light: #4A2EBA;
-    /* Lighter Purple for panels */
+    --k-primary: #81C7A9;
+    /* Mint Green (Dominant Background) */
+    --k-primary-light: #FFFFFF;
+    /* White for panels */
     --k-accent-yellow: #FDF186;
     /* Bright Yellow */
+    --k-accent-purple: #351E8B;
+    /* Deep Purple */
     --k-accent-teal: #81C7A9;
     /* Mint Green */
     --k-accent-red: #FF4D4D;
     /* Alert / Live Red */
 
     /* Text Colors */
-    --k-text-main: #FFFFFF;
-    --k-text-muted: #D3C4FF;
-    /* Soft purple-tinted white */
-    --k-text-dark: #351E8B;
-    /* Deep Purple */
+    --k-text-main: #161616;
+    /* Black */
+    --k-text-muted: rgba(22, 22, 22, 0.6);
+    /* Muted Black */
+    --k-text-dark: #161616;
+    /* Black */
 
     /* UI Colors */
-    --k-border: rgba(255, 255, 255, 0.15);
-    --k-border-focus: rgba(253, 241, 134, 0.5);
-    /* Yellow focus */
-    --k-bg-glass: rgba(53, 30, 139, 0.85);
-    /* Purple Glass */
+    --k-border: rgba(22, 22, 22, 0.15);
+    /* Dark border */
+    --k-border-focus: rgba(53, 30, 139, 0.5);
+    /* Purple focus */
+    --k-bg-glass: rgba(255, 255, 255, 0.85);
+    /* White Glass */
   }
 
   body {
@@ -79,13 +83,13 @@
   /* Buttons */
   .k-btn-primary {
     @apply flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold transition-all duration-200 transform active:scale-95 shadow-lg;
-    background-color: var(--k-accent-yellow);
-    color: var(--k-primary);
+    background-color: var(--k-accent-purple);
+    color: #FFFFFF;
   }
 
   .k-btn-primary:hover {
     filter: brightness(1.1);
-    box-shadow: 0 4px 12px rgba(253, 241, 134, 0.3);
+    box-shadow: 0 4px 12px rgba(53, 30, 139, 0.3);
   }
 
   .k-btn-secondary {
@@ -101,13 +105,13 @@
   }
 
   .k-btn-glass {
-    @apply flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold transition-all duration-200 transform active:scale-95 backdrop-blur-md border border-white/10;
-    background-color: rgba(255, 255, 255, 0.05);
+    @apply flex items-center justify-center gap-2 px-4 py-2 rounded-lg font-bold transition-all duration-200 transform active:scale-95 backdrop-blur-md border border-black/10;
+    background-color: rgba(255, 255, 255, 0.5);
     color: var(--k-text-main);
   }
 
   .k-btn-glass:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(255, 255, 255, 0.8);
   }
 
   /* Layout Containers */
@@ -125,10 +129,10 @@
 
   /* Interactive Elements */
   .k-input {
-    @apply w-full px-4 py-3 rounded-lg text-sm bg-slate-800 border border-slate-700 text-white placeholder-slate-400 focus:outline-none focus:ring-2 transition-all;
+    @apply w-full px-4 py-3 rounded-lg text-sm bg-white border border-slate-300 text-[#161616] placeholder-slate-400 focus:outline-none focus:ring-2 transition-all;
 
     &:focus {
-      border-color: var(--k-accent-teal);
+      border-color: var(--k-accent-purple);
       box-shadow: 0 0 0 2px var(--k-border-focus);
     }
   }
