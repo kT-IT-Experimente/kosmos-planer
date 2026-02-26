@@ -105,14 +105,14 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
     return (
         <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 backdrop-blur-md">
             <div className="k-panel-glass w-full max-w-3xl max-h-[90vh] flex flex-col text-white">
-                <div className="p-4 border-b border-white/10 flex justify-between items-center bg-[#12141a]/90 backdrop-blur-md rounded-t-xl">
+                <div className="p-4 border-b border-indigo-200 flex justify-between items-center bg-indigo-50 rounded-t-xl">
                     <h3 className="k-h3 mb-0">{initialData ? 'Session bearbeiten' : 'Neue Session erstellen'}</h3>
-                    <button onClick={onClose} className="p-2 hover:bg-white/10 rounded-full transition-colors"><X className="w-5 h-5 text-white/50 hover:text-white" /></button>
+                    <button onClick={onClose} className="p-2 hover:bg-indigo-100 rounded-full transition-colors"><X className="w-5 h-5 text-slate-400 hover:text-slate-700" /></button>
                 </div>
                 <div className="p-6 space-y-6 overflow-y-auto custom-scrollbar flex-1">
                     {/* BASIS */}
                     <div className="space-y-4">
-                        <h4 className="text-xs font-bold text-[var(--k-accent-teal)] uppercase border-b border-white/10 pb-1">Basis Informationen</h4>
+                        <h4 className="text-xs font-bold text-[var(--k-accent-teal)] uppercase border-b border-indigo-200 pb-1">Basis Informationen</h4>
                         <div className="grid grid-cols-12 gap-4">
                             <div className="col-span-8">
                                 <label className={labelStd}>Titel</label>
@@ -232,7 +232,7 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
                     </div>
 
                     {/* PLANUNG */}
-                    <div className="space-y-4 bg-black/20 p-4 rounded-xl border border-white/10">
+                    <div className="space-y-4 bg-indigo-50 p-4 rounded-xl border border-indigo-200">
                         <div className="grid grid-cols-4 gap-4">
                             <div className="col-span-2"><label className={labelStd}>Bühne</label><select className={inputStd} value={formData.stage} onChange={e => setFormData({ ...formData, stage: e.target.value })}>
                                 <option value={INBOX_ID}>📥 Inbox (Parkplatz)</option>
@@ -249,34 +249,34 @@ function SessionModal({ isOpen, onClose, onSave, onDelete, initialData, definedS
                             <label className={labelStd}>Sprecher (Suche)</label>
                             <div className="relative mb-2">
                                 <Search className="w-3 h-3 absolute left-2 top-2.5 text-white/40" />
-                                <input className="k-input p-1.5 pl-7 text-xs bg-black/40" placeholder="Filter..." value={searchTermSp} onChange={e => setSearchTermSp(e.target.value)} />
+                                <input className="k-input p-1.5 pl-7 text-xs" placeholder="Filter..." value={searchTermSp} onChange={e => setSearchTermSp(e.target.value)} />
                             </div>
-                            <div className="h-32 border border-white/10 rounded overflow-auto p-1 bg-[#12141a] custom-scrollbar">
-                                {filteredSpeakers.map(s => <div key={s.id} onClick={() => toggleListSelection('speakers', s.fullName)} className={`text-xs p-1.5 cursor-pointer rounded mb-0.5 flex items-center justify-between transition-colors ${formData.speakers.includes(s.fullName) ? 'bg-[var(--k-accent-teal)]/20 text-[var(--k-accent-teal)] font-bold border border-[var(--k-accent-teal)]/40' : 'hover:bg-white/10'}`}><span>{s.fullName}</span>{formData.speakers.includes(s.fullName) && <CheckCircle2 className="w-3 h-3" />}</div>)}
+                            <div className="h-32 border border-indigo-200 rounded overflow-auto p-1 bg-white custom-scrollbar">
+                                {filteredSpeakers.map(s => <div key={s.id} onClick={() => toggleListSelection('speakers', s.fullName)} className={`text-xs p-1.5 cursor-pointer rounded mb-0.5 flex items-center justify-between transition-colors ${formData.speakers.includes(s.fullName) ? 'bg-emerald-100 text-emerald-800 font-bold border border-emerald-300' : 'text-slate-700 hover:bg-indigo-50'}`}><span>{s.fullName}</span>{formData.speakers.includes(s.fullName) && <CheckCircle2 className="w-3 h-3" />}</div>)}
                             </div>
-                            {micWarning && <div className="mt-2 text-xs text-red-300 bg-red-900/30 p-2 rounded border border-red-500/30 flex items-start gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> {micWarning}</div>}
+                            {micWarning && <div className="mt-2 text-xs text-red-700 bg-red-50 p-2 rounded border border-red-300 flex items-start gap-2"><AlertTriangle className="w-4 h-4 shrink-0" /> {micWarning}</div>}
                         </div>
                         <div>
                             <label className={labelStd}>Moderation (Suche)</label>
                             <div className="relative mb-2">
                                 <Search className="w-3 h-3 absolute left-2 top-2.5 text-white/40" />
-                                <input className="k-input p-1.5 pl-7 text-xs bg-black/40" placeholder="Filter..." value={searchTermMod} onChange={e => setSearchTermMod(e.target.value)} />
+                                <input className="k-input p-1.5 pl-7 text-xs" placeholder="Filter..." value={searchTermMod} onChange={e => setSearchTermMod(e.target.value)} />
                             </div>
-                            <div className="h-32 border border-white/10 rounded overflow-auto p-1 bg-[#12141a] custom-scrollbar">
-                                {filteredMods.map(m => <div key={m.id} onClick={() => toggleListSelection('moderators', m.fullName)} className={`text-xs p-1.5 cursor-pointer rounded mb-0.5 flex items-center justify-between transition-colors ${formData.moderators.includes(m.fullName) ? 'bg-purple-900/40 border border-purple-500/40 text-purple-300 font-bold' : 'hover:bg-white/10'}`}><span>{m.fullName}</span>{formData.moderators.includes(m.fullName) && <CheckCircle2 className="w-3 h-3" />}</div>)}
+                            <div className="h-32 border border-indigo-200 rounded overflow-auto p-1 bg-white custom-scrollbar">
+                                {filteredMods.map(m => <div key={m.id} onClick={() => toggleListSelection('moderators', m.fullName)} className={`text-xs p-1.5 cursor-pointer rounded mb-0.5 flex items-center justify-between transition-colors ${formData.moderators.includes(m.fullName) ? 'bg-purple-100 border border-purple-300 text-purple-800 font-bold' : 'text-slate-700 hover:bg-indigo-50'}`}><span>{m.fullName}</span>{formData.moderators.includes(m.fullName) && <CheckCircle2 className="w-3 h-3" />}</div>)}
                             </div>
                         </div>
                     </div>
 
                     {/* NOTIZEN */}
                     <div className="space-y-2">
-                        <h4 className="text-xs font-bold text-[var(--k-accent-teal)] uppercase border-b border-white/10 pb-1">Notizen & Technik</h4>
-                        <textarea className={`${inputStd} h-16 bg-black/20`} value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} placeholder="Notizen..." />
-                        <input className={`${inputStd} text-xs font-mono text-white/50 bg-black/40`} value={formData.stageDispo} readOnly placeholder="Stage Dispo (Automatisch)" />
+                        <h4 className="text-xs font-bold text-[var(--k-accent-teal)] uppercase border-b border-indigo-200 pb-1">Notizen & Technik</h4>
+                        <textarea className={`${inputStd} h-16`} value={formData.notes} onChange={e => setFormData({ ...formData, notes: e.target.value })} placeholder="Notizen..." />
+                        <input className={`${inputStd} text-xs font-mono text-slate-400`} value={formData.stageDispo} readOnly placeholder="Stage Dispo (Automatisch)" />
                     </div>
                 </div>
-                <div className="p-4 border-t border-white/10 flex justify-between bg-[#12141a]/90 backdrop-blur-md rounded-b-xl">
-                    {initialData && <button onClick={() => { if (window.confirm('Wirklich löschen?')) onDelete(formData.id) }} className="text-red-400 text-sm flex items-center gap-1 hover:bg-red-500/20 px-3 py-1 rounded transition-colors"><Trash2 className="w-4 h-4" /> Löschen</button>}
+                <div className="p-4 border-t border-indigo-200 flex justify-between bg-indigo-50 rounded-b-xl">
+                    {initialData && <button onClick={() => { if (window.confirm('Wirklich löschen?')) onDelete(formData.id) }} className="text-red-600 text-sm flex items-center gap-1 hover:bg-red-50 px-3 py-1 rounded transition-colors"><Trash2 className="w-4 h-4" /> Löschen</button>}
                     <div className="flex gap-2 ml-auto">
                         <button onClick={onClose} className="k-btn-secondary px-4 py-2 text-sm">Abbrechen</button>
                         <button onClick={() => onSave({ ...formData, speakers: formData.speakers.join(', '), moderators: formData.moderators.join(', ') }, micWarning)} className="k-btn-primary px-6 py-2 text-sm">Speichern</button>
