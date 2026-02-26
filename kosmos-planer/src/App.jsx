@@ -449,14 +449,14 @@ const parsePlannerBatch = (batch, config) => {
   if (!valRanges || valRanges.length < 3) return { speakers: [], moderators: [], stages: [], program: [] };
 
   const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag', 'cfp', 'cfp_dummy'];
-  // 26_Kosmos_SprecherInnen columns (A-AE):
+  // 26_Kosmos_SprecherInnen columns (A-AG):
   // A=Status_Einladung(0), B=Status_Backend(1), C=ID(2), D=Vorname(3), E=Nachname(4),
   // F=Pronomen(5), G=Organisation(6), H=Bio(7), I=Webseite(8), J=Update(9),
   // K=E-Mail(10), L=Telefon(11), M=Herkunft(12), N=Sprache(13),
   // O=Registriert_am(14), P=Registriert_von(15), Q=Catering(16), R=Anreise(17),
-  // S=Hotel(18), T=Hotel_Nächte(19), U=Hotel_Daten(20), V=Honorar(21), W=Vertrag_Status(22),
+  // S=Hotel(18), T=Hotel_Nächte(19), U=Hotel_Daten(20), V=Honorar(21), W=(reserved 22),
   // X-Z=(reserved 23-25), AA=Instagram(26), AB=LinkedIn(27), AC=Sonstige Social Media(28),
-  // AD=Zeitstempel(29), AE=Adresse(30)
+  // AD=Zeitstempel(29), AE=Status_Vertrag(30), AF=Adresse(31), AG=Ehrenamtsvergütung(32)
   const speakerMap = new Map();
   // Debug: log all status values to see what's in the sheet
   if (import.meta.env.DEV) {
@@ -508,8 +508,9 @@ const parsePlannerBatch = (batch, config) => {
         hotelNaechte: safeString(r[19]),
         hotelDaten: safeString(r[20]),
         honorar: safeString(r[21]),
-        vertragStatus: safeString(r[22]),
-        adresse: safeString(r[30])
+        vertragStatus: safeString(r[30]),
+        adresse: safeString(r[31]),
+        ehrenamtsverguetung: safeString(r[32]).toLowerCase() === 'true'
       });
     }
   });
@@ -1029,7 +1030,7 @@ function App({ authenticatedUser }) {
       }
 
       const ranges = [
-        `'${config.sheetNameSpeakers}'!A2:AE`,       // index 0: Speakers (31 cols incl address)
+        `'${config.sheetNameSpeakers}'!A2:AG`,       // index 0: Speakers (33 cols incl vertrag + ehrenamt)
         `'${config.sheetNameMods}'!A2:C`,            // index 1: Moderators
         `'${config.sheetNameStages}'!A2:H`,          // index 2: Stages
       ];
@@ -1614,11 +1615,11 @@ function App({ authenticatedUser }) {
         range: `'${config.sheetNameSpeakers}'!L${rowNum}`,
         values: [[updatedSpeaker.telefon || '']],
       }, token, config.curationApiUrl);
-      // Update address (AE) — replace commas with semicolons for CSV safety
+      // Update address (AF) — replace commas with semicolons for CSV safety
       const safeAddress = (updatedSpeaker.adresse || '').replace(/,/g, ';');
       await fetchSheets({
         action: 'update', spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameSpeakers}'!AE${rowNum}`,
+        range: `'${config.sheetNameSpeakers}'!AF${rowNum}`,
         values: [[safeAddress]],
       }, token, config.curationApiUrl);
       // If speaker became invisible, remove from all linked sessions
@@ -1665,10 +1666,10 @@ function App({ authenticatedUser }) {
         range: `'${config.sheetNameSpeakers}'!AA${rowNum}:AC${rowNum}`,
         values: [['', '', '']],
       }, token, config.curationApiUrl);
-      // Clear address (AE) — GDPR personal data
+      // Clear address (AF) — GDPR personal data
       await fetchSheets({
         action: 'update', spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameSpeakers}'!AE${rowNum}`,
+        range: `'${config.sheetNameSpeakers}'!AF${rowNum}`,
         values: [['']],
       }, token, config.curationApiUrl);
       // 3) Remove from Config_Users — find row and clear it
@@ -1730,12 +1731,14 @@ function App({ authenticatedUser }) {
         newSpeaker.linkedin || '',    // AB - LinkedIn
         newSpeaker.socialSonstiges || '', // AC - Sonstige Social Media
         registeredAm,                 // AD - Zeitstempel
-        safeAddr                      // AE - Adresse
+        'nicht benötigt',              // AE - Status_Vertrag (default)
+        safeAddr,                     // AF - Adresse
+        'FALSE'                       // AG - Ehrenamtsvergütung (default)
       ];
       const { ok, error } = await fetchSheets({
         action: 'append',
         spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameSpeakers}'!A2:AE`,
+        range: `'${config.sheetNameSpeakers}'!A2:AG`,
         values: [row],
       }, token, config.curationApiUrl);
       if (!ok) throw new Error(error || 'Registrierung fehlgeschlagen');
@@ -2892,12 +2895,13 @@ function App({ authenticatedUser }) {
               }, token, config.curationApiUrl);
               if (!ok) throw new Error(error);
               // Optimistic update
-              const fieldMap = { Q: 'catering', R: 'anreise', S: 'hotel', T: 'hotelNaechte', U: 'hotelDaten', V: 'honorar', W: 'vertragStatus' };
+              const fieldMap = { Q: 'catering', R: 'anreise', S: 'hotel', T: 'hotelNaechte', U: 'hotelDaten', V: 'honorar', AE: 'vertragStatus', AG: 'ehrenamtsverguetung' };
               const field = fieldMap[col];
               if (field) {
+                const parsedVal = col === 'AG' ? (value === 'TRUE') : value;
                 setData(prev => ({
                   ...prev,
-                  speakers: prev.speakers.map(s => s.id === speaker.id ? { ...s, [field]: value } : s)
+                  speakers: prev.speakers.map(s => s.id === speaker.id ? { ...s, [field]: parsedVal } : s)
                 }));
               }
               setToast({ msg: `${speaker.fullName}: aktualisiert`, type: 'success' });
@@ -2945,6 +2949,7 @@ function App({ authenticatedUser }) {
                               <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Hotel</th>
                               <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Honorar</th>
                               <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Vertrag</th>
+                              <th className="text-left py-2 px-3 text-[10px] font-bold text-slate-500 uppercase">Ehrenamt</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3037,20 +3042,41 @@ function App({ authenticatedUser }) {
                                     </td>
                                     <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
                                       {isAdmin ? (
-                                        <select value={spk.vertragStatus || ''} onChange={e => updateSpeakerField(spk, 'W', e.target.value)}
-                                          className={`text-[10px] border rounded px-1 py-0.5 font-bold ${spk.vertragStatus === 'unterschrieben' ? 'text-green-700' : ''}`}>
-                                          <option value="">—</option>
-                                          <option value="ausstehend">ausstehend</option>
+                                        <select value={spk.vertragStatus || 'nicht benötigt'} onChange={e => updateSpeakerField(spk, 'AE', e.target.value)}
+                                          className={`text-[10px] border rounded px-1 py-0.5 font-bold ${spk.vertragStatus === 'unterschrieben' ? 'text-green-700' :
+                                            spk.vertragStatus === 'Rechnung Gezahlt' ? 'text-green-700' :
+                                              spk.vertragStatus === 'offen' || spk.vertragStatus === 'änderungen angefragt' ? 'text-amber-600' :
+                                                'text-slate-500'
+                                            }`}>
+                                          <option value="nicht benötigt">nicht benötigt</option>
+                                          <option value="offen">offen</option>
+                                          <option value="Entwurf abgeschickt">Entwurf abgeschickt</option>
+                                          <option value="änderungen angefragt">änderungen angefragt</option>
                                           <option value="unterschrieben">unterschrieben</option>
+                                          <option value="Rechnung Erhalten">Rechnung Erhalten</option>
+                                          <option value="Rechnung Gezahlt">Rechnung Gezahlt</option>
                                         </select>
                                       ) : (
-                                        <span className={`text-[10px] font-bold ${spk.vertragStatus === 'unterschrieben' ? 'text-green-700' : 'text-slate-500'}`}>{spk.vertragStatus || '—'}</span>
+                                        <span className={`text-[10px] font-bold ${spk.vertragStatus === 'unterschrieben' || spk.vertragStatus === 'Rechnung Gezahlt' ? 'text-green-700' :
+                                          spk.vertragStatus === 'offen' || spk.vertragStatus === 'änderungen angefragt' ? 'text-amber-600' :
+                                            'text-slate-500'
+                                          }`}>{spk.vertragStatus || 'nicht benötigt'}</span>
+                                      )}
+                                    </td>
+                                    <td className="py-2 px-3" onClick={e => e.stopPropagation()}>
+                                      {isAdmin ? (
+                                        <button onClick={() => updateSpeakerField(spk, 'AG', spk.ehrenamtsverguetung ? 'FALSE' : 'TRUE')}
+                                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${spk.ehrenamtsverguetung ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>
+                                          {spk.ehrenamtsverguetung ? '✓ Ja' : '—'}
+                                        </button>
+                                      ) : (
+                                        <span className="text-[10px] text-slate-500">{spk.ehrenamtsverguetung ? 'Ja' : '—'}</span>
                                       )}
                                     </td>
                                   </tr>
                                   {isExpanded && (
                                     <tr>
-                                      <td colSpan="9" className="bg-slate-50 px-3 py-3">
+                                      <td colSpan="10" className="bg-slate-50 px-3 py-3">
                                         <div className="grid grid-cols-2 gap-4 mb-3 text-[10px] text-slate-500">
                                           <div><strong>📞 Telefon:</strong> {spk.telefon || '—'}</div>
                                           <div><strong>🏠 Adresse:</strong> {spk.adresse || '—'}</div>
