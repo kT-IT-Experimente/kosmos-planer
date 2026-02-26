@@ -65,10 +65,10 @@ function mergeProductionData(sessions, productionData) {
 // Color for production status
 function statusColor(status) {
     const s = (status || '').toLowerCase();
-    if (s === 'confirmed' || s === 'bestätigt') return 'bg-emerald-900/30 text-emerald-400 border-emerald-500/30';
-    if (s === 'pending' || s === 'offen') return 'bg-amber-900/30 text-amber-500 border-amber-500/30';
-    if (s === 'canceled' || s === 'abgesagt') return 'bg-red-900/30 text-red-400 border-red-500/30';
-    return 'bg-white/10 text-white border-white/20';
+    if (s === 'confirmed' || s === 'bestätigt') return 'bg-emerald-100 text-emerald-800 border-emerald-400';
+    if (s === 'pending' || s === 'offen') return 'bg-amber-100 text-amber-800 border-amber-400';
+    if (s === 'canceled' || s === 'abgesagt') return 'bg-red-100 text-red-800 border-red-400';
+    return 'bg-slate-100 text-slate-600 border-slate-300';
 }
 
 function ProductionTimeline({ sessions = [], stages = [], productionData = [], startHour = 9, endHour = 22 }) {
@@ -241,8 +241,8 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                     /* ===== TIMELINE VIEW ===== */
                     <div className="flex min-w-fit">
                         {/* Time axis */}
-                        <div className="w-16 shrink-0 bg-black/30 border-r border-white/10 relative" style={{ height: timelineHeight + HEADER_HEIGHT }}>
-                            <div className="sticky top-0 bg-[#0a0f18]/90 backdrop-blur-sm border-b border-white/10 text-center text-[10px] font-bold text-white/50 uppercase" style={{ height: HEADER_HEIGHT, lineHeight: `${HEADER_HEIGHT}px` }}>
+                        <div className="w-16 shrink-0 bg-indigo-50 border-r border-indigo-200 relative" style={{ height: timelineHeight + HEADER_HEIGHT }}>
+                            <div className="sticky top-0 bg-indigo-900 border-b border-indigo-700 text-center text-[10px] font-bold text-yellow-300/70 uppercase" style={{ height: HEADER_HEIGHT, lineHeight: `${HEADER_HEIGHT}px` }}>
                                 Zeit
                             </div>
                             {hours.map(h => (
@@ -262,16 +262,16 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                             return (
                                 <div
                                     key={stage.id}
-                                    className="min-w-[260px] max-w-[320px] w-full border-r border-white/10 relative bg-black/10"
+                                    className="min-w-[260px] max-w-[320px] w-full border-r border-indigo-200 relative bg-indigo-50/30"
                                     style={{ height: timelineHeight + HEADER_HEIGHT }}
                                 >
                                     {/* Stage header */}
                                     <div
-                                        className="sticky top-0 z-10 bg-[#0a0f18]/90 backdrop-blur-sm border-b border-white/10 p-2 text-center"
+                                        className="sticky top-0 z-10 bg-indigo-900 border-b border-indigo-700 p-2 text-center"
                                         style={{ height: HEADER_HEIGHT }}
                                     >
-                                        <div className="font-bold text-sm text-white truncate">{stage.name}</div>
-                                        <div className="flex justify-center gap-3 text-[10px] text-white/50 font-mono mt-0.5">
+                                        <div className="font-bold text-sm text-yellow-300 truncate">{stage.name}</div>
+                                        <div className="flex justify-center gap-3 text-[10px] text-yellow-300/50 font-mono mt-0.5">
                                             <span className="flex items-center gap-0.5"><Mic2 className="w-3 h-3 text-[var(--k-accent-teal)]" /> {stage.maxMics || '?'}</span>
                                             <span className="flex items-center gap-0.5">{stageSess.length} Sessions</span>
                                         </div>
@@ -281,7 +281,7 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                                     {hours.map(h => (
                                         <div
                                             key={h}
-                                            className="absolute w-full border-t border-white/5"
+                                            className="absolute w-full border-t border-indigo-100"
                                             style={{ top: HEADER_HEIGHT + (h - startHour) * 60 * PIXELS_PER_MINUTE }}
                                         />
                                     ))}
@@ -374,14 +374,14 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                                         <React.Fragment key={stage.id}>
                                             {/* Stage group header */}
                                             <tr
-                                                className="bg-black/40 cursor-pointer hover:bg-black/60 border-b border-white/10 transition-colors"
+                                                className="bg-indigo-100 cursor-pointer hover:bg-indigo-200 border-b border-indigo-200 transition-colors"
                                                 onClick={() => setExpandedStage(expandedStage === stage.id ? null : stage.id)}
                                             >
-                                                <td colSpan={11} className="p-2 font-bold text-white">
+                                                <td colSpan={11} className="p-2 font-bold text-indigo-900">
                                                     <div className="flex items-center gap-2">
                                                         {isExpanded ? <ChevronDown className="w-3 h-3 text-[var(--k-accent-teal)]" /> : <ChevronRight className="w-3 h-3 text-[var(--k-accent-teal)]" />}
                                                         {stage.name}
-                                                        <span className="text-white/40 font-normal">({stageSess.length} Sessions, max {stage.maxMics || '?'} Mics)</span>
+                                                        <span className="text-indigo-400 font-normal">({stageSess.length} Sessions, max {stage.maxMics || '?'} Mics)</span>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -391,18 +391,18 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
                                                 return (
                                                     <tr
                                                         key={session.id}
-                                                        className={`border-b border-white/5 hover:bg-white/5 transition-colors ${isCanceled ? 'opacity-50 line-through text-white/50' : 'text-white'}`}
+                                                        className={`border-b border-indigo-100 hover:bg-indigo-50 transition-colors ${isCanceled ? 'opacity-50 line-through text-slate-400' : 'text-slate-700'}`}
                                                     >
-                                                        <td className="p-2 text-white/40 font-mono">{stage.name}</td>
+                                                        <td className="p-2 text-slate-400 font-mono">{stage.name}</td>
                                                         <td className="p-2 font-mono">{session.start}</td>
                                                         <td className="p-2 font-mono">{session.end || '-'}</td>
                                                         <td className="p-2 font-medium text-[var(--k-accent-teal)] max-w-[200px] truncate">{session.title || 'Unbenannt'}</td>
                                                         <td className="p-2 text-center font-bold">{session.micCountWireless || '-'}</td>
                                                         <td className="p-2 text-center font-bold">{session.micCountHeadset || '-'}</td>
                                                         <td className="p-2 text-center font-bold">{session.dIBoxes || '-'}</td>
-                                                        <td className="p-2 text-white/60">{session.audioFeeds || '-'}</td>
-                                                        <td className="p-2 text-white/60">{session.visuals || '-'}</td>
-                                                        <td className="p-2 text-white/50 max-w-[150px] truncate" title={session.specialRequirements}>{session.specialRequirements || '-'}</td>
+                                                        <td className="p-2 text-slate-500">{session.audioFeeds || '-'}</td>
+                                                        <td className="p-2 text-slate-500">{session.visuals || '-'}</td>
+                                                        <td className="p-2 text-slate-400 max-w-[150px] truncate" title={session.specialRequirements}>{session.specialRequirements || '-'}</td>
                                                         <td className="p-2 text-center">
                                                             <span className={`inline-block px-2 py-0.5 rounded-full text-[9px] font-bold border ${statusColor(session.productionStatus)}`}>
                                                                 {session.productionStatus || 'Offen'}
@@ -421,20 +421,20 @@ function ProductionTimeline({ sessions = [], stages = [], productionData = [], s
             </div>
 
             {/* Equipment Summary Footer */}
-            <div className="bg-black/50 border-t border-white/10 px-4 py-3 flex items-center gap-6 text-xs shrink-0 backdrop-blur-md">
-                <div className="flex items-center gap-1.5 text-blue-300 font-bold">
+            <div className="bg-indigo-50 border-t border-indigo-200 px-4 py-3 flex items-center gap-6 text-xs shrink-0">
+                <div className="flex items-center gap-1.5 text-blue-700 font-bold">
                     <Mic2 className="w-3.5 h-3.5" />
                     Peak Funk: {equipmentSummary.peakWireless}
                 </div>
-                <div className="flex items-center gap-1.5 text-purple-300 font-bold">
+                <div className="flex items-center gap-1.5 text-purple-700 font-bold">
                     <Headphones className="w-3.5 h-3.5" />
                     Peak Headset: {equipmentSummary.peakHeadset}
                 </div>
-                <div className="flex items-center gap-1.5 text-emerald-300 font-bold">
+                <div className="flex items-center gap-1.5 text-emerald-700 font-bold">
                     <Music className="w-3.5 h-3.5" />
                     Total DI: {equipmentSummary.totalDIBoxes}
                 </div>
-                <div className="flex items-center gap-1.5 text-white/50 ml-auto font-medium">
+                <div className="flex items-center gap-1.5 text-slate-500 ml-auto font-medium">
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                     {equipmentSummary.confirmedCount}/{equipmentSummary.sessionCount} bestätigt
                 </div>

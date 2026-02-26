@@ -7,11 +7,11 @@ export const PIXELS_PER_MINUTE = 2.5;
 export const SNAP_MINUTES = 5;
 
 export const STATUS_COLORS = {
-    'Vorschlag': 'border-yellow-400 bg-yellow-50',
-    'Eingeladen': 'border-indigo-400 bg-indigo-50 border-dashed',
-    'Akzeptiert': 'border-green-500 bg-green-50',
-    'Abgelehnt': 'border-red-300 bg-red-50/30',
-    'Fixiert': 'border-red-500 bg-slate-100 ring-1 ring-red-500'
+    'Vorschlag': 'border-yellow-500 bg-yellow-50 text-yellow-800',
+    'Eingeladen': 'border-indigo-400 bg-indigo-50 border-dashed text-indigo-800',
+    'Akzeptiert': 'border-green-500 bg-green-50 text-green-800',
+    'Abgelehnt': 'border-red-400 bg-red-50 text-red-700',
+    'Fixiert': 'border-red-500 bg-red-50 ring-1 ring-red-500 text-red-900'
 };
 
 export const FORMAT_COLORS = {

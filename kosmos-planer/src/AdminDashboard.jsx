@@ -399,14 +399,19 @@ export default function AdminDashboard({
                                 <div className="flex flex-wrap gap-2 mb-3 min-h-[32px]">
                                     {(localThemen[key] || []).map(item => (
                                         <span key={item}
-                                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full bg-[#161616] text-slate-300 border border-slate-700`}>
+                                            className={`inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full
+                                                ${color === 'indigo' ? 'bg-indigo-100 text-indigo-800 border border-indigo-300' : ''}
+                                                ${color === 'emerald' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : ''}
+                                                ${color === 'amber' ? 'bg-amber-100 text-amber-800 border border-amber-300' : ''}
+                                                ${color === 'rose' ? 'bg-rose-100 text-rose-800 border border-rose-300' : ''}
+                                            `}>
                                             {item}
                                             <button onClick={() => removeThemenItem(key, item)}
-                                                className={`ml-0.5 hover:text-red-400 transition-colors`}>×</button>
+                                                className={`ml-0.5 hover:text-red-600 transition-colors`}>×</button>
                                         </span>
                                     ))}
                                     {(!localThemen[key] || localThemen[key].length === 0) && (
-                                        <span className="text-xs text-[#161616]/60 italic">Keine Einträge</span>
+                                        <span className="text-xs text-slate-400 italic">Keine Einträge</span>
                                     )}
                                 </div>
                                 <div className="flex gap-2">
@@ -416,7 +421,7 @@ export default function AdminDashboard({
                                         onKeyDown={e => e.key === 'Enter' && addThemenItem(key)}
                                         className="flex-1 k-input px-3 py-1.5 text-xs" />
                                     <button onClick={() => addThemenItem(key)}
-                                        className="bg-white/10 hover:bg-white/20 text-white p-1.5 rounded transition-colors">
+                                        className="bg-indigo-100 hover:bg-indigo-200 text-indigo-700 p-1.5 rounded transition-colors">
                                         <Plus className="w-3.5 h-3.5" />
                                     </button>
                                 </div>

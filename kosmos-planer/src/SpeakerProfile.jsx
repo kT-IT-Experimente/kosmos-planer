@@ -300,7 +300,7 @@ const SpeakerProfile = ({ speaker, userEmail, onSave, onRegister, onDelete }) =>
                     {/* Save */}
                     <div className="pt-2 flex items-center gap-3">
                         <button onClick={handleSave} disabled={saving || (!hasChanges && !isNew) || (!form.vorname && !form.nachname)}
-                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-sm active:scale-95 ${(hasChanges || isNew) && (form.vorname || form.nachname) ? 'k-btn-primary' : 'bg-[#161616] text-[#161616]/60 cursor-not-allowed'}`}>
+                            className={`flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold transition-all shadow-sm active:scale-95 ${(hasChanges || isNew) && (form.vorname || form.nachname) ? 'k-btn-primary' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
                             {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : isNew ? <UserPlus className="w-4 h-4" /> : <Save className="w-4 h-4" />}
                             {saving ? 'Wird gespeichert...' : isNew ? 'Profil anlegen' : 'Profil speichern'}
                         </button>
