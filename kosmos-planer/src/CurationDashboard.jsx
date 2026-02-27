@@ -65,6 +65,9 @@ const CurationDashboard = ({
 
     // Merge ratings into sessions — use latest score per reviewer for average
     const sessionsWithRatings = useMemo(() => {
+        // Extract reviewer's organisation domain for COI detection
+        const reviewerDomain = userEmail ? userEmail.split('@')[1]?.toLowerCase() : '';
+
         return sessions.map(s => {
             const sessionRatings = ratings[s.id] || [];
             // Group by reviewer email, keep only latest score per reviewer for average
@@ -79,16 +82,37 @@ const CurationDashboard = ({
             const latestScores = Object.values(latestByReviewer).map(r => r.score).filter(v => v > 0);
             const avg = latestScores.length > 0 ? (latestScores.reduce((a, b) => a + b, 0) / latestScores.length).toFixed(1) : null;
             const myLatest = latestByReviewer[userEmail?.toLowerCase()];
+
+            // --- COI Check (Cosmoplan Modul 2) ---
+            // Detect if current reviewer's organisation matches any speaker's organisation
+            let hasCOI = false;
+            if (reviewerDomain && reviewerDomain !== 'gmail.com' && reviewerDomain !== 'googlemail.com'
+                && reviewerDomain !== 'outlook.com' && reviewerDomain !== 'hotmail.com' && reviewerDomain !== 'gmx.de'
+                && reviewerDomain !== 'web.de' && reviewerDomain !== 'yahoo.com' && reviewerDomain !== 'icloud.com') {
+                const speakerNames = (s.speakers || '').split(',').map(n => n.trim()).filter(Boolean);
+                hasCOI = speakerNames.some(name => {
+                    const sp = speakers.find(dbSp => dbSp.fullName?.toLowerCase() === name.toLowerCase());
+                    if (!sp) return false;
+                    // Check org name match
+                    const spOrg = (sp.organisation || '').toLowerCase();
+                    if (spOrg && reviewerDomain && spOrg.includes(reviewerDomain.split('.')[0])) return true;
+                    // Check email domain match
+                    const spDomain = sp.email ? sp.email.split('@')[1]?.toLowerCase() : '';
+                    return spDomain && spDomain === reviewerDomain;
+                });
+            }
+
             return {
                 ...s,
                 average_score: avg,
                 review_count: Object.keys(latestByReviewer).length,
                 _ratings: sessionRatings, // all entries for comments display
                 _myScore: myLatest?.score || 0,
-                _myKommentar: myLatest?.kommentar || ''
+                _myKommentar: myLatest?.kommentar || '',
+                _hasCOI: hasCOI
             };
         });
-    }, [sessions, ratings, userEmail]);
+    }, [sessions, ratings, userEmail, speakers]);
 
     const processedSessions = useMemo(() => {
         return sessionsWithRatings
@@ -214,6 +238,11 @@ const CurationDashboard = ({
                                 <div className="flex-1 min-w-0">
                                     <div className="flex items-start gap-2 mb-1.5">
                                         <span className="font-mono text-[9px] text-[var(--k-accent-teal)] bg-[var(--k-accent-teal)]/10 border border-[var(--k-accent-teal)]/30 px-1.5 py-0.5 rounded shrink-0 mt-0.5">{session.id}</span>
+                                        {session._hasCOI && (
+                                            <span className="text-[9px] font-bold text-amber-600 bg-amber-100 border border-amber-400 px-1.5 py-0.5 rounded shrink-0 mt-0.5 flex items-center gap-0.5" title="Interessenkonflikt: Deine Organisation stimmt mit einem Speaker überein">
+                                                <AlertCircle className="w-3 h-3" /> COI
+                                            </span>
+                                        )}
                                         <h3 className="font-extrabold text-white text-base leading-tight">{session.title}</h3>
                                     </div>
                                     {/* Speakers — clickable */}

@@ -27,6 +27,36 @@ const CONFIG = {
 };
 
 /**
+ * Convert a value to Sanity.io-compatible ISO 8601 UTC timestamp.
+ * Sanity uses format: YYYY-MM-DDTHH:mm:ssZ (always UTC, "Zulu time")
+ * This is directly usable in GROQ: dateTime(_updatedAt) > dateTime("...")
+ */
+function toSanityISO(val) {
+  if (!val) return null;
+  try {
+    var d = (val instanceof Date) ? val : new Date(val);
+    if (isNaN(d.getTime())) return null;
+    return d.toISOString().replace(/\.\d{3}Z$/, 'Z'); // strip milliseconds for Sanity compat
+  } catch (e) {
+    return null;
+  }
+}
+
+/**
+ * Get the spreadsheet's last modification timestamp as Sanity-compatible ISO string.
+ * Uses DriveApp to read the file's lastUpdated property.
+ */
+function getSheetLastModified() {
+  try {
+    var ss = getSS();
+    var file = DriveApp.getFileById(ss.getId());
+    return toSanityISO(file.getLastUpdated());
+  } catch (e) {
+    return toSanityISO(new Date()); // fallback to current time
+  }
+}
+
+/**
  * Robust Spreadsheet Access 
  * Works for both container-bound and standalone scripts.
  */
@@ -329,6 +359,20 @@ function doGet(e) {
   const role = getUserRole(email);
   const ss = getSS();
   
+  // --- Sanity.io-compatible last_modified support ---
+  // Accept ?since=ISO_TIMESTAMP to filter sessions modified after that date.
+  // Format: ISO 8601 UTC (YYYY-MM-DDTHH:mm:ssZ) — matches Sanity _updatedAt
+  const sinceParam = e.parameter.since || '';
+  var sinceDate = null;
+  if (sinceParam) {
+    try {
+      sinceDate = new Date(sinceParam);
+      if (isNaN(sinceDate.getTime())) sinceDate = null;
+    } catch (err) {
+      sinceDate = null;
+    }
+  }
+  
   // --- Option A: Read from Master_Einreichungen directly ---
   // Falls back to Review_Kuratierung if Master doesn't exist
   const SENSITIVE_FIELDS = ['e-mail-adresse', 'email', 'bio', 'webseite', 'webseite/social', 'webseite / social media'];
@@ -343,6 +387,7 @@ function doGet(e) {
       sessions: [],
       metadata: getMetadataConfig(),
       userRole: role,
+      _lastModified: toSanityISO(new Date()),
       error: 'Keine Einreichungs-Tabelle gefunden. Bitte Master_Einreichungen oder Review_Kuratierung anlegen.'
     })).setMimeType(ContentService.MimeType.JSON);
   }
@@ -351,7 +396,15 @@ function doGet(e) {
   const headers = data[0];
   const rows = data.slice(1);
   
+  // Find Zeitstempel column index for _updatedAt (column AD = "Zeitstempel")
+  const zeitstempelIdx = headers.findIndex(h => 
+    h.toString().toLowerCase().trim() === 'zeitstempel'
+  );
+  
   const aggregations = (role === 'ADMIN' || role === 'CURATOR') ? getAggregatedRatings() : {};
+  
+  // Get spreadsheet-level last modified (envelope timestamp)
+  const sheetLastModified = getSheetLastModified();
 
   const program = rows.map((row, idx) => {
     const obj = {};
@@ -375,6 +428,15 @@ function doGet(e) {
       obj.id = CONFIG.ID_PREFIX + (idx + 1).toString().padStart(4, '0');
     }
     
+    // --- Sanity-compatible _updatedAt per session ---
+    // Use Zeitstempel column if available, otherwise fall back to sheet-level timestamp
+    var rowTimestamp = null;
+    if (zeitstempelIdx >= 0 && row[zeitstempelIdx]) {
+      rowTimestamp = toSanityISO(row[zeitstempelIdx]);
+    }
+    obj._updatedAt = rowTimestamp || sheetLastModified || toSanityISO(new Date());
+    obj._createdAt = rowTimestamp || obj._updatedAt; // best-effort for Sanity compat
+    
     // Enrich with aggregated ratings if admin/curator
     if (aggregations[obj.id]) {
       obj.average_score = (aggregations[obj.id].sum / aggregations[obj.id].count).toFixed(1);
@@ -386,17 +448,35 @@ function doGet(e) {
   });
 
   // Filter based on status only for non-admins
-  const filteredProgram = (role === 'ADMIN' || role === 'CURATOR') 
+  let filteredProgram = (role === 'ADMIN' || role === 'CURATOR') 
     ? program 
     : program.filter(item => {
         const status = (item.status || '').toString().toLowerCase();
         return status === 'akzeptiert' || status === 'fixiert';
       });
+  
+  // --- Apply ?since= filter (Sanity-compatible incremental sync) ---
+  // Returns only sessions with _updatedAt > since timestamp
+  if (sinceDate) {
+    filteredProgram = filteredProgram.filter(item => {
+      if (!item._updatedAt) return true; // include items without timestamps
+      try {
+        return new Date(item._updatedAt) > sinceDate;
+      } catch (err) {
+        return true; // include on parse error
+      }
+    });
+  }
 
   const result = {
     sessions: filteredProgram,
     metadata: getMetadataConfig(),
-    userRole: role
+    userRole: role,
+    // --- Sanity-compatible envelope timestamps ---
+    _lastModified: sheetLastModified || toSanityISO(new Date()),
+    _totalCount: program.length,
+    _filteredCount: filteredProgram.length,
+    _since: sinceParam || null
   };
 
   // Optionally include full planner data (to bypass frontend Auth issues)

@@ -449,14 +449,15 @@ const parsePlannerBatch = (batch, config) => {
   if (!valRanges || valRanges.length < 3) return { speakers: [], moderators: [], stages: [], program: [] };
 
   const allowedSpeakerStatus = ['zusage', 'interess', 'angefragt', 'eingeladen', 'vorschlag', 'cfp', 'cfp_dummy'];
-  // 26_Kosmos_SprecherInnen columns (A-AJ):
+  // 26_Kosmos_SprecherInnen columns (A-AK):
   // A=Status_Einladung(0), B=Status_Backend(1), C=ID(2), D=Vorname(3), E=Nachname(4),
   // F=Pronomen(5), G=Organisation(6), H=Bio(7), I=Webseite(8), J=Update(9),
   // K=E-Mail(10), L=Telefon(11), M=Herkunft(12), N=Sprache(13),
-  // O=Registriert_am(14), P=Registriert_von(15), Q=Honorar_netto(16), R-V=(reserved 17-21),
-  // W=Hotel(22), X-Y=(reserved 23-24), Z=Briefing(25),
-  // AA=Instagram(26), AB=LinkedIn(27), AC=Sonstige Social Media(28),
-  // AD=Zeitstempel(29), AE=Status_Vertrag(30), AF=Adresse(31), AG=Ehrenamtsvergütung(32),
+  // O=Registriert_am(14), P=Registriert_von(15), Q=Kalkuliertes_Honorar_netto(16),
+  // R=MWST(17), S=Honorar_brutto(18), T=Gesamtkosten(19), U=Status_Rechnung(20), V=Abrechnung(21),
+  // W=Reise_von(22), X=Hotel(23), Y=Anzahl_Nächte(24), Z=Briefing(25),
+  // AA=Instagram(26), AB=LinkedIn(27), AC=Sonstige_Social_Media(28),
+  // AD=Zeitstempel(29), AE=Adresse(30), AF=Status_Vertrag(31), AG=Ehrenamtsvergütung(32),
   // AH=Catering(33), AI=Anreise_Am(34), AJ=Abreise_Am(35), AK=Ansprache(36)
   const speakerMap = new Map();
   // Debug: log all status values to see what's in the sheet
@@ -1018,15 +1019,32 @@ function App({ authenticatedUser }) {
       // Use the access token from AuthGate, or magicToken for magic link users
       const token = authenticatedUser.accessToken || authenticatedUser.magicToken || '';
 
-      // Fire old curation API fetch non-blocking (don't await — prevents CORS from blocking navigation)
+      // Fire curation API fetch non-blocking (don't await — prevents CORS from blocking navigation)
+      // Supports Sanity-compatible incremental sync via ?since= parameter
       if (config.curationApiUrl) {
+        const curationPayload = { action: 'getCurationData', includePlanner: true, email: authenticatedUser.email || '' };
+        // On automatic (non-manual) reloads, send _lastModified as `since` for incremental sync
+        if (!manual && curationData._lastModified) {
+          curationPayload.since = curationData._lastModified;
+        }
         fetch(config.curationApiUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-          body: JSON.stringify({ action: 'getCurationData', includePlanner: true, email: authenticatedUser.email || '' })
+          body: JSON.stringify(curationPayload)
         }).then(res => res.ok ? res.json() : null).then(result => {
           if (result) {
-            setCurationData(prev => ({ ...prev, ...result, metadata: { ...prev.metadata, ...(result.metadata || {}) } }));
+            setCurationData(prev => {
+              const merged = { ...prev, ...result, metadata: { ...prev.metadata, ...(result.metadata || {}) } };
+              // Preserve _lastModified from response for next incremental sync
+              if (result._lastModified) merged._lastModified = result._lastModified;
+              // If incremental (since was sent), merge sessions instead of replacing
+              if (curationPayload.since && result.sessions && prev.sessions) {
+                const updatedIds = new Set(result.sessions.map(s => s.id));
+                const kept = prev.sessions.filter(s => !updatedIds.has(s.id));
+                merged.sessions = [...kept, ...result.sessions];
+              }
+              return merged;
+            });
           }
         }).catch(e => console.warn('Could not fetch from Curation API:', e));
       }
@@ -1697,10 +1715,22 @@ function App({ authenticatedUser }) {
         range: `'${config.sheetNameSpeakers}'!AA${rowNum}:AC${rowNum}`,
         values: [['', '', '']],
       }, token, config.curationApiUrl);
-      // Clear address (AF) — GDPR personal data
+      // Clear financial data (Q=Honorar, R=MWST, S=Honorar_brutto, T=Gesamtkosten) — GDPR personal data
       await fetchSheets({
         action: 'update', spreadsheetId: config.spreadsheetId,
-        range: `'${config.sheetNameSpeakers}'!AF${rowNum}`,
+        range: `'${config.sheetNameSpeakers}'!Q${rowNum}:T${rowNum}`,
+        values: [['', '', '', '']],
+      }, token, config.curationApiUrl);
+      // Clear travel data (W=Reise_von, X=Hotel, Y=Anzahl_Nächte) — GDPR personal data
+      await fetchSheets({
+        action: 'update', spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!W${rowNum}:Y${rowNum}`,
+        values: [['', '', '']],
+      }, token, config.curationApiUrl);
+      // Clear address (AE) — GDPR personal data
+      await fetchSheets({
+        action: 'update', spreadsheetId: config.spreadsheetId,
+        range: `'${config.sheetNameSpeakers}'!AE${rowNum}`,
         values: [['']],
       }, token, config.curationApiUrl);
       // Clear ansprache (AK) — GDPR personal data
@@ -1733,7 +1763,22 @@ function App({ authenticatedUser }) {
       } catch (cuErr) {
         console.error('Config_Users cleanup error (non-fatal):', cuErr);
       }
-      // 4) Logout
+      // 4) GDPR Audit Log — write a compliance record (no PII, just anonymized hash + timestamp)
+      try {
+        const emailHash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(email))
+          .then(buf => Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('').substring(0, 12));
+        await fetchSheets({
+          action: 'update', spreadsheetId: config.spreadsheetId,
+          range: `'GDPR_Audit_Log'!A1:D1`,
+          values: [['GDPR_DELETION', `hash:${emailHash}`, new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'), `speaker:${mySpeakerRecord?.id || 'unknown'}`]],
+        }, token, config.curationApiUrl).catch(() => {
+          // If GDPR_Audit_Log sheet doesn't exist, try appending to Config_Users as fallback
+          console.warn('GDPR_Audit_Log sheet not found — audit logged to console only');
+        });
+      } catch (auditErr) {
+        console.warn('GDPR audit log (non-fatal):', auditErr);
+      }
+      // 5) Logout
       setToast({ msg: 'Dein Profil wurde gelöscht. Alle personenbezogenen Daten wurden entfernt.', type: 'success' });
       setTimeout(() => { handleLogout(); }, 2000);
     } catch (e) {
@@ -1815,8 +1860,11 @@ function App({ authenticatedUser }) {
     }
 
     try {
-      // Optimistic Update
-      setCurationData(prev => prev.map(s => s.id === sessionId ? { ...s, status: newStatus } : s));
+      // Optimistic Update — curationData is an object with sessions array
+      setCurationData(prev => ({
+        ...prev,
+        sessions: (prev.sessions || []).map(s => s.id === sessionId ? { ...s, status: newStatus } : s)
+      }));
 
       const res = await fetch(config.curationApiUrl, {
         method: 'POST',

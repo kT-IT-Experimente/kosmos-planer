@@ -323,7 +323,7 @@ const SessionSubmission = ({
                             <div className="relative">
                                 <div className="flex gap-2">
                                     <div className="relative flex-1">
-                                        <Search className="w-4 h-4 text-white/40 absolute left-3 top-2.5" />
+                                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                                         <input type="text" value={speakerSearch}
                                             onChange={e => { setSpeakerSearch(e.target.value); setShowSpeakerPicker(true); }}
                                             onFocus={() => setShowSpeakerPicker(true)}
@@ -332,29 +332,29 @@ const SessionSubmission = ({
                                     </div>
                                     {onRegisterSpeaker && (
                                         <button type="button" onClick={onRegisterSpeaker}
-                                            className="px-3 py-2 bg-white/10 hover:bg-white/20 border border-white/20 rounded-lg text-sm flex items-center gap-1 text-white transition-colors">
+                                            className="px-3 py-2 bg-indigo-100 hover:bg-indigo-200 border border-indigo-300 rounded-lg text-sm flex items-center gap-1 text-indigo-800 transition-colors">
                                             <UserPlus className="w-4 h-4" /> Neu
                                         </button>
                                     )}
                                 </div>
                                 {showSpeakerPicker && filteredSpeakers.length > 0 && (
-                                    <div className="absolute z-50 mt-1 w-full bg-[#12141a] border border-white/20 rounded-lg shadow-xl max-h-48 overflow-y-auto KDS-glass">
+                                    <div className="absolute z-50 mt-1 w-full bg-white border border-indigo-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
                                         {filteredSpeakers.map(s => (
                                             <button key={s.id} type="button" onClick={() => addSpeaker(s)}
                                                 disabled={form.selectedSpeakers.some(sel => sel.id === s.id)}
-                                                className={`w-full text-left px-3 py-2 text-sm hover:bg-white/10 text-white flex items-center justify-between transition-colors ${form.selectedSpeakers.some(sel => sel.id === s.id) ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                                                className={`w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 text-slate-800 flex items-center justify-between transition-colors ${form.selectedSpeakers.some(sel => sel.id === s.id) ? 'opacity-40 cursor-not-allowed' : ''}`}>
                                                 <span>
                                                     <strong>{s.fullName}</strong>
-                                                    {s.organisation && <span className="text-white/50 ml-1">({s.organisation})</span>}
-                                                    {isDummy(s) && <span className="ml-1 text-[9px] bg-amber-900/40 text-amber-300 px-1 py-0.5 rounded">Dummy</span>}
+                                                    {s.organisation && <span className="text-slate-400 ml-1">({s.organisation})</span>}
+                                                    {isDummy(s) && <span className="ml-1 text-[9px] bg-amber-100 text-amber-800 px-1 py-0.5 rounded border border-amber-300">Dummy</span>}
                                                 </span>
-                                                <span className="text-[9px] font-mono text-white/30">{s.id}</span>
+                                                <span className="text-[9px] font-mono text-slate-400">{s.id}</span>
                                             </button>
                                         ))}
                                     </div>
                                 )}
                                 {showSpeakerPicker && filteredSpeakers.length === 0 && speakerSearch.trim() && (
-                                    <div className="absolute z-50 mt-1 w-full bg-black/60 backdrop-blur-md border border-white/20 rounded-lg shadow-xl p-3 text-center text-sm text-white/60">
+                                    <div className="absolute z-50 mt-1 w-full bg-slate-50 border border-slate-200 rounded-lg shadow-xl p-3 text-center text-sm text-slate-500">
                                         Keine Speaker gefunden.
                                     </div>
                                 )}
@@ -378,8 +378,8 @@ const SessionSubmission = ({
                         {/* Submit */}
                         <button type="submit" disabled={status.loading || (!isEditing && !canSubmitNew)}
                             className={`w-full py-2.5 px-4 flex items-center justify-center gap-2 transition-colors ${isEditing
-                                    ? 'k-btn-primary !bg-amber-600 border-amber-500 text-white hover:!bg-amber-500 disabled:!bg-[#161616] disabled:!text-[#161616]/60 disabled:!border-slate-800'
-                                    : 'k-btn-primary disabled:opacity-50 disabled:cursor-not-allowed'
+                                ? 'k-btn-primary !bg-amber-600 border-amber-500 text-white hover:!bg-amber-500 disabled:!bg-[#161616] disabled:!text-[#161616]/60 disabled:!border-slate-800'
+                                : 'k-btn-primary disabled:opacity-50 disabled:cursor-not-allowed'
                                 }`}>
                             {status.loading ? (
                                 <><Loader2 className="w-4 h-4 animate-spin" /> {isEditing ? 'Wird aktualisiert...' : 'Wird eingereicht...'}</>
@@ -418,8 +418,8 @@ const SessionSubmission = ({
                                                 <div className="flex items-center gap-2 mb-1">
                                                     <h3 className="font-bold text-white text-sm">{sub.title}</h3>
                                                     <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${sub.status === 'Akzeptiert' ? 'bg-emerald-900/30 text-emerald-400 border border-emerald-500/30' :
-                                                            sub.status === 'Abgelehnt' ? 'bg-red-900/30 text-red-400 border border-red-500/30' :
-                                                                'bg-amber-900/30 text-amber-500 border border-amber-500/30'}`}>
+                                                        sub.status === 'Abgelehnt' ? 'bg-red-900/30 text-red-400 border border-red-500/30' :
+                                                            'bg-amber-900/30 text-amber-500 border border-amber-500/30'}`}>
                                                         {sub.status}
                                                     </span>
                                                 </div>
