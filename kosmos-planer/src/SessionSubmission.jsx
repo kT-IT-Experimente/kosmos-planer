@@ -338,11 +338,14 @@ const SessionSubmission = ({
                                     )}
                                 </div>
                                 {showSpeakerPicker && filteredSpeakers.length > 0 && (
-                                    <div className="absolute z-50 mt-1 w-full bg-white border border-indigo-200 rounded-lg shadow-xl max-h-48 overflow-y-auto">
+                                    <div className="absolute z-50 mt-1 w-full rounded-lg shadow-xl max-h-48 overflow-y-auto" style={{ backgroundColor: '#ffffff', border: '1px solid #B8AED4' }}>
                                         {filteredSpeakers.map(s => (
                                             <button key={s.id} type="button" onClick={() => addSpeaker(s)}
                                                 disabled={form.selectedSpeakers.some(sel => sel.id === s.id)}
-                                                className={`w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 text-slate-800 flex items-center justify-between transition-colors ${form.selectedSpeakers.some(sel => sel.id === s.id) ? 'opacity-40 cursor-not-allowed' : ''}`}>
+                                                className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between transition-colors ${form.selectedSpeakers.some(sel => sel.id === s.id) ? 'opacity-40 cursor-not-allowed' : ''}`}
+                                                style={{ color: '#2E1A6E', backgroundColor: 'transparent' }}
+                                                onMouseEnter={e => e.currentTarget.style.backgroundColor = '#F0EEF7'}
+                                                onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
                                                 <span>
                                                     <strong>{s.fullName}</strong>
                                                     {s.organisation && <span className="text-slate-400 ml-1">({s.organisation})</span>}

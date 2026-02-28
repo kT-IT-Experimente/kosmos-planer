@@ -237,6 +237,20 @@ button[class*="bg-slate-8"] {
   color: var(--k-yellow) !important;
 }
 
+/* Absolute/fixed positioned dropdowns must stay white — not overridden by glass panels */
+.absolute.z-50 {
+  background-color: #ffffff !important;
+  color: #2E1A6E !important;
+}
+
+/* Status badge text always dark for readability */
+[class*="bg-yellow-50"],
+[class*="bg-green-50"],
+[class*="bg-indigo-50"][class*="border-indigo"],
+[class*="bg-red-50"] {
+  color: #1e1e2e !important;
+}
+
 /* Fix modal backdrop to still be dark */
 .fixed[class*="bg-black"] {
   background-color: rgba(0, 0, 0, 0.8) !important;
