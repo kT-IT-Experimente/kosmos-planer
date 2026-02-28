@@ -243,6 +243,23 @@ button[class*="bg-slate-8"] {
   color: #2E1A6E !important;
 }
 
+/* KDS-glass dark mode override — force to white light mode */
+.KDS-glass {
+  background-color: #ffffff !important;
+  border-color: #B8AED4 !important;
+  color: #2E1A6E !important;
+  backdrop-filter: none !important;
+}
+
+/* Individual items inside KDS-glass */
+.KDS-glass button {
+  color: #2E1A6E !important;
+}
+
+.KDS-glass button:hover {
+  background-color: #F0EEF7 !important;
+}
+
 /* Status badge text always dark for readability */
 [class*="bg-yellow-50"],
 [class*="bg-green-50"],
